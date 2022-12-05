@@ -1,0 +1,7 @@
+address = "127.0.0.1:3001"
+peers = ["127.0.0.1:3000", "127.0.0.1:3002"]
+
+pub_key = "5ceaa89e14b1f946627b699a796c8e40fb44fd76abfad4e0338c30b7c86200d5"
+private_key = "cd062ab8e43136f6f925c8dc221bc0a1dce3f908fc0cb924bcdd1bad9814cbc4"
+
+signatures_file = "./tmp/signatures2.txt"

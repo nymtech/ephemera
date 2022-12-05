@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "broadcast",
+    "broadcast-client",
+]
