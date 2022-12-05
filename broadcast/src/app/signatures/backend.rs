@@ -18,10 +18,7 @@ impl SignaturesBackend {
     }
 
     pub fn store(&self, payload: &[u8], signatures: Vec<Signer>) -> Result<(), std::io::Error> {
-        log::debug!(
-            "Storing signatures in {}",
-            self.signatures_file.to_string_lossy()
-        );
+        log::debug!("Storing signatures in {}", self.signatures_file.to_string_lossy());
         let mut file = std::fs::OpenOptions::new()
             .append(true)
             .create(true)

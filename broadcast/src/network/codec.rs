@@ -1,6 +1,5 @@
 ///! A codec for encoding and decoding protobuf messages using  Prost crate.
 ///!
-
 use std::io;
 use std::marker::PhantomData;
 

@@ -7,13 +7,13 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use uuid::Uuid;
 
-use crate::broadcast::{FullGossip, PrePrepareMsg, RbMsg};
 use crate::broadcast::rb_msg::ReliableBroadcast::PrePrepare;
+use crate::broadcast::{FullGossip, PrePrepareMsg, RbMsg};
 use crate::crypto::{Ed25519KeyPair, KeyPair};
 
+mod broadcast;
 mod cli;
 mod crypto;
-mod broadcast;
 
 #[tokio::main]
 async fn main() {
@@ -24,7 +24,7 @@ async fn main() {
         run_reliable_broadcast().await;
     } else if args.keypair {
         generate_keypair().await;
-    }else{
+    } else {
         println!("No command specified, try cargo run -- --help");
     }
 }

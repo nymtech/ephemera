@@ -1,5 +1,5 @@
 ///! Simple gossip protocol which broadcast a message to all peers.
-///! It asks the list of peers from peer_discovery component to which the message should be broadcasted.
+///! It asks the list of peers to which the message should be broadcasted from peer_discovery component
 ///
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};

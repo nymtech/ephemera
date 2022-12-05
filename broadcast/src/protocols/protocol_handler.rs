@@ -3,7 +3,6 @@
 ///!
 ///! Also allows protocol to broadcast messages by forwarding broadcast messages to a broadcaster.
 ///!
-
 use std::{error, io};
 
 use anyhow::Result;

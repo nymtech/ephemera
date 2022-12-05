@@ -1,5 +1,4 @@
 ///! Copy from broadcast workspace
-
 use ed25519_zebra::{Signature, SigningKey, VerificationKey};
 
 #[derive(Debug)]

@@ -1,9 +1,5 @@
-use std::collections::HashSet;
-use std::num::NonZeroUsize;
-use std::time;
-
 ///! This a basic implementation of a protocol where participating peers go through three rounds to
-///! reach a consensus on a message.
+///! reach a consensus on if/when to deliver a message.
 ///!
 ///! PRE-PREPARE:
 ///      1. Upon receiving pre-prepare message, peer sends PREPARE message to all other peers.
@@ -22,24 +18,29 @@ use std::time;
 ///!     5. Commit quorum reached
 ///!
 ///! Callback can return optional (modified) message payload which is sent along with consensus message
-///  instead of the original payload from client.
-///
-///  PS! At the moment it chooses the list of peers who will receive the messages. Actually this should be the responsibility
-///      of the broadcasting/gossiping part of the system. Current design sees this protocol and gossip
-///      protocol semantically equivalent but they seem to be actually different part of the stack like IP and TCP.
-///
-/// Limitations:
-/// - Prepare and commit messages can reach out of order due to network and node processing delays. Nevertheless,
-///   a peer won't commit a message until it receives a quorum of prepare messages.
-/// - Current implementation makes only progress(updates its state machine) when it receives a message from another peer.
-///   If for some reason messages are lost, the protocol will not make progress. This can be fixed by introducing a timer and some concept
-///   of views/epoch.
-/// - It doesn't try to total order different messages. All messages reach quorum consensus independently.
-///   All it does is that a quorum or no quorum of peers deliver the message.
-/// - It doesn't verify the other peers authenticity.
-///   Also this can be a task for an upstream layer(gossip...) which handles networking and peers relationship.
+///!  instead of the original payload from client.
+///!
+///!  PS! At the moment it chooses the list of peers who will receive the messages. Actually this should be the responsibility
+///!      of the broadcasting/gossiping part of the system. Current design sees this protocol and gossip
+///!      protocol semantically equivalent but they seem to be actually different part of the stack like IP and TCP.
+///!
+///! Limitations:
+///! - Prepare and commit messages can reach out of order due to network and node processing delays. Nevertheless,
+///!   a peer won't commit a message until it receives a quorum of prepare messages.
+///! - Current implementation makes only progress(updates its state machine) when it receives a message from another peer.
+///!   If for some reason messages are lost, the protocol will not make progress. This can be fixed by introducing a timer and some concept
+///!   of views/epoch.
+///! - It doesn't try to total order different messages. All messages reach quorum consensus independently.
+///!   All it does is that a quorum or no quorum of peers deliver the message.
+///! - It doesn't verify the other peers authenticity.
+///!   Also this can be a task for an upstream layer(gossip...) which handles networking and peers relationship.
+///!
+///!
 use lru::LruCache;
 use prost_types::Timestamp;
+use std::collections::HashSet;
+use std::num::NonZeroUsize;
+use std::time;
 use thiserror::Error;
 use tokio::time::Instant;
 

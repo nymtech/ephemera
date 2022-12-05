@@ -1,6 +1,4 @@
 ///! Uses the `ed25519-zebra` crate to implement signing and signature verification.
-///
-
 use ed25519_zebra::{Signature, SigningKey, VerificationKey};
 use rand_chacha::rand_core::{RngCore, SeedableRng};
 use thiserror::Error;

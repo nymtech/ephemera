@@ -2,7 +2,6 @@
 ///! and then send a message to each of them.
 ///!
 ///! Should be part of a more general broadcasting module.
-
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Receiver;

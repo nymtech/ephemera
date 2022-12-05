@@ -5,16 +5,15 @@
 ///!
 ///! Signatures verification for a message is not done at the moment.
 ///!
-
 use std::collections::HashMap;
 
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use crate::app::signatures::backend::SignaturesBackend;
 use crate::crypto::ed25519::{Ed25519KeyPair, KeyPair};
 use crate::protocols::implementations::quorum_consensus::quorum_consensus::ConsensusContext;
 use crate::protocols::implementations::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
 use crate::request::RbMsg;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct SignatureRequest {
