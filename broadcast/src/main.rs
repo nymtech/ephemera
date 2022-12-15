@@ -8,11 +8,11 @@ use crate::network::libp2p::gossipsub;
 use crate::network::node::NodeLauncher;
 use crate::network::peer_discovery::StaticPeerDiscovery;
 use crate::network::Network;
-use crate::protocols::implementations::gossip::protocol::FullGossipProtocol;
-use crate::protocols::implementations::quorum_consensus::protocol::QuorumConsensusBroadcastProtocol;
-use crate::protocols::implementations::quorum_consensus::quorum::BasicQuorum;
-use crate::protocols::protocol::Protocol;
-use crate::protocols::protocol_handler::ProtocolHandler;
+use protocol::gossip::protocol::FullGossipProtocol;
+use crate::protocol::Protocol;
+use crate::protocol::protocol_handler::ProtocolHandler;
+use crate::protocol::quorum_consensus::protocol::QuorumConsensusBroadcastProtocol;
+use crate::protocol::quorum_consensus::quorum::BasicQuorum;
 use crate::request::RbMsg;
 use crate::settings::Settings;
 
@@ -20,7 +20,7 @@ mod app;
 mod cli;
 mod crypto;
 mod network;
-mod protocols;
+mod protocol;
 mod settings;
 
 pub mod request {

@@ -4,8 +4,8 @@ use std::time;
 use lru::LruCache;
 use prost_types::Timestamp;
 use thiserror::Error;
+use crate::protocol::{Kind, Protocol, ProtocolRequest, ProtocolResponse};
 
-use crate::protocols::protocol::{Kind, Protocol, ProtocolRequest, ProtocolResponse};
 use crate::request::FullGossip;
 
 pub struct FullGossipProtocol {

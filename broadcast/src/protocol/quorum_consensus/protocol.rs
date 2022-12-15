@@ -45,10 +45,11 @@ use prost_types::Timestamp;
 use thiserror::Error;
 use tokio::time::Instant;
 
-use crate::protocols::implementations::quorum_consensus::protocol::QuorumProtocolError::UnknownBroadcast;
-use crate::protocols::implementations::quorum_consensus::quorum::Quorum;
-use crate::protocols::implementations::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
-use crate::protocols::protocol::{Kind, Protocol, ProtocolRequest, ProtocolResponse};
+
+use crate::protocol::{Kind, Protocol, ProtocolRequest, ProtocolResponse};
+use crate::protocol::quorum_consensus::protocol::QuorumProtocolError::UnknownBroadcast;
+use crate::protocol::quorum_consensus::quorum::Quorum;
+use crate::protocol::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
 use crate::request::rb_msg::ReliableBroadcast;
 use crate::request::rb_msg::ReliableBroadcast::{Ack, Commit, PrePrepare, Prepare};
 use crate::request::{AckMsg, CommitMsg, PrePrepareMsg, PrepareMsg, RbMsg};

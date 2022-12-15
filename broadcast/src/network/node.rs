@@ -4,8 +4,8 @@ use tokio::task::JoinHandle;
 
 use crate::network::client_handler::ClientRequestHandler;
 use crate::network::Network;
-use crate::protocols::protocol::Protocol;
-use crate::protocols::protocol_handler::ProtocolHandler;
+use crate::protocol::Protocol;
+use crate::protocol::protocol_handler::ProtocolHandler;
 use crate::settings::Settings;
 
 pub struct NodeLauncher;

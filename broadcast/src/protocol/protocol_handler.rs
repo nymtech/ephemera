@@ -4,7 +4,7 @@ use anyhow::Result;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::network::{BroadcastMessage, NetworkPacket};
-use crate::protocols::protocol::{Kind, Protocol, ProtocolRequest};
+use crate::protocol::{Kind, Protocol, ProtocolRequest};
 
 pub struct ProtocolHandler<M, P: Protocol<M>> {
     protocol: P,

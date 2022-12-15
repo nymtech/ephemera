@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::signatures::backend::SignaturesBackend;
 use crate::crypto::ed25519::{Ed25519KeyPair, KeyPair};
-use crate::protocols::implementations::quorum_consensus::protocol::ConsensusContext;
-use crate::protocols::implementations::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
+use crate::protocol::quorum_consensus::protocol::ConsensusContext;
+use crate::protocol::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
 use crate::request::RbMsg;
 
 #[derive(Deserialize, Serialize)]

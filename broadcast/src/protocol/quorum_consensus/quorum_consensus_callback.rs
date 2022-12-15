@@ -3,8 +3,7 @@
 ///! and stopping processing by returning errors.
 ///!
 use anyhow::Result;
-
-use crate::protocols::implementations::quorum_consensus::protocol::ConsensusContext;
+use crate::protocol::quorum_consensus::protocol::ConsensusContext;
 
 pub trait QuorumConsensusCallBack<Req, Res>: Send {
     fn pre_prepare(

@@ -11,13 +11,11 @@ mod test {
     use anyhow::Result;
     use prost_types::Timestamp;
     use uuid::Uuid;
+    use crate::protocol::{Kind, Protocol, ProtocolRequest, ProtocolResponse};
+    use crate::protocol::quorum_consensus::protocol::{QuorumConsensusBroadcastProtocol, QuorumProtocolError};
+    use crate::protocol::quorum_consensus::quorum::BasicQuorum;
+    use crate::protocol::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
 
-    use crate::protocols::implementations::quorum_consensus::protocol::{
-        QuorumConsensusBroadcastProtocol, QuorumProtocolError,
-    };
-    use crate::protocols::implementations::quorum_consensus::quorum::BasicQuorum;
-    use crate::protocols::implementations::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
-    use crate::protocols::protocol::{Kind, Protocol, ProtocolRequest, ProtocolResponse};
     use crate::request::rb_msg::ReliableBroadcast::{Commit, PrePrepare, Prepare};
     use crate::request::{CommitMsg, PrePrepareMsg, PrepareMsg, RbMsg};
     use crate::settings::Settings;
@@ -150,7 +148,7 @@ mod test {
 
     fn init_settings() -> HashMap<String, Settings> {
         let file = config::File::from(Path::new(
-            "src/protocols/implementations/quorum_consensus/test/config.toml",
+            "src/protocol/quorum_consensus/test/config.toml",
         ));
         let config = config::Config::builder()
             .add_source(file)

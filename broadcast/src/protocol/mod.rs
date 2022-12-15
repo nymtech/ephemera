@@ -1,3 +1,7 @@
+pub mod protocol_handler;
+pub mod gossip;
+pub mod quorum_consensus;
+
 use std::error::Error;
 
 ///! Very basic abstraction for something which can be called as a protocol over handling requests and returning responses.

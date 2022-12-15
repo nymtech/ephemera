@@ -67,12 +67,12 @@ Network messages are encoded using `protobuf`. The protobuf definition are in `p
 - `Protocol`: simple trait that defines the protocol: `request->response model`.
 
 ### QuorumConsensusBroadcastProtocol
-[Rust doc](src/protocols/implementations/quorum_consensus/protocol)
+[Rust doc](src/protocol/implementations/quorum_consensus/protocol)
 
 This a basic implementation of a protocol where participating peers go through three rounds to reach a consensus about if/when deliver a message.
 
 ### QuorumConsensusCallBack
-[Rust doc](src/protocols/implementations/quorum_consensus/quorum_consensus_callback.rs)
+[Rust doc](src/protocol/implementations/quorum_consensus/quorum_consensus_callback.rs)
 
 A trait which functions are called as part of QuorumConsensusBroadcastProtocol process and can provide 
 custom logic how to process message payload.
@@ -89,7 +89,7 @@ It uses `SignaturesBackend` to write signatures from completed rounds to file.
 It uses [ed25519-zebra](https://crates.io/crates/ed25519-zebra) crate to sign messages.
 
 ### FullGossipProtocol
-[Rust doc](src/protocols/implementations/gossip/protocol)
+[Rust doc](src/protocol/implementations/gossip/protocol)
 
 Simple gossip protocol which broadcast a message to all peers first time when it ses it. 
 
