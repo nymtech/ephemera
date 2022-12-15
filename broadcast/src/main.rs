@@ -1,17 +1,19 @@
-use network::codec::ProtoCodec;
+use tokio::task::JoinHandle;
 
 use crate::app::signatures::backend::SignaturesBackend;
 use crate::app::signatures::callback::SigningQuorumConsensusCallBack;
-use crate::crypto::ed25519::Ed25519KeyPair;
+use crate::crypto::ed25519::{Ed25519KeyPair, KeyPair};
+use crate::network::basic;
+use crate::network::libp2p::gossipsub;
 use crate::network::node::NodeLauncher;
-use crate::network::peer_discovery::{StaticPeerDiscovery, Topology};
-use crate::protocols::implementations::gossip::full_gossip::{FullGossipError, FullGossipProtocol};
+use crate::network::peer_discovery::StaticPeerDiscovery;
+use crate::network::Network;
+use crate::protocols::implementations::gossip::protocol::FullGossipProtocol;
+use crate::protocols::implementations::quorum_consensus::protocol::QuorumConsensusBroadcastProtocol;
 use crate::protocols::implementations::quorum_consensus::quorum::BasicQuorum;
-use crate::protocols::implementations::quorum_consensus::quorum_consensus::{
-    QuorumConsensusBroadcastProtocol, QuorumProtocolError,
-};
+use crate::protocols::protocol::Protocol;
 use crate::protocols::protocol_handler::ProtocolHandler;
-use crate::request::{FullGossip, RbMsg};
+use crate::request::RbMsg;
 use crate::settings::Settings;
 
 mod app;
@@ -25,44 +27,58 @@ pub mod request {
     include!(concat!(env!("OUT_DIR"), "/broadcast.rs"));
 }
 
+const CONFIG_DIR: &str = "configuration";
+
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
 
     let args = cli::parse_args();
-    let settings = Settings::load("configuration", args.config_file.as_str());
+    let settings = Settings::load(CONFIG_DIR, args.config_file.as_str());
 
-    let handle = NodeLauncher::with_settings(settings)
-        .launch(move |rcv, tx, settings| {
-            let handler = quorum_consensus_handler(settings);
-            Box::pin(handler.run(rcv, tx))
-        })
-        .await;
+    //Basic network
+    let _network = basic::create_basic_network(&settings);
 
-    handle.await.unwrap();
+    //Or libp2p
+    let network = gossipsub::create_swarm(&settings);
+
+    //Basic floodsub
+    let _protocol = gossip_protocol(&settings);
+
+    //Or quorum consensus
+    let protocol = quorum_consensus(settings.clone());
+
+    launch(network, protocol, settings)
+        .await
+        .expect("Failed to launch node");
 }
 
-fn quorum_consensus_handler(
+fn launch<
+    N: Network + Send + 'static,
+    M: prost::Message + Send + Sync + Default + 'static,
+    P: Protocol<M> + Send + 'static,
+>(
+    network: N,
+    protocol: P,
     settings: Settings,
-) -> ProtocolHandler<RbMsg, RbMsg, Vec<u8>, QuorumProtocolError> {
-    //TODO: clarify relationship between quorum, topology and peer discovery
-    let keypair = Ed25519KeyPair::from_hex(settings.private_key.as_ref()).unwrap();
-    let topology = Topology::new(&settings);
-    let peer_discovery = StaticPeerDiscovery::new(topology.clone());
+) -> JoinHandle<()> {
+    let protocol_handler = ProtocolHandler::new(protocol);
+    NodeLauncher::launch(settings, network, protocol_handler)
+}
+
+fn quorum_consensus(settings: Settings) -> QuorumConsensusBroadcastProtocol<RbMsg, RbMsg> {
+    let keypair = Ed25519KeyPair::generate().unwrap(); //TODO
+
     let backend = SignaturesBackend::new(&settings);
-    let protocol = QuorumConsensusBroadcastProtocol::new(
-        Box::new(peer_discovery),
-        Box::new(BasicQuorum::new(topology.peers.len() + 1)),
+    let quorum = Box::new(BasicQuorum::new(settings.quorum.clone()));
+    QuorumConsensusBroadcastProtocol::new(
+        quorum,
         Box::new(SigningQuorumConsensusCallBack::new(keypair, backend)),
         settings,
-    );
-    ProtocolHandler::new(Box::new(protocol), ProtoCodec::new())
+    )
 }
 
-fn gossip_protocol_handler(
-    topology: Topology,
-) -> ProtocolHandler<FullGossip, FullGossip, Vec<u8>, FullGossipError> {
-    let peer_discovery = StaticPeerDiscovery::new(topology);
-    let protocol = FullGossipProtocol::new(Box::new(peer_discovery));
-    ProtocolHandler::new(Box::new(protocol), ProtoCodec::new())
+fn gossip_protocol(settings: &Settings) -> FullGossipProtocol {
+    let _peer_discovery = StaticPeerDiscovery::new(settings);
+    FullGossipProtocol::new()
 }

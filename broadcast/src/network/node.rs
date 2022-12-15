@@ -1,59 +1,43 @@
-///!Starts network listener, protocol handler and broadcaster
-///!
-///
-use std::future::Future;
-use std::pin::Pin;
-
 use prost::Message;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::network::broadcaster;
-use crate::network::listener::{NetworkListener, NetworkPacket};
+use crate::network::basic::client_handler::ClientRequestHandler;
+use crate::network::Network;
+use crate::protocols::protocol::Protocol;
+use crate::protocols::protocol_handler::ProtocolHandler;
 use crate::settings::Settings;
 
-pub struct NodeLauncher {
-    settings: Settings,
-}
+pub struct NodeLauncher;
 
+///! 1) Starts ClientRequestHandler to listen requests from clients
+///! 2) Starts Network to listen network protocol messages
+///! 3) Starts ProtocolHandler to handle protocol messages
 impl NodeLauncher {
-    pub fn with_settings(settings: Settings) -> NodeLauncher {
-        NodeLauncher { settings }
-    }
-
-    pub async fn launch<F, R>(self, start_protocol: F) -> JoinHandle<()>
+    pub fn launch<R, N, P>(
+        settings: Settings,
+        network: N,
+        protocol_handler: ProtocolHandler<R, P>,
+    ) -> JoinHandle<()>
     where
-        F: FnOnce(
-                mpsc::Receiver<NetworkPacket<R>>,
-                mpsc::Sender<broadcaster::BroadcastMessage>,
-                Settings,
-            ) -> Pin<Box<dyn Future<Output = ()> + Send>>
-            + Send
-            + 'static,
         R: Message + Default + Send + 'static,
+        N: Network + Send + 'static,
+        P: Protocol<R> + Send + 'static,
     {
-        let (tx_pr, rcv_pr) = mpsc::channel(1024);
-        let (tx_br, rcv_br) = mpsc::channel(1024);
+        let (broadcast_sender, broadcast_receiver) = mpsc::channel(500);
+        let (to_protocol, from_protocol) = mpsc::channel(500);
 
-        let settings = self.settings.clone();
-
-        //Handle incoming connections
-        let network_handle = tokio::spawn(async move {
-            let network = NetworkListener::new(settings);
-            network.listen(tx_pr).await;
-        });
-
-        //Handle broadcast requests
+        let client_handler = ClientRequestHandler::new(to_protocol.clone(), &settings);
         tokio::spawn(async move {
-            let broadcaster = broadcaster::Broadcaster::default();
-            broadcaster.run(rcv_br).await;
+            client_handler.run().await;
         });
 
-        //Handle protocol requests
         tokio::spawn(async move {
-            start_protocol(rcv_pr, tx_br, self.settings).await;
+            network
+                .start(settings, to_protocol.clone(), broadcast_receiver)
+                .await;
         });
 
-        network_handle
+        tokio::spawn(async move { protocol_handler.run(from_protocol, broadcast_sender).await })
     }
 }

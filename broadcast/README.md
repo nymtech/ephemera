@@ -24,22 +24,38 @@ arrive over the single channel from network.
 
 This also means synchronous processing and extra coping the data when it's send over the channel.
 
-### Networking
+## Networking
 
-At current stage networking is very basic `send and forget` system. It opens a new connection for every request.
+`Network` trait is implemented by both basic networking and also for libp2p stack.
+
+[Rust doc](src/network/mod.rs)
+
+### Basic implementation
+
+Networking is very basic `send and forget` system. It opens a new connection for every request.
 It also doesn't have a notion of timeouts, acknowledgements and retries. Nor has network level encryption.
 
- - `NetworkListener`: listens for incoming connection requests
-   - Currently, both client and protocol request use the same listener(i.e. the same socket).
+ - `NetworkListener`: listens for incoming connection requests and sends protocol messages to network
  - `ConnectionHandler`: listens incoming messages per connection and forwards them to ProtocolHandler
- - `Broadcaster`: listens internal broadcast messages and sends these to other peers
  - `PeerDiscovery`: knows about the peers participating in the protocol. Right now it's implemented as a static list of peers:
-   - StaticPeerDiscovery - reads the list of peers from a file
+   - `StaticPeerDiscovery` - reads the list of peers from configuration file
 
-
-### Peers identity
+#### Peers identity
 
 Currently, peers are simply identified by their id in a message. It could be improved with actual PKI and membership.
+
+### Libp2p implementation
+
+libp2p Swarm implements Network trait like the basic implementation.
+
+It uses libp2p's `Gossipsub protocol` for broadcasting and listening gossip messages. For network security it uses libp2p default `Noise protocol`.
+
+Similarly to the basic implementation, it uses `StaticPeerDiscovery` to know about the peers participating in the protocol. 
+This should be replaced with an actual discovery protocol(`libp2p's Kademlia DHT`).
+
+#### Peers identity
+
+libp2p `PeerId` is created using peer's public key. 
 
 ### Messages encoding
 
@@ -51,7 +67,7 @@ Network messages are encoded using `protobuf`. The protobuf definition are in `p
 - `Protocol`: simple trait that defines the protocol: `request->response model`.
 
 ### QuorumConsensusBroadcastProtocol
-[Rust doc](src/protocols/implementations/quorum_consensus/quorum_consensus.rs)
+[Rust doc](src/protocols/implementations/quorum_consensus/protocol)
 
 This a basic implementation of a protocol where participating peers go through three rounds to reach a consensus about if/when deliver a message.
 
@@ -73,12 +89,9 @@ It uses `SignaturesBackend` to write signatures from completed rounds to file.
 It uses [ed25519-zebra](https://crates.io/crates/ed25519-zebra) crate to sign messages.
 
 ### FullGossipProtocol
-[Rust doc](src/protocols/implementations/gossip/full_gossip.rs)
+[Rust doc](src/protocols/implementations/gossip/protocol)
 
-Simple gossip protocol which broadcast a message to all peers. It doesn't do any networking. It only decides who will get the message and
-when to deliver it. 
-
-It is not very clear yet if it should be a separate protocol at all or just part of a general gossip networking stack.
+Simple gossip protocol which broadcast a message to all peers first time when it ses it. 
 
 ### Configuration
 

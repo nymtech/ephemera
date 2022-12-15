@@ -48,7 +48,7 @@ impl KeyPair for Ed25519KeyPair {
     fn sign<M: AsRef<[u8]>>(&self, message: M) -> Result<Self::Signature, KeyPairError> {
         let signature = self.signing_key.sign(message.as_ref());
         let sig_data: [u8; 64] = signature.into();
-        Ok(array_bytes::bytes2hex("", &sig_data))
+        Ok(array_bytes::bytes2hex("", sig_data))
     }
 
     fn generate(seed: &Self::Seed) -> Result<Self, KeyPairError> {

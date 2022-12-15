@@ -1,42 +1,34 @@
-///! Receives messages from network and passes them to protocol.
-///! Supports encoding and decoding of messages for a specific protocol.
-///!
-///! Also allows protocol to broadcast messages by forwarding broadcast messages to a broadcaster.
-///!
-use std::{error, io};
+use std::marker::PhantomData;
 
 use anyhow::Result;
-use bytes::BytesMut;
-use prost::Message;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio_util::codec::Encoder;
 
-use crate::network::broadcaster::BroadcastMessage;
-use crate::network::codec::ProtoCodec;
-use crate::network::listener::NetworkPacket;
-use crate::protocols::protocol::{Kind, Protocol, ProtocolRequest, ProtocolResponse};
+use crate::network::basic::listener::NetworkPacket;
+use crate::network::BroadcastMessage;
+use crate::protocols::protocol::{Kind, Protocol, ProtocolRequest};
 
-type ProtocolBox<Req, Res, Msg, E> = Box<dyn Protocol<Req, Res, Msg, Error = E> + Send>;
-
-pub struct ProtocolHandler<Req, Res, Msg, E> {
-    protocol: ProtocolBox<Req, Res, Msg, E>,
-    codec: ProtoCodec<Req, Res>,
+pub struct ProtocolHandler<M, P: Protocol<M>> {
+    protocol: P,
+    _phantom: PhantomData<M>,
 }
 
-impl<Req, Res, Msg, E> ProtocolHandler<Req, Res, Msg, E>
+impl<M, P> ProtocolHandler<M, P>
 where
-    Req: Message + Default + Clone,
-    Res: Message,
-    E: error::Error + Send + Sync + 'static,
+    P: Protocol<M>,
 {
-    pub fn new(
-        protocol: Box<dyn Protocol<Req, Res, Msg, Error = E> + Send>,
-        codec: ProtoCodec<Req, Res>,
-    ) -> ProtocolHandler<Req, Res, Msg, E> {
-        Self { protocol, codec }
+    pub fn new(protocol: P) -> ProtocolHandler<M, P> {
+        Self {
+            protocol,
+            _phantom: Default::default(),
+        }
     }
 
-    pub async fn run(mut self, mut rcv_net: Receiver<NetworkPacket<Req>>, tx_br: Sender<BroadcastMessage>) {
+    pub async fn run(
+        mut self,
+        mut rcv_net: Receiver<NetworkPacket<M>>,
+        tx_br: Sender<BroadcastMessage<P::Response>>,
+    ) {
+        log::info!("Started ProtocolHandler");
         while let Some(np) = rcv_net.recv().await {
             if let Err(err) = self.process_packet(&tx_br, np).await {
                 log::error!("Error processing packet: {}", err);
@@ -46,45 +38,23 @@ where
 
     async fn process_packet(
         &mut self,
-        tx_br: &Sender<BroadcastMessage>,
-        np: NetworkPacket<Req>,
+        tx_br: &Sender<BroadcastMessage<P::Response>>,
+        np: NetworkPacket<M>,
     ) -> Result<()> {
         let pr_req = ProtocolRequest {
-            origin_host: np.addr,
+            origin_host: np.addr.to_string(),
             message: np.payload,
         };
 
         let pr_resp = self.protocol.handle(pr_req).await?;
-        if pr_resp.kind == Kind::BROADCAST {
-            if let Err(e) = self.broadcast(&tx_br, pr_resp).await {
-                log::error!("Error broadcasting message: {}", e);
+        if pr_resp.kind == Kind::Broadcast {
+            let bm = BroadcastMessage {
+                message: pr_resp.protocol_reply,
+            };
+            if let Err(err) = tx_br.send(bm).await {
+                log::error!("Error sending broadcast message: {}", err);
             }
         }
         Ok(())
-    }
-
-    async fn broadcast(
-        &mut self,
-        tx_br: &Sender<BroadcastMessage>,
-        pro_res: ProtocolResponse<Res>,
-    ) -> Result<(), String> {
-        let encoded = self
-            .encode_packet(pro_res.protocol_reply)
-            .map_err(|e| format!("Error encoding packet: {}", e))?;
-
-        let br_msg = BroadcastMessage {
-            peers: pro_res.peers,
-            payload: encoded.clone(),
-        };
-        if let Err(err) = tx_br.send(br_msg).await {
-            log::error!("Error sending broadcast message: {}", err);
-        }
-        Ok(())
-    }
-
-    fn encode_packet(&mut self, packet: Res) -> Result<Vec<u8>, io::Error> {
-        let mut buf = BytesMut::new();
-        self.codec.encode(packet, &mut buf)?;
-        Ok(buf.to_vec())
     }
 }

@@ -7,13 +7,14 @@
 ///!
 use std::collections::HashMap;
 
-use crate::app::signatures::backend::SignaturesBackend;
-use crate::crypto::ed25519::{Ed25519KeyPair, KeyPair};
-use crate::protocols::implementations::quorum_consensus::quorum_consensus::ConsensusContext;
-use crate::protocols::implementations::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
-use crate::request::RbMsg;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+
+use crate::app::signatures::backend::SignaturesBackend;
+use crate::crypto::ed25519::{Ed25519KeyPair, KeyPair};
+use crate::protocols::implementations::quorum_consensus::protocol::ConsensusContext;
+use crate::protocols::implementations::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
+use crate::request::RbMsg;
 
 #[derive(Deserialize, Serialize)]
 pub struct SignatureRequest {
@@ -50,7 +51,7 @@ impl SigningQuorumConsensusCallBack {
     }
 }
 
-impl QuorumConsensusCallBack<RbMsg, RbMsg, Vec<u8>> for SigningQuorumConsensusCallBack {
+impl QuorumConsensusCallBack<RbMsg, RbMsg> for SigningQuorumConsensusCallBack {
     fn pre_prepare(
         &mut self,
         msg_id: String,
@@ -78,11 +79,11 @@ impl QuorumConsensusCallBack<RbMsg, RbMsg, Vec<u8>> for SigningQuorumConsensusCa
             signature: signature.clone(),
         };
         scr.signatures.insert(ctx.local_address.clone(), signer);
-        self.requests.insert(msg_id.clone(), scr);
+        self.requests.insert(msg_id, scr);
 
         let result = serde_json::to_vec(&SignatureRequest { payload, signature })?;
 
-        return Ok(Some(result));
+        Ok(Some(result))
     }
     fn prepare(
         &mut self,
@@ -117,7 +118,7 @@ impl QuorumConsensusCallBack<RbMsg, RbMsg, Vec<u8>> for SigningQuorumConsensusCa
         );
         if !ctx.original_sender && !scr.signatures.contains_key(&ctx.local_address) {
             let payload = sig_req.payload.clone();
-            let signature = self.keypair.sign_hex(&payload.as_slice())?;
+            let signature = self.keypair.sign_hex(payload.as_slice())?;
 
             let signer = Signer {
                 id: ctx.local_address.clone(),
@@ -131,10 +132,11 @@ impl QuorumConsensusCallBack<RbMsg, RbMsg, Vec<u8>> for SigningQuorumConsensusCa
         }
         Ok(None)
     }
-    fn committed(&self, state: &ConsensusContext) -> Result<()> {
+    fn committed(&mut self, state: &ConsensusContext) -> Result<()> {
         log::debug!("COMMITTED");
-        let id = &state.id;
-        if let Some(scr) = self.requests.get(id) {
+
+        //Trust protocol to remember which messages were already sent to callback
+        if let Some(scr) = self.requests.remove(&state.id) {
             let cloned = scr.signatures.values().cloned();
             let signatures = cloned.collect::<Vec<Signer>>();
             self.backend.store(&scr.payload, signatures)?

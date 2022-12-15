@@ -1,7 +1,25 @@
-address = "127.0.0.1:3000"
-peers = ["127.0.0.1:3001", "127.0.0.1:3002"]
+address = "/ip4/127.0.0.1/tcp/3000"
+client_listener = "127.0.0.1:4000"
 
-pub_key = "e3fccb3e1a5f787cb2281a9e66bc5b5edb5fefad81b6db8fd1f987e219b776e4"
-private_key = "0b1edfbb007800455996c414cfafd8aa4c8a7703a0eea43b289a719fdf9f8a6a"
+pub_key = "080112205a963d68566ef562a99355a522cf27004e9c9d38ba158a9ea1777c16ca9db4cf"
+private_key = "080112401b83ad08b9c41db8af22cde63c13d3ccbcfcf86975467bf6818beb4e1ee14e6d5a963d68566ef562a99355a522cf27004e9c9d38ba158a9ea1777c16ca9db4cf"
 
 signatures_file = "./tmp/signatures1.txt"
+
+[quorum]
+threshold = 3
+total = 3
+
+[gossipsub]
+topic_name = "nyx-gossipsub"
+heartbeat_interval_sec = 10
+
+[[gossipsub.peers]]
+name = "peer2"
+address = "/ip4/127.0.0.1/tcp/3001"
+pub_key = "08011220c4722442dd5eaf8adfec16a7620d64a26561f40f8c51178cd6b01163cb157b75"
+
+[[gossipsub.peers]]
+name = "peer3"
+address = "/ip4/127.0.0.1/tcp/3002"
+pub_key = "08011220b68391023861e654f29d1c1d2bc5e943cab231bcbc600ae036f33e7792bc7087"

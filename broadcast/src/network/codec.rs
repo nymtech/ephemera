@@ -1,5 +1,4 @@
 ///! A codec for encoding and decoding protobuf messages using  Prost crate.
-///!
 use std::io;
 use std::marker::PhantomData;
 
@@ -7,6 +6,7 @@ use bytes::{Buf, BytesMut};
 use prost::Message;
 use tokio_util::codec::{Decoder, Encoder};
 
+#[derive(Clone)]
 pub struct ProtoCodec<I, O> {
     _incoming: PhantomData<I>,
     _outgoing: PhantomData<O>,
@@ -37,6 +37,11 @@ impl<I: Message + Default, O: Message> Decoder for ProtoCodec<I, O> {
         };
         let remaining = decode_view.remaining() as u64;
         if remaining < type_size {
+            log::debug!(
+                "Not enough bytes to decode message. Remaining: {}, type_size: {}",
+                remaining,
+                type_size
+            );
             Ok(None)
         } else {
             let delim_len = total_bytes - decode_view.remaining();

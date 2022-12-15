@@ -10,15 +10,12 @@ mod test {
 
     use anyhow::Result;
     use prost_types::Timestamp;
-    use serde::Deserialize;
-
     use uuid::Uuid;
 
-    use crate::network::peer_discovery::{StaticPeerDiscovery, Topology};
-    use crate::protocols::implementations::quorum_consensus::quorum::BasicQuorum;
-    use crate::protocols::implementations::quorum_consensus::quorum_consensus::{
+    use crate::protocols::implementations::quorum_consensus::protocol::{
         QuorumConsensusBroadcastProtocol, QuorumProtocolError,
     };
+    use crate::protocols::implementations::quorum_consensus::quorum::BasicQuorum;
     use crate::protocols::implementations::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
     use crate::protocols::protocol::{Kind, Protocol, ProtocolRequest, ProtocolResponse};
     use crate::request::rb_msg::ReliableBroadcast::{Commit, PrePrepare, Prepare};
@@ -30,49 +27,38 @@ mod test {
     #[derive(Debug, Default)]
     struct DummyCallback {}
 
-    impl QuorumConsensusCallBack<RbMsg, RbMsg, Vec<u8>> for DummyCallback {}
+    impl QuorumConsensusCallBack<RbMsg, RbMsg> for DummyCallback {}
 
     struct PeerTestInstance {
-        protocol: QuorumConsensusBroadcastProtocol<RbMsg, RbMsg, Vec<u8>>,
+        protocol: QuorumConsensusBroadcastProtocol<RbMsg, RbMsg>,
     }
 
     impl PeerTestInstance {
-        fn new(quorum: BasicQuorum, peer_discovery: StaticPeerDiscovery, settings: Settings) -> Self {
+        fn new(settings: Settings) -> Self {
             let callback = DummyCallback::default();
-            let protocol = QuorumConsensusBroadcastProtocol::new(
-                Box::new(peer_discovery),
-                Box::new(quorum),
-                Box::new(callback),
-                settings,
-            );
+            let quorum = BasicQuorum::new(settings.quorum.clone());
+            let protocol =
+                QuorumConsensusBroadcastProtocol::new(Box::new(quorum), Box::new(callback), settings);
             PeerTestInstance { protocol }
         }
     }
 
     struct TestSuite {
-        quorum: BasicQuorum,
         peers: HashMap<String, PeerTestInstance>,
     }
 
     impl TestSuite {
         fn new() -> Self {
-            let quorum = BasicQuorum::new(3);
             let peer_settings = init_settings();
-
             let mut peers = HashMap::new();
             for (id, settings) in peer_settings.into_iter() {
-                peers.insert(
-                    id.clone(),
-                    TestSuite::new_peer(id.clone(), settings, quorum.clone()),
-                );
+                peers.insert(id.clone(), TestSuite::new_peer(settings));
             }
-            Self { quorum, peers }
+            Self { peers }
         }
 
-        fn new_peer(_peer_id: String, settings: Settings, quorum: BasicQuorum) -> PeerTestInstance {
-            let topology = Topology::new(&settings);
-            let peer_discovery = StaticPeerDiscovery::new(topology);
-            PeerTestInstance::new(quorum.clone(), peer_discovery, settings.clone())
+        fn new_peer(settings: Settings) -> PeerTestInstance {
+            PeerTestInstance::new(settings.clone())
         }
 
         fn get_peer(&mut self, peer_id: &str) -> &mut PeerTestInstance {
@@ -162,15 +148,6 @@ mod test {
         }
     }
 
-    async fn init_topology(settings: Settings) -> Topology {
-        Topology::new(&settings)
-    }
-
-    #[derive(Deserialize, Debug, Clone)]
-    struct PeerSettings {
-        peers: HashMap<String, Settings>,
-    }
-
     fn init_settings() -> HashMap<String, Settings> {
         let file = config::File::from(Path::new(
             "src/protocols/implementations/quorum_consensus/test/config.toml",
@@ -192,8 +169,7 @@ mod test {
 
         let response = suite.send_pre_prepare("peer1", payload.clone()).await.unwrap();
 
-        assert_eq!(response.kind, Kind::BROADCAST);
-        assert_eq!(response.peers, vec!["peer2", "peer3"]);
+        assert_eq!(response.kind, Kind::Broadcast);
         assert_eq!(response.protocol_reply.node_id, "peer1");
         let rbm = response.protocol_reply.reliable_broadcast.unwrap();
         assert_eq!(rbm, Prepare(PrepareMsg { payload }));
@@ -210,8 +186,7 @@ mod test {
             .await
             .unwrap();
 
-        assert_eq!(response.kind, Kind::BROADCAST);
-        assert_eq!(response.peers, vec!["peer2", "peer3"]);
+        assert_eq!(response.kind, Kind::Broadcast);
         assert_eq!(response.protocol_reply.node_id, "peer1");
         let rbm = response.protocol_reply.reliable_broadcast.unwrap();
         assert_eq!(rbm, Prepare(PrepareMsg { payload }));
@@ -245,8 +220,7 @@ mod test {
             .await
             .unwrap();
 
-        assert_eq!(response.kind, Kind::BROADCAST);
-        assert_eq!(response.peers, vec!["peer2", "peer3"]);
+        assert_eq!(response.kind, Kind::Broadcast);
         assert_eq!(response.protocol_reply.node_id, "peer1");
         let rbm = response.protocol_reply.reliable_broadcast.unwrap();
         assert_eq!(rbm, Commit(CommitMsg {}));

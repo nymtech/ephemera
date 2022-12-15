@@ -1,34 +1,90 @@
 [peer1]
 address = "peer1"
+client_listener = "peer1"
 peers = ["peer2", "peer3"]
 broadcast_timeout = 5
 poll_peer_connections_wait_sec = 5
 
-pub_key = "e3fccb3e1a5f787cb2281a9e66bc5b5edb5fefad81b6db8fd1f987e219b776e4"
-private_key = "0b1edfbb007800455996c414cfafd8aa4c8a7703a0eea43b289a719fdf9f8a6a"
+pub_key = "peer1"
+private_key = "peer1"
 
-signatures_file = "./signatures1.txt"
+signatures_file = "peer1"
 
+[peer1.quorum]
+threshold = 3
+total = 3
+
+[peer1.gossipsub]
+topic_name = "nyx-gossipsub"
+heartbeat_interval_sec = 10
+
+[[peer1.gossipsub.peers]]
+name = "peer2"
+address = "peer2"
+pub_key = "peer2"
+
+[[peer1.gossipsub.peers]]
+name = "peer3"
+address = "peer3"
+pub_key = "peer3"
 
 [peer2]
 address = "peer2"
+client_listener = "peer2"
 peers = ["peer1", "peer3"]
 broadcast_timeout = 5
 poll_peer_connections_wait_sec = 5
 
-pub_key = "e3fccb3e1a5f787cb2281a9e66bc5b5edb5fefad81b6db8fd1f987e219b776e4"
-private_key = "0b1edfbb007800455996c414cfafd8aa4c8a7703a0eea43b289a719fdf9f8a6a"
+pub_key = "peer2"
+private_key = "peer2"
 
-signatures_file = "./signatures1.txt"
+signatures_file = "peer2"
+
+[peer2.quorum]
+threshold = 3
+total = 3
+
+[peer2.gossipsub]
+topic_name = "nyx-gossipsub"
+heartbeat_interval_sec = 10
+
+[[peer2.gossipsub.peers]]
+name = "peer1"
+address = "peer1"
+pub_key = "peer1"
+
+[[peer2.gossipsub.peers]]
+name = "peer3"
+address = "peer3"
+pub_key = "peer3"
 
 
 [peer3]
 address = "peer3"
+client_listener = "peer3"
 peers = ["peer1", "peer2"]
 broadcast_timeout = 5
 poll_peer_connections_wait_sec = 5
 
-pub_key = "e3fccb3e1a5f787cb2281a9e66bc5b5edb5fefad81b6db8fd1f987e219b776e4"
-private_key = "0b1edfbb007800455996c414cfafd8aa4c8a7703a0eea43b289a719fdf9f8a6a"
+pub_key = "peer3"
+private_key = "peer3"
 
-signatures_file = "./signatures1.txt"
+signatures_file = "peer3"
+
+[peer3.quorum]
+threshold = 3
+total = 3
+
+[peer3.gossipsub]
+topic_name = "nyx-gossipsub"
+heartbeat_interval_sec = 10
+
+[[peer3.gossipsub.peers]]
+name = "peer1"
+address = "peer1"
+pub_key = "peer1"
+
+[[peer3.gossipsub.peers]]
+name = "peer2"
+address = "peer2"
+pub_key = "peer2"

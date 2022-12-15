@@ -1,1 +1,1 @@
-pub mod full_gossip;
+pub mod protocol;

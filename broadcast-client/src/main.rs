@@ -2,18 +2,19 @@ use std::thread;
 
 use bytes::BytesMut;
 use prost_types::Timestamp;
-use rand_chacha::rand_core::{RngCore, SeedableRng};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use crate::broadcast::rb_msg::ReliableBroadcast::PrePrepare;
 use crate::broadcast::{FullGossip, PrePrepareMsg, RbMsg};
-use crate::crypto::{Ed25519KeyPair, KeyPair};
+use crate::libp2p2_crypto::{KeyPair, Libp2pKeypair};
 
 mod broadcast;
 mod cli;
+mod command;
 mod crypto;
+mod libp2p2_crypto;
 
 #[tokio::main]
 async fn main() {
@@ -30,16 +31,19 @@ async fn main() {
 }
 
 async fn generate_keypair() {
-    let mut rng = rand::rngs::StdRng::from_entropy();
-    let mut seed = [0u8; 32];
-    rng.fill_bytes(&mut seed);
-    let pair = Ed25519KeyPair::generate(&seed).unwrap();
-    println!("Public key: {}", hex::encode(pair.verification_key));
-    println!("Private key: {}", hex::encode(pair.signing_key));
+    let pair = Libp2pKeypair::generate(&[]).unwrap();
+    println!(
+        "Public key: {}",
+        hex::encode(pair.0.public().to_protobuf_encoding())
+    );
+    println!(
+        "Private key: {}",
+        hex::encode(pair.0.to_protobuf_encoding().unwrap())
+    );
 }
 
 async fn run_reliable_broadcast() {
-    let mut conn = TcpStream::connect("127.0.0.1:3000").await.unwrap();
+    let mut conn = TcpStream::connect("127.0.0.1:4000").await.unwrap();
     loop {
         let mut message = quorum_message();
         conn.write_buf(&mut message).await.unwrap();
@@ -48,11 +52,11 @@ async fn run_reliable_broadcast() {
 }
 
 async fn run_gossip() {
-    let mut conn = TcpStream::connect("127.0.0.1:3000").await.unwrap();
+    let mut conn = TcpStream::connect("127.0.0.1:4000").await.unwrap();
     loop {
         let mut message = gossip_message();
         conn.write_buf(&mut message).await.unwrap();
-        thread::sleep(std::time::Duration::from_millis(3000));
+        thread::sleep(std::time::Duration::from_millis(10000));
     }
 }
 

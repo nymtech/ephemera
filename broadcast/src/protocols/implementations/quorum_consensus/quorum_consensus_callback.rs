@@ -4,16 +4,16 @@
 ///!
 use anyhow::Result;
 
-use crate::protocols::implementations::quorum_consensus::quorum_consensus::ConsensusContext;
+use crate::protocols::implementations::quorum_consensus::protocol::ConsensusContext;
 
-pub trait QuorumConsensusCallBack<Req, Res, Body>: Send {
+pub trait QuorumConsensusCallBack<Req, Res>: Send {
     fn pre_prepare(
         &mut self,
         _msg_id: String,
         _sender: String,
         _payload: Vec<u8>,
         _ctx: &ConsensusContext,
-    ) -> Result<Option<Body>> {
+    ) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
     fn prepare(
@@ -22,16 +22,16 @@ pub trait QuorumConsensusCallBack<Req, Res, Body>: Send {
         _sender: String,
         _payload: Vec<u8>,
         _ctx: &ConsensusContext,
-    ) -> Result<Option<Body>> {
+    ) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
     fn commit(&mut self, _msg_id: String, _sender: String, _ctx: &ConsensusContext) -> Result<()> {
         Ok(())
     }
-    fn prepared(&self, _ctx: &ConsensusContext) -> Result<()> {
+    fn prepared(&mut self, _ctx: &ConsensusContext) -> Result<()> {
         Ok(())
     }
-    fn committed(&self, _ctx: &ConsensusContext) -> Result<()> {
+    fn committed(&mut self, _ctx: &ConsensusContext) -> Result<()> {
         Ok(())
     }
 }
