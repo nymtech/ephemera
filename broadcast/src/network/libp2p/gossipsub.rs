@@ -22,10 +22,9 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::codec::Decoder;
 use tokio_util::codec::Encoder;
 
-use crate::network::basic::listener::NetworkPacket;
 use crate::network::codec::ProtoCodec;
 use crate::network::peer_discovery::{PeerDiscovery, StaticPeerDiscovery};
-use crate::network::{BroadcastMessage, Network};
+use crate::network::{BroadcastMessage, Network, NetworkPacket};
 use crate::settings::Settings;
 
 #[async_trait]

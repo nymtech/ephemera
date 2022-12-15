@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::network::basic::listener::NetworkPacket;
 use crate::settings::Settings;
 
 pub mod basic;
@@ -9,6 +8,7 @@ pub mod codec;
 pub mod libp2p;
 pub mod node;
 pub mod peer_discovery;
+pub mod client_handler;
 
 ///! Network trait is responsible for network stack. It passes messages from network to protocol
 /// and from protocol to network.
@@ -26,4 +26,16 @@ pub trait Network {
 
 pub struct BroadcastMessage<M> {
     pub message: M,
+}
+
+#[derive(Debug)]
+pub struct NetworkPacket<R> {
+    pub addr: String,
+    pub payload: R,
+}
+
+impl<R> NetworkPacket<R> {
+    pub fn new(addr: String, payload: R) -> NetworkPacket<R> {
+        NetworkPacket { addr, payload }
+    }
 }

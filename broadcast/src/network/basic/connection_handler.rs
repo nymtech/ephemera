@@ -4,8 +4,8 @@ use tokio::sync::mpsc::Sender;
 use tokio_stream::StreamExt;
 use tokio_util::codec::FramedRead;
 
-use crate::network::basic::listener::NetworkPacket;
 use crate::network::codec::ProtoCodec;
+use crate::network::NetworkPacket;
 
 pub struct ConnectionHandler {
     stream: TcpStream,

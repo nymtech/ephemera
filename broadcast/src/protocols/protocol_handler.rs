@@ -3,8 +3,7 @@ use std::marker::PhantomData;
 use anyhow::Result;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::network::basic::listener::NetworkPacket;
-use crate::network::BroadcastMessage;
+use crate::network::{BroadcastMessage, NetworkPacket};
 use crate::protocols::protocol::{Kind, Protocol, ProtocolRequest};
 
 pub struct ProtocolHandler<M, P: Protocol<M>> {

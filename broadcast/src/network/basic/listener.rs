@@ -13,20 +13,9 @@ use tokio_util::codec::Encoder;
 use crate::network::basic::connection_handler::ConnectionHandler;
 use crate::network::codec::ProtoCodec;
 use crate::network::peer_discovery::{Address, PeerDiscovery};
-use crate::network::BroadcastMessage;
+use crate::network::{BroadcastMessage, NetworkPacket};
 use crate::settings::Settings;
 
-#[derive(Debug)]
-pub struct NetworkPacket<R> {
-    pub addr: String,
-    pub payload: R,
-}
-
-impl<R> NetworkPacket<R> {
-    pub fn new(addr: String, payload: R) -> NetworkPacket<R> {
-        NetworkPacket { addr, payload }
-    }
-}
 
 pub struct NetworkListener<P> {
     settings: Settings,

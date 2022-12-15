@@ -2,7 +2,7 @@ use prost::Message;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::network::basic::client_handler::ClientRequestHandler;
+use crate::network::client_handler::ClientRequestHandler;
 use crate::network::Network;
 use crate::protocols::protocol::Protocol;
 use crate::protocols::protocol_handler::ProtocolHandler;
