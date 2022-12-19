@@ -1,3 +1,14 @@
+## Running a node instance
+
+```bash
+RUST_LOG="debug" cargo run -- --config-file config1.toml
+```
+
+### Configuration
+
+`./configuration` directory contains configuration files for 3 nodes for testing.
+
+
 # Trying out how to implement broadcast and consensus protocols
 
 The goal is to try out something what might be called reliable broadcast and consensus protocols.
@@ -92,14 +103,3 @@ It uses [ed25519-zebra](https://crates.io/crates/ed25519-zebra) crate to sign me
 [Rust doc](src/protocol/implementations/gossip/protocol)
 
 Simple gossip protocol which broadcast a message to all peers first time when it ses it. 
-
-### Configuration
-
-`./configuration` directory contains configuration files for 3 nodes for testing.
-
-## Running a protocol instance
-
-```bash
-RUST_LOG="debug" cargo run -- --config-file config1.toml
-```
-
