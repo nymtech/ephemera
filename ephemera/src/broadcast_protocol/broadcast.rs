@@ -100,18 +100,17 @@ pub enum BroadcastError {
     CallbackError(#[from] anyhow::Error),
 }
 
-pub struct BroadcastProtocol {
+pub struct BroadcastProtocol<C: BroadcastCallBack + Send> {
     pub(crate) contexts: LruCache<String, ConsensusContext>,
     quorum: Box<dyn Quorum + Send>,
-    callback: Box<dyn BroadcastCallBack + Send>,
+    callback: C,
     node_id: String,
 }
 
 pub(crate) type ProtocolResult = Result<ProtocolResponse, BroadcastError>;
-type Callback = Box<dyn BroadcastCallBack + Send>;
 
-impl BroadcastProtocol {
-    pub fn new(quorum: Box<dyn Quorum + Send>, callback: Callback, settings: Settings) -> BroadcastProtocol {
+impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
+    pub fn new(quorum: Box<dyn Quorum + Send>, callback: C, settings: Settings) -> BroadcastProtocol<C> {
         BroadcastProtocol {
             contexts: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             quorum,

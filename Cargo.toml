@@ -3,4 +3,5 @@
 members = [
     "ephemera",
     "ephemera-network-client",
+    "ephemera-signatures-app",
 ]

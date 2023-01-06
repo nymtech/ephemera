@@ -3,9 +3,14 @@
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
     <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/broadcast-client/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/broadcast/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ephemera-network-client/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ephemera-signatures-app/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ephemera/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/ephemera/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/ephemera/tmp" />
+      <excludeFolder url="file://$MODULE_DIR$/ephemera-network-client/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/ephemera-signatures-app/tmp" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

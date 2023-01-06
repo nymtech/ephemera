@@ -1,9 +1,10 @@
+use std::fs;
 ///! Writes collected signatures to a file
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use ephemera::settings::Settings;
+use crate::broadcast_callback::Signer;
 
-use crate::app::signatures::broadcast_callback::Signer;
-use crate::settings::Settings;
 
 pub struct SignaturesBackend {
     pub signatures_file: PathBuf,

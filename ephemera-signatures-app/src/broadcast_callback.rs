@@ -8,13 +8,15 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-use crate::app::signatures::file_backend::SignaturesBackend;
-use crate::broadcast_protocol::broadcast::ConsensusContext;
-use crate::broadcast_protocol::BroadcastCallBack;
-use crate::crypto::ed25519::{Ed25519KeyPair, KeyPair};
-use crate::settings::Settings;
+use ephemera::broadcast_protocol::broadcast::ConsensusContext;
+use ephemera::broadcast_protocol::BroadcastCallBack;
+use ephemera::crypto::ed25519::{Ed25519KeyPair, KeyPair};
+use ephemera::settings::Settings;
+use serde::{Deserialize, Serialize};
+use crate::file_backend::SignaturesBackend;
+
 
 #[derive(Deserialize, Serialize)]
 pub struct SignatureRequest {
@@ -51,6 +53,12 @@ impl SigningBroadcastCallBack {
             backend,
         }
     }
+}
+
+#[derive(Error, Debug)]
+enum SigningBroadcastCallBackError {
+    #[error("SigningError")]
+    SigningError,
 }
 
 impl BroadcastCallBack for SigningBroadcastCallBack {

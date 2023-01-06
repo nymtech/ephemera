@@ -7,14 +7,14 @@ use crate::network::BroadcastMessage;
 use crate::request::RbMsg;
 use crate::settings::Settings;
 
-pub struct ProtocolHandler {
-    broadcaster: Box<BroadcastProtocol>,
+pub struct ProtocolHandler<C: BroadcastCallBack + Send> {
+    broadcaster: Box<BroadcastProtocol<C>>,
 }
 
-impl ProtocolHandler {
-    pub fn new<C: BroadcastCallBack + 'static>(settings: Settings, broadcast_callback: C) -> ProtocolHandler {
+impl<C: BroadcastCallBack + Send> ProtocolHandler<C> {
+    pub fn new(settings: Settings, broadcast_callback: C) -> ProtocolHandler<C> {
         let quorum = Box::new(BasicQuorum::new(settings.quorum.clone()));
-        let broadcaster = BroadcastProtocol::new(quorum, Box::new(broadcast_callback), settings);
+        let broadcaster = BroadcastProtocol::new(quorum, broadcast_callback, settings);
         Self {
             broadcaster: Box::new(broadcaster),
         }

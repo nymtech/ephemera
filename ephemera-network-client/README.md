@@ -1,13 +1,11 @@
 # Client
 
-This is meant to try out sending protobuf messages to protocol instances.
-
-It also allows to generate key pairs.
+Allows to send messages over network to an instance running ephemera process
 
 ### Send broadcast messages
 
 ```bash
-RUST_LOG="debug"  cargo run -- --ephemera
+RUST_LOG="debug"  cargo run -- --broadcast
 ```
 
 ### Protobuf messages

@@ -1,22 +1,12 @@
-extern crate core;
+mod broadcast_callback;
+mod file_backend;
 
 use futures::executor::block_on;
-
-use crate::app::signatures::broadcast_callback::SigningBroadcastCallBack;
-use crate::network::client_listener::NetworkClientListener;
-use crate::network::ephemera::EphemeraLauncher;
-use crate::settings::Settings;
-
-mod app;
-mod broadcast_protocol;
-mod cli;
-mod crypto;
-mod network;
-mod settings;
-
-pub mod request {
-    include!(concat!(env!("OUT_DIR"), "/broadcast.rs"));
-}
+use ephemera::cli;
+use ephemera::network::client_listener::NetworkClientListener;
+use ephemera::network::ephemera::EphemeraLauncher;
+use ephemera::settings::Settings;
+use crate::broadcast_callback::SigningBroadcastCallBack;
 
 const CONFIG_DIR: &str = "configuration";
 

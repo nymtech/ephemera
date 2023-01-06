@@ -63,12 +63,6 @@ This a basic implementation of a protocol where participating peers go through t
 A trait which functions are called as part of QuorumConsensusBroadcastProtocol process and can provide 
 custom logic how to process message payload.
 
-### SigningQuorumConsensusCallBack
-[Rust doc](src/app/signatures/broadcast_callback.rs)
-
-Implements a callback for the BroadcastCallBack. Signs protocol message payloads. 
-
-It uses `SignaturesBackend` to write signatures from completed rounds to file.
 
 ### Crypto for signing
 
