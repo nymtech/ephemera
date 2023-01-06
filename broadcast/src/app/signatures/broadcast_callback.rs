@@ -10,11 +10,11 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::app::signatures::backend::SignaturesBackend;
+use crate::app::signatures::file_backend::SignaturesBackend;
+use crate::reliable_broadcast::protocol::ConsensusContext;
+use crate::reliable_broadcast::BroadcastCallBack;
 use crate::crypto::ed25519::{Ed25519KeyPair, KeyPair};
-use crate::protocol::quorum_consensus::protocol::ConsensusContext;
-use crate::protocol::quorum_consensus::quorum_consensus_callback::QuorumConsensusCallBack;
-use crate::request::RbMsg;
+use crate::settings::Settings;
 
 #[derive(Deserialize, Serialize)]
 pub struct SignatureRequest {
@@ -35,15 +35,17 @@ pub struct SignaturesConsensusRequest {
     pub signatures: HashMap<String, Signer>,
 }
 
-pub struct SigningQuorumConsensusCallBack {
+pub struct SigningBroadcastCallBack {
     pub keypair: Ed25519KeyPair,
     pub requests: HashMap<String, SignaturesConsensusRequest>,
     pub backend: SignaturesBackend,
 }
 
-impl SigningQuorumConsensusCallBack {
-    pub fn new(keypair: Ed25519KeyPair, backend: SignaturesBackend) -> SigningQuorumConsensusCallBack {
-        SigningQuorumConsensusCallBack {
+impl SigningBroadcastCallBack {
+    pub fn new(settings: Settings) -> SigningBroadcastCallBack {
+        let keypair = Ed25519KeyPair::generate().unwrap(); //TODO
+        let backend = SignaturesBackend::new(settings);
+        SigningBroadcastCallBack {
             keypair,
             requests: HashMap::new(),
             backend,
@@ -51,7 +53,7 @@ impl SigningQuorumConsensusCallBack {
     }
 }
 
-impl QuorumConsensusCallBack<RbMsg, RbMsg> for SigningQuorumConsensusCallBack {
+impl BroadcastCallBack for SigningBroadcastCallBack {
     fn pre_prepare(
         &mut self,
         msg_id: String,
@@ -135,7 +137,7 @@ impl QuorumConsensusCallBack<RbMsg, RbMsg> for SigningQuorumConsensusCallBack {
     fn committed(&mut self, state: &ConsensusContext) -> Result<()> {
         log::debug!("COMMITTED");
 
-        //Trust protocol to remember which messages were already sent to callback
+        //Trust reliable_broadcast to remember which messages were already sent to callback
         if let Some(scr) = self.requests.remove(&state.id) {
             let cloned = scr.signatures.values().cloned();
             let signatures = cloned.collect::<Vec<Signer>>();
