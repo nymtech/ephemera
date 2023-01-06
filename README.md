@@ -2,8 +2,8 @@
 
 ## Client
 
-[README](broadcast-client/README.md)
+[README](ephemera-network-client/README.md)
 
 ## Protocols
 
-[README](broadcast/README.md)
+[README](ephemera/README.md)

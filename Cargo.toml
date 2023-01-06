@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-    "broadcast",
-    "broadcast-client",
+    "ephemera",
+    "ephemera-network-client",
 ]
