@@ -4,6 +4,10 @@
 
 [README](ephemera-network-client/README.md)
 
-## Protocols
+## Ephemera
 
 [README](ephemera/README.md)
+
+## Ephemera Signatures
+
+[README](ephemera-signatures-app/README.md)
