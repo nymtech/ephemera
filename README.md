@@ -1,4 +1,4 @@
-# Playground for implementing protocols and a client to test them.
+# Ephemera - _lightweight_ reliable broadcast protocol
 
 ## Client
 
