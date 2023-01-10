@@ -1,27 +1,7 @@
+use crate::crypto::{KeyPair, KeyPairError};
 ///! Uses the `ed25519-zebra` crate to implement signing and signature verification.
 use ed25519_zebra::{Signature, SigningKey, VerificationKey};
 use rand_chacha::rand_core::{RngCore, SeedableRng};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum KeyPairError {
-    #[error("Invalid key length")]
-    SliceLength,
-    #[error("Invalid key")]
-    Signature,
-    #[error("Invalid private key")]
-    PrivateKey,
-}
-
-pub trait KeyPair: Sized {
-    type Signature: AsRef<[u8]>;
-
-    fn verify<M: AsRef<[u8]>>(&self, message: M, signature: &Self::Signature) -> Result<(), KeyPairError>;
-
-    fn sign_hex<M: AsRef<[u8]>>(&self, message: M) -> Result<Self::Signature, KeyPairError>;
-
-    fn generate() -> Result<Self, KeyPairError>;
-}
 
 #[derive(Debug)]
 pub struct Ed25519KeyPair {

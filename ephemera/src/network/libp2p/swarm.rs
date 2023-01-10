@@ -21,14 +21,14 @@ use tokio_util::codec::Decoder;
 use tokio_util::codec::Encoder;
 
 use crate::broadcast_protocol::ProtocolRequest;
+use crate::config::configuration::Configuration;
 use crate::network::codec::ProtoCodec;
 use crate::network::peer_discovery::StaticPeerDiscovery;
 use crate::network::{BroadcastMessage, Network};
 use crate::request::RbMsg;
-use crate::settings::Settings;
 
 pub struct SwarmNetwork {
-    settings: Settings,
+    config: Configuration,
     swarm: Swarm<GroupNetworkBehaviour>,
     to_protocol: Sender<ProtocolRequest>,
     from_protocol: Receiver<BroadcastMessage<RbMsg>>,
@@ -36,26 +36,26 @@ pub struct SwarmNetwork {
 
 impl SwarmNetwork {
     pub fn new(
-        settings: Settings,
+        conf: Configuration,
         to_protocol: Sender<ProtocolRequest>,
         from_protocol: Receiver<BroadcastMessage<RbMsg>>,
     ) -> SwarmNetwork {
-        let swarm = SwarmNetwork::create_swarm(settings.clone());
+        let swarm = SwarmNetwork::create_swarm(conf.clone());
         SwarmNetwork {
-            settings,
+            config: conf,
             swarm,
             to_protocol,
             from_protocol,
         }
     }
     //Message delivery and peer discovery
-    fn create_swarm(settings: Settings) -> Swarm<GroupNetworkBehaviour> {
-        let sec_key = hex::decode(&settings.private_key).unwrap();
+    fn create_swarm(conf: Configuration) -> Swarm<GroupNetworkBehaviour> {
+        let sec_key = hex::decode(&conf.priv_key).unwrap();
         let local_key = Keypair::from_protobuf_encoding(&sec_key[..]).unwrap();
         let local_id = PeerId::from(local_key.public());
 
         let transport = create_transport(&local_key);
-        let behaviour = create_behaviour(settings, local_key);
+        let behaviour = create_behaviour(conf, local_key);
 
         Swarm::with_tokio_executor(transport, behaviour, local_id)
     }
@@ -64,11 +64,11 @@ impl SwarmNetwork {
 #[async_trait]
 impl Network for SwarmNetwork {
     async fn run(mut self) {
-        let address = Multiaddr::from_str(self.settings.address.as_str()).expect("Invalid multi-address");
+        let address = Multiaddr::from_str(self.config.address.as_str()).expect("Invalid multi-address");
         self.swarm.listen_on(address).unwrap();
 
         let mut codec = ProtoCodec::<RbMsg, RbMsg>::new();
-        let topic = Topic::new(self.settings.gossipsub.topic_name);
+        let topic = Topic::new(self.config.libp2p.topic_name);
         loop {
             select!(
                 // Handle incoming messages from the network
@@ -167,12 +167,12 @@ impl From<()> for GroupBehaviourEvent {
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
 //Peer discovery takes care of locating peers
-fn create_behaviour(settings: Settings, local_key: Keypair) -> GroupNetworkBehaviour {
+fn create_behaviour(conf: Configuration, local_key: Keypair) -> GroupNetworkBehaviour {
     let mut gossipsub = create_gossipsub(local_key);
-    let topic = Topic::new(&settings.gossipsub.topic_name);
+    let topic = Topic::new(&conf.libp2p.topic_name);
     gossipsub.subscribe(&topic).unwrap();
 
-    let peer_discovery = StaticPeerDiscovery::new(settings);
+    let peer_discovery = StaticPeerDiscovery::new(conf);
 
     for peer in peer_discovery.peer_ids() {
         log::debug!("Adding peer: {}", peer);

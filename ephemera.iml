@@ -11,6 +11,9 @@
       <excludeFolder url="file://$MODULE_DIR$/ephemera/tmp" />
       <excludeFolder url="file://$MODULE_DIR$/ephemera-network-client/.idea" />
       <excludeFolder url="file://$MODULE_DIR$/ephemera-signatures-app/tmp" />
+      <excludeFolder url="file://$MODULE_DIR$/scripts/logs" />
+      <excludeFolder url="file://$MODULE_DIR$/scripts/signatures" />
+      <excludeFolder url="file://$MODULE_DIR$/logs" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

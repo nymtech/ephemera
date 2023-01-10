@@ -37,12 +37,4 @@ pub struct PrepareMsg {
 pub struct CommitMsg {}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AckMsg {}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FullGossip {
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
-    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(bytes = "vec", tag = "3")]
-    pub payload: ::prost::alloc::vec::Vec<u8>,
-}
+

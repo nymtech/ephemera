@@ -2,9 +2,9 @@ use tokio::sync::mpsc;
 
 use crate::broadcast_protocol::protocol_handler::ProtocolHandler;
 use crate::broadcast_protocol::{BroadcastCallBack, ProtocolRequest};
+use crate::config::configuration::Configuration;
 use crate::network::libp2p::swarm;
 use crate::network::Network;
-use crate::settings::Settings;
 
 #[derive(Clone)]
 pub struct Ephemera {
@@ -23,19 +23,19 @@ pub struct EphemeraLauncher;
 
 impl EphemeraLauncher {
     pub async fn launch<C: BroadcastCallBack + 'static>(
-        settings: Settings,
+        conf: Configuration,
         protocol_callback: C,
     ) -> Ephemera {
         let (to_network, from_protocol) = mpsc::channel(500);
         let (to_protocol, from_network) = mpsc::channel(500);
 
-        let network = swarm::SwarmNetwork::new(settings.clone(), to_protocol.clone(), from_protocol);
+        let network = swarm::SwarmNetwork::new(conf.clone(), to_protocol.clone(), from_protocol);
         tokio::spawn(async move {
             network.run().await;
         });
 
         tokio::spawn(async move {
-            let protocol_handler = ProtocolHandler::new(settings, protocol_callback);
+            let protocol_handler = ProtocolHandler::new(conf, protocol_callback);
             protocol_handler.run(from_network, to_network).await;
         });
 

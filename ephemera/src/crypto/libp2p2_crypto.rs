@@ -1,7 +1,6 @@
-///! Copy from broadcast_protocol workspace
-
 #[derive(Debug)]
 pub enum KeyPairError {
+    InvalidSliceLength,
     InvalidSignature,
 }
 
@@ -9,11 +8,7 @@ pub trait KeyPair: Sized {
     type Seed: Default + AsRef<[u8]> + AsMut<[u8]> + Clone;
     type Signature: AsRef<[u8]>;
 
-    fn verify<M: AsRef<[u8]>>(
-        &self,
-        message: M,
-        signature: &Self::Signature,
-    ) -> Result<(), KeyPairError>;
+    fn verify<M: AsRef<[u8]>>(&self, message: M, signature: &Self::Signature) -> Result<(), KeyPairError>;
 
     fn sign<M: AsRef<[u8]>>(&self, message: M) -> Result<Self::Signature, KeyPairError>;
 
@@ -27,16 +22,8 @@ impl KeyPair for Libp2pKeypair {
     type Seed = [u8; 0];
     type Signature = String;
 
-    fn verify<M: AsRef<[u8]>>(
-        &self,
-        message: M,
-        sig_data: &Self::Signature,
-    ) -> Result<(), KeyPairError> {
-        if !self
-            .0
-            .public()
-            .verify(message.as_ref(), sig_data.as_bytes())
-        {
+    fn verify<M: AsRef<[u8]>>(&self, message: M, sig_data: &Self::Signature) -> Result<(), KeyPairError> {
+        if !self.0.public().verify(message.as_ref(), sig_data.as_bytes()) {
             return Err(KeyPairError::InvalidSignature);
         }
         Ok(())

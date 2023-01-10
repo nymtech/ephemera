@@ -44,10 +44,10 @@ use tokio::time::Instant;
 use crate::broadcast_protocol::broadcast::BroadcastError::UnknownBroadcast;
 use crate::broadcast_protocol::quorum::Quorum;
 use crate::broadcast_protocol::{BroadcastCallBack, Kind, ProtocolRequest, ProtocolResponse};
+use crate::config::configuration::Configuration;
 use crate::request::rb_msg::ReliableBroadcast;
 use crate::request::rb_msg::ReliableBroadcast::{Ack, Commit, PrePrepare, Prepare};
 use crate::request::{AckMsg, CommitMsg, PrePrepareMsg, PrepareMsg, RbMsg};
-use crate::settings::Settings;
 
 #[derive(Debug, Clone)]
 pub struct ConsensusTimestamp(Instant);
@@ -110,12 +110,12 @@ pub struct BroadcastProtocol<C: BroadcastCallBack + Send> {
 pub(crate) type ProtocolResult = Result<ProtocolResponse, BroadcastError>;
 
 impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
-    pub fn new(quorum: Box<dyn Quorum + Send>, callback: C, settings: Settings) -> BroadcastProtocol<C> {
+    pub fn new(quorum: Box<dyn Quorum + Send>, callback: C, config: Configuration) -> BroadcastProtocol<C> {
         BroadcastProtocol {
             contexts: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             quorum,
             callback,
-            node_id: settings.address,
+            node_id: config.address,
         }
     }
 
@@ -183,7 +183,7 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
             return prepare_reply(msg_id.clone(), self.node_id.clone(), payload);
         }
 
-        if self.quorum.prepare_threshold(ctx.prepare.len() as u64) {
+        if self.quorum.prepare_threshold(ctx.prepare.len()) {
             log::debug!("Prepare completed for {}", msg_id);
 
             ctx.prepared = true;
@@ -222,7 +222,7 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
 
         self.callback.commit(msg_id.clone(), origin, ctx)?;
 
-        if ctx.prepared && self.quorum.commit_threshold(ctx.commit.len() as u64) {
+        if ctx.prepared && self.quorum.commit_threshold(ctx.commit.len()) {
             log::debug!("Commit complete for {}", msg_id);
 
             ctx.committed = true;

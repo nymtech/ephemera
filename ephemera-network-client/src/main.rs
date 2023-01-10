@@ -7,7 +7,7 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use crate::broadcast::rb_msg::ReliableBroadcast::PrePrepare;
-use crate::broadcast::{FullGossip, PrePrepareMsg, RbMsg};
+use crate::broadcast::{PrePrepareMsg, RbMsg};
 use crate::libp2p2_crypto::{KeyPair, Libp2pKeypair};
 
 mod broadcast;
@@ -41,7 +41,7 @@ async fn generate_keypair() {
 }
 
 async fn run_reliable_broadcast() {
-    let mut conn = TcpStream::connect("127.0.0.1:4000").await.unwrap();
+    let mut conn = TcpStream::connect("127.0.0.1:4001").await.unwrap();
     loop {
         let mut message = quorum_message();
         conn.write_buf(&mut message).await.unwrap();

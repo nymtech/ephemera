@@ -3,18 +3,18 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::broadcast_protocol::broadcast::BroadcastProtocol;
 use crate::broadcast_protocol::quorum::BasicQuorum;
 use crate::broadcast_protocol::{BroadcastCallBack, Kind, ProtocolRequest};
+use crate::config::configuration::Configuration;
 use crate::network::BroadcastMessage;
 use crate::request::RbMsg;
-use crate::settings::Settings;
 
 pub struct ProtocolHandler<C: BroadcastCallBack + Send> {
     broadcaster: Box<BroadcastProtocol<C>>,
 }
 
 impl<C: BroadcastCallBack + Send> ProtocolHandler<C> {
-    pub fn new(settings: Settings, broadcast_callback: C) -> ProtocolHandler<C> {
-        let quorum = Box::new(BasicQuorum::new(settings.quorum.clone()));
-        let broadcaster = BroadcastProtocol::new(quorum, broadcast_callback, settings);
+    pub fn new(conf: Configuration, broadcast_callback: C) -> ProtocolHandler<C> {
+        let quorum = Box::new(BasicQuorum::new(conf.quorum.clone()));
+        let broadcaster = BroadcastProtocol::new(quorum, broadcast_callback, conf);
         Self {
             broadcaster: Box::new(broadcaster),
         }

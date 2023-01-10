@@ -5,13 +5,12 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::task::{Context, Poll};
 
+use crate::config::configuration::{Configuration, PeerSetting};
 use libp2p::core::{PeerId, PublicKey};
 use libp2p::multiaddr::Protocol;
 use libp2p::swarm::{dummy::ConnectionHandler, NetworkBehaviour, NetworkBehaviourAction, PollParameters};
 use libp2p::Multiaddr;
 use tokio::io;
-
-use crate::settings::{PeerSetting, Settings};
 
 #[derive(Debug, Clone)]
 pub struct Peer {
@@ -62,9 +61,9 @@ pub struct StaticPeerDiscovery {
 }
 
 impl StaticPeerDiscovery {
-    pub fn new(settings: Settings) -> StaticPeerDiscovery {
+    pub fn new(conf: Configuration) -> StaticPeerDiscovery {
         let mut peers: HashMap<PeerId, Peer> = HashMap::new();
-        for peer in settings.gossipsub.peers.iter() {
+        for peer in conf.libp2p.peers.iter() {
             let peer: Peer = Peer::from(peer);
             let peer_id: PeerId = peer.clone().try_into().unwrap();
             peers.insert(peer_id, peer);

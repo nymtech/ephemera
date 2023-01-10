@@ -8,15 +8,14 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use thiserror::Error;
 
+use ephemera::crypto::KeyPair;
+
+use crate::file_backend::SignaturesBackend;
 use ephemera::broadcast_protocol::broadcast::ConsensusContext;
 use ephemera::broadcast_protocol::BroadcastCallBack;
-use ephemera::crypto::ed25519::{Ed25519KeyPair, KeyPair};
-use ephemera::settings::Settings;
+use ephemera::crypto::ed25519::{Ed25519KeyPair};
 use serde::{Deserialize, Serialize};
-use crate::file_backend::SignaturesBackend;
-
 
 #[derive(Deserialize, Serialize)]
 pub struct SignatureRequest {
@@ -44,21 +43,15 @@ pub struct SigningBroadcastCallBack {
 }
 
 impl SigningBroadcastCallBack {
-    pub fn new(settings: Settings) -> SigningBroadcastCallBack {
+    pub fn new(signatures_file: String) -> SigningBroadcastCallBack {
         let keypair = Ed25519KeyPair::generate().unwrap(); //TODO
-        let backend = SignaturesBackend::new(settings);
+        let backend = SignaturesBackend::new(signatures_file);
         SigningBroadcastCallBack {
             keypair,
             requests: HashMap::new(),
             backend,
         }
     }
-}
-
-#[derive(Error, Debug)]
-enum SigningBroadcastCallBackError {
-    #[error("SigningError")]
-    SigningError,
 }
 
 impl BroadcastCallBack for SigningBroadcastCallBack {
@@ -105,14 +98,14 @@ impl BroadcastCallBack for SigningBroadcastCallBack {
         log::debug!("PREPARE");
         let sig_req: SignatureRequest = serde_json::from_slice(&payload)?;
 
-        let scr = self
-            .requests
-            .entry(msg_id.clone())
-            .or_insert_with(|| SignaturesConsensusRequest {
-                request_id: msg_id.clone(),
-                payload: sig_req.payload.clone(),
-                signatures: HashMap::new(),
-            });
+        let scr =
+            self.requests
+                .entry(msg_id.clone())
+                .or_insert_with(|| SignaturesConsensusRequest {
+                    request_id: msg_id.clone(),
+                    payload: sig_req.payload.clone(),
+                    signatures: HashMap::new(),
+                });
 
         let signer = Signer {
             id: sender.clone(),

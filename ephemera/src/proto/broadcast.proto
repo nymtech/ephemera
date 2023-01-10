@@ -29,9 +29,3 @@ message CommitMsg {
 
 message AckMsg {
 }
-
-message FullGossip{
-  string id = 1;
-  google.protobuf.Timestamp timestamp = 2;
-  bytes payload = 3;
-}

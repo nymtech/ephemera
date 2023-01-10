@@ -8,37 +8,37 @@ mod test {
     use std::path::Path;
     use std::time;
 
-    use crate::broadcast_protocol::broadcast::{BroadcastError, BroadcastProtocol, ProtocolResult};
+    use crate::broadcast_protocol::broadcast::{BroadcastProtocol, ProtocolResult};
     use crate::broadcast_protocol::quorum::BasicQuorum;
     use crate::broadcast_protocol::{BroadcastCallBack, Kind, ProtocolRequest, ProtocolResponse};
-    use anyhow::Result;
+    
     use prost_types::Timestamp;
     use uuid::Uuid;
+    use crate::config::configuration::Configuration;
 
     use crate::request::rb_msg::ReliableBroadcast::{Commit, PrePrepare, Prepare};
     use crate::request::{CommitMsg, PrePrepareMsg, PrepareMsg, RbMsg};
-    use crate::settings::Settings;
 
     #[derive(Debug, Default)]
     struct DummyCallback {}
 
     impl BroadcastCallBack for DummyCallback {}
 
-    struct PeerTestInstance {
-        protocol: BroadcastProtocol,
+    struct PeerTestInstance<C: BroadcastCallBack + Send> {
+        protocol: BroadcastProtocol<C>,
     }
 
-    impl PeerTestInstance {
-        fn new(settings: Settings) -> Self {
+    impl PeerTestInstance<DummyCallback> {
+        fn new(conf: Configuration) -> Self {
             let callback = DummyCallback::default();
-            let quorum = BasicQuorum::new(settings.quorum.clone());
-            let protocol = BroadcastProtocol::new(Box::new(quorum), Box::new(callback), settings);
+            let quorum = BasicQuorum::new(conf.quorum.clone());
+            let protocol = BroadcastProtocol::new(Box::new(quorum), callback, conf);
             PeerTestInstance { protocol }
         }
     }
 
     struct TestSuite {
-        peers: HashMap<String, PeerTestInstance>,
+        peers: HashMap<String, PeerTestInstance<DummyCallback>>,
     }
 
     impl TestSuite {
@@ -51,14 +51,15 @@ mod test {
             Self { peers }
         }
 
-        fn new_peer(settings: Settings) -> PeerTestInstance {
-            PeerTestInstance::new(settings.clone())
+        fn new_peer(conf : Configuration) -> PeerTestInstance<DummyCallback> {
+            PeerTestInstance::new(conf)
         }
 
-        fn get_peer(&mut self, peer_id: &str) -> &mut PeerTestInstance {
+        fn get_peer(&mut self, peer_id: &str) -> &mut PeerTestInstance<DummyCallback> {
             self.peers.get_mut(peer_id).unwrap()
         }
 
+        #[allow(dead_code)]
         async fn broadcast_message_from_peer(
             &mut self,
             from: &str,
@@ -142,7 +143,7 @@ mod test {
         }
     }
 
-    fn init_settings() -> HashMap<String, Settings> {
+    fn init_settings() -> HashMap<String, Configuration> {
         let file = config::File::from(Path::new("src/broadcast_protocol/test/config.toml"));
         let config = config::Config::builder()
             .add_source(file)
