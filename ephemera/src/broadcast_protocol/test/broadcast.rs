@@ -11,10 +11,10 @@ mod test {
     use crate::broadcast_protocol::broadcast::{BroadcastProtocol, ProtocolResult};
     use crate::broadcast_protocol::quorum::BasicQuorum;
     use crate::broadcast_protocol::{BroadcastCallBack, Kind, ProtocolRequest, ProtocolResponse};
-    
+
+    use crate::config::configuration::Configuration;
     use prost_types::Timestamp;
     use uuid::Uuid;
-    use crate::config::configuration::Configuration;
 
     use crate::request::rb_msg::ReliableBroadcast::{Commit, PrePrepare, Prepare};
     use crate::request::{CommitMsg, PrePrepareMsg, PrepareMsg, RbMsg};
@@ -51,7 +51,7 @@ mod test {
             Self { peers }
         }
 
-        fn new_peer(conf : Configuration) -> PeerTestInstance<DummyCallback> {
+        fn new_peer(conf: Configuration) -> PeerTestInstance<DummyCallback> {
             PeerTestInstance::new(conf)
         }
 

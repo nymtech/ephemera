@@ -9,6 +9,8 @@ pub struct Args {
     pub client_listener_address: String,
     #[arg(long)]
     pub signatures_file: String,
+    #[arg(long)]
+    pub ws_listen_addr: String,
 }
 
 pub fn parse_args() -> Args {

@@ -24,8 +24,7 @@ pub struct InitCmd {
 impl InitCmd {
     pub fn execute(self) {
         if Configuration::try_load_from_home_dir(&self.name).is_ok() {
-            log::error!("Configuration file already exists: {:?}", Configuration::ephemera_config_file(&self.name).unwrap());
-            return;
+            panic!("Configuration file already exists: {}", self.name);
         }
         let keypair = Libp2pKeypair::generate(&[]).unwrap();
         let pub_key = hex::encode(keypair.0.public().to_protobuf_encoding());
@@ -45,7 +44,7 @@ impl InitCmd {
                 peers: Vec::new(),
             },
         };
-        if let Err(err) = configuration.try_create(&self.name){
+        if let Err(err) = configuration.try_create(&self.name) {
             log::error!("Error creating configuration file: {:?}", err);
         }
     }

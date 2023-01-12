@@ -2,13 +2,13 @@ use crate::broadcast_callback::Signer;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-pub struct SignaturesBackend {
+pub struct FileBackend {
     pub signatures_path: PathBuf,
 }
 
-impl SignaturesBackend {
-    pub fn new(signatures_file: String) -> SignaturesBackend {
-        SignaturesBackend {
+impl FileBackend {
+    pub fn new(signatures_file: String) -> FileBackend {
+        FileBackend {
             signatures_path: Path::new(&signatures_file).to_path_buf(),
         }
     }

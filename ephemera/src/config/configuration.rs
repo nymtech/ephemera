@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use thiserror::Error;
 
 use serde_derive::{Deserialize, Serialize};

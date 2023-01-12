@@ -129,14 +129,19 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
         let node_id = pr_msg.message.node_id;
 
         match rb_msg {
-            PrePrepare(PrePrepareMsg { payload }) => self.process_pre_prepare(rb_id, node_id, payload),
-            Prepare(PrepareMsg { payload }) => self.process_prepare(rb_id, node_id, payload),
-            Commit(_) => self.process_commit(rb_id, node_id),
+            PrePrepare(PrePrepareMsg { payload }) => self.process_pre_prepare(rb_id, node_id, payload).await,
+            Prepare(PrepareMsg { payload }) => self.process_prepare(rb_id, node_id, payload).await,
+            Commit(_) => self.process_commit(rb_id, node_id).await,
             Ack(_) => ack(rb_id, node_id),
         }
     }
 
-    fn process_pre_prepare(&mut self, msg_id: String, sender: String, payload: Vec<u8>) -> ProtocolResult {
+    async fn process_pre_prepare(
+        &mut self,
+        msg_id: String,
+        sender: String,
+        payload: Vec<u8>,
+    ) -> ProtocolResult {
         log::debug!("Received pre-prepare message {} from {}", msg_id, sender);
 
         if self.contexts.contains(&msg_id) {
@@ -149,7 +154,8 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
 
         let callback_result = self
             .callback
-            .pre_prepare(msg_id.clone(), sender, payload.clone(), &ctx)?;
+            .pre_prepare(msg_id.clone(), sender, payload.clone(), &ctx)
+            .await?;
 
         let payload = callback_result.unwrap_or(payload);
 
@@ -158,7 +164,7 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
         prepare_reply(msg_id, self.node_id.clone(), payload)
     }
 
-    fn process_prepare(&mut self, msg_id: String, sender: String, payload: Vec<u8>) -> ProtocolResult {
+    async fn process_prepare(&mut self, msg_id: String, sender: String, payload: Vec<u8>) -> ProtocolResult {
         log::debug!("Received prepare message {} from {}", msg_id, sender);
 
         let mut ctx = self.contexts.get_or_insert_mut(msg_id.clone(), || {
@@ -173,21 +179,21 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
 
         let callback_result = self
             .callback
-            .prepare(msg_id.clone(), sender, payload.clone(), ctx)?;
+            .prepare(msg_id.clone(), sender, payload.clone(), ctx)
+            .await?;
         let payload = callback_result.unwrap_or(payload);
 
         if !ctx.prepare.contains(&self.node_id) {
             log::debug!("Sending prepare for {}", msg_id);
 
             ctx.add_prepare(self.node_id.clone());
-            return prepare_reply(msg_id.clone(), self.node_id.clone(), payload);
         }
 
         if self.quorum.prepare_threshold(ctx.prepare.len()) {
             log::debug!("Prepare completed for {}", msg_id);
 
             ctx.prepared = true;
-            self.callback.prepared(ctx)?;
+            self.callback.prepared(ctx).await?;
 
             if ctx.original_sender {
                 log::debug!("Sending commit for {}", msg_id);
@@ -198,10 +204,10 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
             }
         }
 
-        ack(msg_id.clone(), self.node_id.clone())
+        prepare_reply(msg_id.clone(), self.node_id.clone(), payload)
     }
 
-    fn process_commit(&mut self, msg_id: String, origin: String) -> ProtocolResult {
+    async fn process_commit(&mut self, msg_id: String, origin: String) -> ProtocolResult {
         log::debug!("Received commit message {} from {}", msg_id, origin);
 
         let mut ctx = self
@@ -210,6 +216,7 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
             .ok_or(UnknownBroadcast(msg_id.clone()))?;
 
         if ctx.committed {
+            log::debug!("Commit already completed for {}", msg_id);
             return ack(msg_id.clone(), self.node_id.clone());
         }
 
@@ -217,18 +224,19 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
 
         if !ctx.commit.contains(&self.node_id) {
             ctx.commit.insert(self.node_id.clone());
-            return commit_reply(msg_id.clone(), self.node_id.clone());
         }
 
-        self.callback.commit(msg_id.clone(), origin, ctx)?;
+        log::debug!("COMMIT COUNT {}", ctx.commit.len());
+        self.callback.commit(msg_id.clone(), origin, ctx).await?;
 
+        log::debug!("CTX {:?}", ctx);
         if ctx.prepared && self.quorum.commit_threshold(ctx.commit.len()) {
             log::debug!("Commit complete for {}", msg_id);
 
             ctx.committed = true;
-            self.callback.committed(ctx)?;
+            self.callback.committed(ctx).await?;
         }
-        ack(msg_id, self.node_id.clone())
+        commit_reply(msg_id.clone(), self.node_id.clone())
     }
 }
 

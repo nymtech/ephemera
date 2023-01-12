@@ -1,6 +1,6 @@
-use std::env;
 use clap::Parser;
 use ephemera::cli::{Cli, Subcommand};
+use std::env;
 
 fn main() {
     if !env::vars().any(|(k, _)| k == "RUST_LOG") {

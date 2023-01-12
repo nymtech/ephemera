@@ -83,14 +83,22 @@ shift
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 CLI_PROJECT="$PROJECT_ROOT/ephemera/Cargo.toml"
+EPHEMERA="$PROJECT_ROOT"/target/release/ephemera
+SIGNATURES_APP="$PROJECT_ROOT"/target/release/ephemera-signatures-app
+
+build() {
+  echo "Building ephemera..."
+  cargo build --release
+}
 
 create_cluster() {
-  echo "Creating configuration for ${NR_OF_NODES} nodes..."
+  build
 
+  echo "Creating configuration for ${NR_OF_NODES} nodes..."
   for ((c = 1; c <= NR_OF_NODES; c++)); do
-    cargo run --release --manifest-path="$CLI_PROJECT" init --name node"$c" --port 300"$c"
+    $EPHEMERA init --name node"$c" --port 300"$c"
   done
-  cargo run --release --manifest-path="$CLI_PROJECT" add-local-peers --ephemera-root-dir ~/.ephemera
+  $EPHEMERA add-local-peers --ephemera-root-dir ~/.ephemera
 
   status=$?
   [ $status -eq 0 ] && echo "Successfully created cluster" || echo "Creating cluster failed"
@@ -125,18 +133,19 @@ run_signatures_app() {
   mkdir -p signatures
 
   CLIENT_LISTENER_ADDR=127.0.0.1
-  SIGNATURES_FILE=./signatures/signatures
-  LOGS_FILE=./logs/node
+  WS_LISTENER_ADDR=127.0.0.1
+  SIGNATURES_FILE=$PROJECT_ROOT/signatures/signatures
+  LOGS_FILE=$PROJECT_ROOT/logs/node
 
   COUNTER=1
   for d in ~/.ephemera/*/ephemera.toml; do
     echo "Starting $d"
 
-    cargo run --manifest-path="$MANIFEST_PATH" -- --config-file ~/.ephemera/node"${COUNTER}"/ephemera.toml\
-     --client-listener-address $CLIENT_LISTENER_ADDR:400"$COUNTER" --signatures-file $SIGNATURES_FILE"$COUNTER".txt\
-      > $LOGS_FILE"$COUNTER".log 2>&1 &
+    $SIGNATURES_APP --config-file ~/.ephemera/node"${COUNTER}"/ephemera.toml \
+     --client-listener-address $CLIENT_LISTENER_ADDR:400"$COUNTER" --signatures-file $SIGNATURES_FILE"$COUNTER".txt \
+     --ws-listen-addr=$WS_LISTENER_ADDR:600"$COUNTER" > $LOGS_FILE"$COUNTER".log 2>&1 &
 
-    echo "$!" >>.pids
+    echo "$!" >> "$PROJECT_ROOT"/.pids
     COUNTER=$((COUNTER + 1))
   done
 
@@ -144,11 +153,11 @@ run_signatures_app() {
 }
 
 stop_cluster() {
-  FILE=.pids
+  FILE=$PROJECT_ROOT/.pids
   if test -f "$FILE";
   then
      while read p; do
-       kill -9 "$p"
+       kill -9 "$p" || true
      done <.pids
      rm .pids
      echo "Stopped ephemera cluster"

@@ -18,7 +18,7 @@ impl EphemeraNetworkCmdListener {
     }
 
     pub async fn run(mut self) {
-        match TcpListener::bind(&self.address).await{
+        match TcpListener::bind(&self.address).await {
             Ok(listener) => {
                 log::info!("Listening client commands at: {}", &self.address);
                 loop {

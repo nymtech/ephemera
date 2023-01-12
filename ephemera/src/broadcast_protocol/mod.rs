@@ -2,6 +2,7 @@ pub mod broadcast;
 pub mod protocol_handler;
 pub mod quorum;
 mod test;
+pub mod websocket;
 
 #[derive(Debug, Clone)]
 pub struct ProtocolRequest {
@@ -34,9 +35,11 @@ use crate::broadcast_protocol::broadcast::ConsensusContext;
 
 use crate::request::RbMsg;
 use anyhow::Result;
+use async_trait::async_trait;
 
+#[async_trait]
 pub trait BroadcastCallBack: Send {
-    fn pre_prepare(
+    async fn pre_prepare(
         &mut self,
         _msg_id: String,
         _sender: String,
@@ -45,7 +48,7 @@ pub trait BroadcastCallBack: Send {
     ) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
-    fn prepare(
+    async fn prepare(
         &mut self,
         _msg_id: String,
         _sender: String,
@@ -54,13 +57,13 @@ pub trait BroadcastCallBack: Send {
     ) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
-    fn commit(&mut self, _msg_id: String, _sender: String, _ctx: &ConsensusContext) -> Result<()> {
+    async fn commit(&mut self, _msg_id: String, _sender: String, _ctx: &ConsensusContext) -> Result<()> {
         Ok(())
     }
-    fn prepared(&mut self, _ctx: &ConsensusContext) -> Result<()> {
+    async fn prepared(&mut self, _ctx: &ConsensusContext) -> Result<()> {
         Ok(())
     }
-    fn committed(&mut self, _ctx: &ConsensusContext) -> Result<()> {
+    async fn committed(&mut self, _ctx: &ConsensusContext) -> Result<()> {
         Ok(())
     }
 }

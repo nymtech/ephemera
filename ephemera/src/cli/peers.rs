@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use crate::config::configuration::{Configuration, PeerSetting};
 use clap::Parser;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Parser)]
@@ -70,7 +70,10 @@ impl AddLocalPeersCmd {
             }
         }
 
-        let peer_names = configs.keys().map(|name| name.to_string()).collect::<Vec<String>>();
+        let peer_names = configs
+            .keys()
+            .map(|name| name.to_string())
+            .collect::<Vec<String>>();
         for peer in peer_names {
             let mut conf = configs.get(peer.as_str()).unwrap().clone();
             conf.libp2p.peers = vec![];
