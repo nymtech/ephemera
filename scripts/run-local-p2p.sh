@@ -85,6 +85,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 CLI_PROJECT="$PROJECT_ROOT/ephemera/Cargo.toml"
 EPHEMERA="$PROJECT_ROOT"/target/release/ephemera
 SIGNATURES_APP="$PROJECT_ROOT"/target/release/ephemera-signatures-app
+PIDS_FILE=$PROJECT_ROOT/.pids
 
 build() {
   echo "Building ephemera..."
@@ -106,8 +107,7 @@ create_cluster() {
 }
 
 run_signatures_app() {
-  FILE=.pids
-  if test -f "$FILE"; then
+  if test -f "$PIDS_FILE"; then
     echo "Cluster is already running, try stopping it first by executing /run-local-p2p.sh stop."
     exit 1
   fi
@@ -128,7 +128,7 @@ run_signatures_app() {
   MANIFEST_PATH="$APP_DIR/Cargo.toml"
   COUNTER=1
 
-  touch .pids
+  touch "$PIDS_FILE"
   mkdir -p logs
   mkdir -p signatures
 
@@ -145,7 +145,7 @@ run_signatures_app() {
      --client-listener-address $CLIENT_LISTENER_ADDR:400"$COUNTER" --signatures-file $SIGNATURES_FILE"$COUNTER".txt \
      --ws-listen-addr=$WS_LISTENER_ADDR:600"$COUNTER" > $LOGS_FILE"$COUNTER".log 2>&1 &
 
-    echo "$!" >> "$PROJECT_ROOT"/.pids
+    echo "$!" >> "$PIDS_FILE"
     COUNTER=$((COUNTER + 1))
   done
 
@@ -153,13 +153,12 @@ run_signatures_app() {
 }
 
 stop_cluster() {
-  FILE=$PROJECT_ROOT/.pids
-  if test -f "$FILE";
+  if test -f "$PIDS_FILE";
   then
      while read p; do
        kill -9 "$p" || true
-     done <.pids
-     rm .pids
+     done < "$PIDS_FILE"
+     rm "$PIDS_FILE"
      echo "Stopped ephemera cluster"
   else
      echo "No ephemera cluster running"

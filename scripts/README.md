@@ -7,7 +7,7 @@ Run from project root directory.
 Creates configuration for new cluster of nodes in ~/.ephemera directory
 
 ```bash
-./scripts/run-local-p2p.sh cluster -n 3
+./run-local-p2p.sh cluster -n 3
 ``` 
 
 ## Start cluster
@@ -16,7 +16,7 @@ Runs _ephemera-signatures-app_ on all nodes in cluster.
 
 
 ```bash
-./scripts/run-local-p2p.sh run -a ephemera-signatures-app
+./run-local-p2p.sh run -a ../ephemera-signatures-app
 ```
 
 ## Stop cluster
@@ -24,7 +24,7 @@ Runs _ephemera-signatures-app_ on all nodes in cluster.
 Stops _ephemera-signatures-app_ on all nodes in cluster
 
 ```bash
-./scripts/run-local-p2p.sh stop
+./run-local-p2p.sh stop
 ```
 
 ## Example websocket output
