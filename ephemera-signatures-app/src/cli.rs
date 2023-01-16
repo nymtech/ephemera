@@ -11,6 +11,8 @@ pub struct Args {
     pub signatures_file: String,
     #[arg(long)]
     pub ws_listen_addr: String,
+    #[arg(long)]
+    pub db_url: String,
 }
 
 pub fn parse_args() -> Args {

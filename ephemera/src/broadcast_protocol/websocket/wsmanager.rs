@@ -7,6 +7,7 @@ use anyhow::Result;
 
 use futures_util::{StreamExt, TryStreamExt};
 use tokio::sync::broadcast;
+use tokio::task::JoinHandle;
 use tokio_stream::wrappers;
 
 use tokio_tungstenite::tungstenite::Message;
@@ -64,17 +65,17 @@ impl WsManager {
         WsManager { pending_messages_tx }
     }
 
-    pub async fn start(listen_addr: String) -> Result<WsManagerHandle> {
+    pub async fn start(listen_addr: String) -> Result<(WsManagerHandle, JoinHandle<()>)> {
         let socket = TcpListener::bind(listen_addr.clone()).await.unwrap();
         log::info!("Accepting websocket connections on {}", listen_addr);
 
-        let (pending_messages_tx, _pending_messages_rx) = broadcast::channel(100);
+        let (pending_messages_tx, _pending_messages_rx) = broadcast::channel(1000);
         let handle = WsManagerHandle {
             pending_messages_tx: pending_messages_tx.clone(),
             pending_messages_rx: pending_messages_tx.subscribe(),
         };
 
-        tokio::spawn(async move {
+        let join_handle = tokio::spawn(async move {
             let mut ws_manager = WsManager::new(pending_messages_tx.clone());
             loop {
                 tokio::select! {
@@ -93,7 +94,7 @@ impl WsManager {
                 }
             }
         });
-        Ok(handle)
+        Ok((handle, join_handle))
     }
 
     pub async fn handle_incoming(&mut self, stream: WebSocketStream<TcpStream>) {

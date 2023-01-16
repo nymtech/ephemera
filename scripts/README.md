@@ -1,6 +1,11 @@
 # Scripts
 
-Run from project root directory.
+Run from project root directory. All output goes to into $PROJECT_ROOT/cluster directory.
+
+* cluster/db - sqlite db files
+* cluster/logs - logs
+* cluster/signatures - file backend files
+* .pids - process ids
 
 ## Create new cluster
 
@@ -26,6 +31,12 @@ Stops _ephemera-signatures-app_ on all nodes in cluster
 ```bash
 ./run-local-p2p.sh stop
 ```
+
+## Signatures app backends
+
+* DbBackend - stores signatures in database
+* FileBackend - stores signatures in files
+* WsBackend - sends signatures to websocket
 
 ## Example websocket output
 

@@ -1,4 +1,4 @@
-use crate::broadcast_callback::Signer;
+use crate::broadcast_callback::SignaturesConsensusRequest;
 use ephemera::broadcast_protocol::websocket::wsmanager::WsManagerHandle;
 
 use anyhow::Result;
@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WsSignaturesMsg {
-    pub request_id: String,
-    pub payload: Vec<u8>,
-    pub signatures: Vec<Signer>,
+    pub request: SignaturesConsensusRequest,
 }
 
 pub struct WsBackend {

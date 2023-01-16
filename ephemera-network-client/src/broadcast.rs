@@ -37,4 +37,3 @@ pub struct PrepareMsg {
 pub struct CommitMsg {}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AckMsg {}
-

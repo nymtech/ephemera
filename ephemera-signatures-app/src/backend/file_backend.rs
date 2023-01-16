@@ -1,32 +1,92 @@
-use crate::broadcast_callback::Signer;
+use crate::broadcast_callback::SignaturesConsensusRequest;
+use std::fs::File;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
-pub struct FileBackend {
-    pub signatures_path: PathBuf,
+use anyhow::Result;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum FileBackendError {
+    #[error("'{}'", .0)]
+    Other(String),
 }
 
-impl FileBackend {
-    pub fn new(signatures_file: String) -> FileBackend {
-        FileBackend {
-            signatures_path: Path::new(&signatures_file).to_path_buf(),
+pub enum FileBackendCmd {
+    STORE(SignaturesConsensusRequest),
+}
+
+#[derive(Clone)]
+pub struct FileBackendHandle {
+    cmd_tx: mpsc::Sender<FileBackendCmd>,
+}
+
+impl FileBackendHandle {
+    pub fn new(cmd_tx: mpsc::Sender<FileBackendCmd>) -> FileBackendHandle {
+        FileBackendHandle { cmd_tx }
+    }
+    pub async fn store(&self, request: SignaturesConsensusRequest) -> Result<()> {
+        self.cmd_tx
+            .send(FileBackendCmd::STORE(request))
+            .await
+            .map_err(|e| {
+                FileBackendError::Other(format!("Error sending cmd to file backend: {}", e)).into()
+            })
+    }
+}
+
+pub struct SignaturesFileBackend {
+    pub cmd_rcv: mpsc::Receiver<FileBackendCmd>,
+}
+
+impl SignaturesFileBackend {
+    fn new(cmd_rcv: mpsc::Receiver<FileBackendCmd>) -> SignaturesFileBackend {
+        SignaturesFileBackend { cmd_rcv }
+    }
+
+    pub fn start(signatures_file: String) -> Result<(FileBackendHandle, JoinHandle<()>)> {
+        log::info!("Starting file backend with path: {}", signatures_file);
+
+        let (cmd_tx, cmd_rx) = mpsc::channel(1000);
+        let handle = FileBackendHandle::new(cmd_tx);
+        let mut backend = SignaturesFileBackend::new(cmd_rx);
+
+        let mut file = Self::open_file(signatures_file)?;
+
+        let join_handle = tokio::spawn(async move {
+            log::debug!("File backend started");
+            while let Some(cmd) = backend.cmd_rcv.recv().await {
+                match cmd {
+                    FileBackendCmd::STORE(req) => {
+                        if let Err(err) = Self::store(&mut file, req) {
+                            log::error!("Error storing signature: {}", err);
+                        }
+                    }
+                }
+            }
+        });
+        Ok((handle, join_handle))
+    }
+
+    fn open_file(signatures_file: String) -> Result<File> {
+        match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(signatures_file)
+        {
+            Ok(file) => Ok(file),
+            Err(e) => {
+                return Err(FileBackendError::Other(format!("Error opening file: {}", e)).into());
+            }
         }
     }
 
-    pub fn store(&self, payload: &[u8], signatures: Vec<Signer>) -> Result<(), std::io::Error> {
-        log::debug!(
-            "Storing signatures in {}",
-            self.signatures_path.to_string_lossy()
-        );
-        let mut file = std::fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&self.signatures_path)?;
-
+    fn store(file: &mut File, req: SignaturesConsensusRequest) -> Result<()> {
         file.write_all(b"payload: ")?;
-        file.write_all(payload)?;
+        file.write_all(req.payload.as_slice())?;
         file.write_all(b"\n")?;
-        for signer in signatures {
+        for (_, signer) in req.signatures {
             file.write_all(b"signer: ")?;
             file.write_all(signer.id.as_bytes())?;
             file.write_all(b"\n")?;

@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 
-use crate::backend::file_backend::FileBackend;
+use crate::backend::file_backend::{FileBackendHandle, SignaturesFileBackend};
 use crate::backend::websocket_backend::{WsBackend, WsSignaturesMsg};
 use ephemera::broadcast_protocol::broadcast::ConsensusContext;
 use ephemera::broadcast_protocol::BroadcastCallBack;
@@ -29,7 +29,7 @@ pub struct Signer {
     pub signature: String,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SignaturesConsensusRequest {
     pub request_id: String,
     pub payload: Vec<u8>,
@@ -39,10 +39,12 @@ pub struct SignaturesConsensusRequest {
 pub struct SigningBroadcastCallBack {
     pub keypair: Ed25519KeyPair,
     pub requests: HashMap<String, SignaturesConsensusRequest>,
-    pub file_backend: Option<FileBackend>,
+    pub file_backend: Option<FileBackendHandle>,
+    pub file_backend_file: Option<String>,
     pub ws_backend: Option<WsBackend>,
-    pub ws_handle: Option<WsManagerHandle>,
     pub ws_listen_addr: Option<String>,
+    pub db_backend: Option<DbBackendHandle>,
+    pub db_url: Option<String>,
 }
 
 impl SigningBroadcastCallBack {
@@ -52,26 +54,33 @@ impl SigningBroadcastCallBack {
             keypair,
             requests: HashMap::new(),
             file_backend: None,
+            file_backend_file: None,
             ws_backend: None,
-            ws_handle: None,
             ws_listen_addr: None,
+            db_backend: None,
+            db_url: None,
         }
     }
 
     pub async fn start(&mut self) -> Result<()> {
-        if self.file_backend.is_none() && self.ws_backend.is_none() {
-            return Err(anyhow::anyhow!("No backend set"));
+        if let Some(file_backend_file) = &self.file_backend_file {
+            let (file_backend_handle, _) = SignaturesFileBackend::start(file_backend_file.clone())?;
+            self.file_backend = Some(file_backend_handle);
         }
         if let Some(ws_listen_addr) = self.ws_listen_addr.clone() {
-            let ws_handle = WsManager::start(ws_listen_addr).await.unwrap();
+            let (ws_handle, _) = WsManager::start(ws_listen_addr).await.unwrap();
             let ws_backend = WsBackend::new(ws_handle);
             self.ws_backend = Some(ws_backend);
+        }
+        if let Some(db_url) = self.db_url.clone() {
+            let (db_backend, _) = DbBackend::start(db_url).await?;
+            self.db_backend = Some(db_backend);
         }
         Ok(())
     }
 
-    pub fn with_file_backend(mut self, signatures_file: String) -> Self {
-        self.file_backend = Some(FileBackend::new(signatures_file));
+    pub fn with_file_backend(mut self, file_backend_file: String) -> Self {
+        self.file_backend_file = Some(file_backend_file);
         self
     }
 
@@ -79,10 +88,16 @@ impl SigningBroadcastCallBack {
         self.ws_listen_addr = Some(ws_listen_addr);
         self
     }
+
+    pub fn with_db_backend(mut self, db_url: String) -> Self {
+        self.db_url = Some(db_url);
+        self
+    }
 }
 
+use crate::backend::db_backend::{DbBackend, DbBackendHandle};
 use anyhow::Result;
-use ephemera::broadcast_protocol::websocket::wsmanager::{WsManager, WsManagerHandle};
+use ephemera::broadcast_protocol::websocket::wsmanager::WsManager;
 
 #[async_trait]
 impl BroadcastCallBack for SigningBroadcastCallBack {
@@ -127,6 +142,7 @@ impl BroadcastCallBack for SigningBroadcastCallBack {
         ctx: &ConsensusContext,
     ) -> Result<Option<Vec<u8>>> {
         log::debug!("PREPARE");
+
         let sig_req: SignatureRequest = serde_json::from_slice(&payload)?;
 
         let scr =
@@ -163,20 +179,19 @@ impl BroadcastCallBack for SigningBroadcastCallBack {
     async fn committed(&mut self, state: &ConsensusContext) -> Result<()> {
         log::debug!("COMMITTED");
 
-        //Trust broadcast_protocol to remember which messages were already sent to callback
         if let Some(scr) = self.requests.remove(&state.id) {
-            let cloned = scr.signatures.values().cloned();
-            let signatures = cloned.collect::<Vec<Signer>>();
+
+            if let Some(db_backend) = &mut self.db_backend {
+                db_backend.store(scr.clone()).await?
+            }
 
             if let Some(file_backend) = &mut self.file_backend {
-                file_backend.store(&scr.payload, signatures.clone())?
+                file_backend.store(scr.clone()).await?
             }
 
             if let Some(ws_backend) = &mut self.ws_backend {
                 let sig_msg = WsSignaturesMsg {
-                    request_id: scr.request_id,
-                    payload: scr.payload,
-                    signatures,
+                    request: scr.clone(),
                 };
                 let msg = serde_json::to_vec(&sig_msg)?;
                 ws_backend.send(msg).await?

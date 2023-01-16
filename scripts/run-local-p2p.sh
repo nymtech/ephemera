@@ -82,10 +82,10 @@ shift
 }
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-CLI_PROJECT="$PROJECT_ROOT/ephemera/Cargo.toml"
+CLUSTER_DIR="${PROJECT_ROOT}/cluster"
 EPHEMERA="$PROJECT_ROOT"/target/release/ephemera
 SIGNATURES_APP="$PROJECT_ROOT"/target/release/ephemera-signatures-app
-PIDS_FILE=$PROJECT_ROOT/.pids
+PIDS_FILE=$CLUSTER_DIR/.pids
 
 build() {
   echo "Building ephemera..."
@@ -120,36 +120,44 @@ run_signatures_app() {
 
   [[ $COUNTER -lt 1 ]] && echo "No ephemera nodes found, try creating a cluster first." && exit 1
 
-
   echo "Running ephemera signatures application instances in ${APP_DIR} ..."
   echo "Starting $COUNTER nodes"
 
   export RUST_LOG="ephemera=debug"
-  MANIFEST_PATH="$APP_DIR/Cargo.toml"
+
   COUNTER=1
 
+  mkdir -p "$CLUSTER_DIR"
+  mkdir -p "$CLUSTER_DIR"/logs
+  mkdir -p "$CLUSTER_DIR"/signatures
+  mkdir -p "$CLUSTER_DIR"/db
   touch "$PIDS_FILE"
-  mkdir -p logs
-  mkdir -p signatures
 
   CLIENT_LISTENER_ADDR=127.0.0.1
   WS_LISTENER_ADDR=127.0.0.1
-  SIGNATURES_FILE=$PROJECT_ROOT/signatures/signatures
-  LOGS_FILE=$PROJECT_ROOT/logs/node
+  SIGNATURES_FILE=$CLUSTER_DIR/signatures/signatures
+  LOGS_FILE=$CLUSTER_DIR/logs/
 
   COUNTER=1
   for d in ~/.ephemera/*/ephemera.toml; do
-    echo "Starting $d"
+    DB_FILE="$CLUSTER_DIR"/db/ephemera$COUNTER.sqlite
+    touch "$DB_FILE"
+    export export DATABASE_FILE=$DB_FILE
+    export export DATABASE_URL=sqlite:$DB_FILE
+    cargo build --manifest-path "$PROJECT_ROOT"/Cargo.toml --release
 
+    echo "Starting $d"
     $SIGNATURES_APP --config-file ~/.ephemera/node"${COUNTER}"/ephemera.toml \
-     --client-listener-address $CLIENT_LISTENER_ADDR:400"$COUNTER" --signatures-file $SIGNATURES_FILE"$COUNTER".txt \
-     --ws-listen-addr=$WS_LISTENER_ADDR:600"$COUNTER" > $LOGS_FILE"$COUNTER".log 2>&1 &
+     --client-listener-address $CLIENT_LISTENER_ADDR:400"$COUNTER" --signatures-file "$SIGNATURES_FILE""$COUNTER".txt \
+     --ws-listen-addr=$WS_LISTENER_ADDR:600"$COUNTER" --db-url="$DB_FILE"\
+      > "$LOGS_FILE"node"$COUNTER".log 2>&1 &
 
     echo "$!" >> "$PIDS_FILE"
     COUNTER=$((COUNTER + 1))
   done
 
   echo "Started $((COUNTER - 1)) ephemera signatures application instances."
+  echo "Log files are in $LOGS_FILE directory."
 }
 
 stop_cluster() {

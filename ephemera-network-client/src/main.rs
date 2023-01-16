@@ -1,4 +1,4 @@
-use std::thread;
+use std::{env, thread};
 
 use bytes::BytesMut;
 use prost_types::Timestamp;
@@ -18,6 +18,9 @@ mod libp2p2_crypto;
 
 #[tokio::main]
 async fn main() {
+    if !env::vars().any(|(k, _)| k == "RUST_LOG") {
+        env::set_var("RUST_LOG", "debug");
+    }
     let args = cli::parse_args();
     if args.broadcast {
         run_reliable_broadcast().await;
@@ -42,9 +45,12 @@ async fn generate_keypair() {
 
 async fn run_reliable_broadcast() {
     let mut conn = TcpStream::connect("127.0.0.1:4001").await.unwrap();
+    let mut c = 1;
     loop {
         let mut message = quorum_message();
         conn.write_buf(&mut message).await.unwrap();
+        println!("Sent message {}", c);
+        c += 1;
         thread::sleep(std::time::Duration::from_millis(3000));
     }
 }
