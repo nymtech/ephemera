@@ -83,7 +83,7 @@ andrus@Andruss ~ % websocat ws://127.0.0.1:6001
 
 ## Example database snapshot
 
-![](/Users/andrussalumets/IdeaProjects/ephemera/scripts/signatures.png)
+![Signatures snapshot](./signatures.png)
 
 ## Example file backend output
 
