@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "ephemera",
-    "ephemera-network-client",
+    "node",
+    "client",
     "ephemera-signatures-app",
 ]
