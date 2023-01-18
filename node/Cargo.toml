@@ -8,6 +8,7 @@ name = "ephemera"
 path = "bin/main.rs"
 
 [dependencies]
+actix-web = "4"
 anyhow = "1.0.66"
 array-bytes = "6.0.0"
 async-trait = "0.1.59"
@@ -35,6 +36,8 @@ rand = "0.8.5"
 rand_chacha = { version = "0.3.1" }
 toml = "0.5.9"
 tokio-tungstenite = "0.18.0"
+utoipa = { version = "2", features = ["actix_extras"] }
+utoipa-swagger-ui = { version = "2", features = ["actix-web"] }
 
 
 [dev-dependencies]
