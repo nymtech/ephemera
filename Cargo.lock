@@ -1117,18 +1117,11 @@ dependencies = [
 name = "ephemera-client"
 version = "0.1.0"
 dependencies = [
- "array-bytes",
  "bytes",
  "clap",
- "digest 0.10.6",
- "ed25519-zebra",
  "ephemera",
- "hex",
- "libp2p",
  "prost",
  "prost-types",
- "rand 0.8.5",
- "rand_chacha 0.3.1",
  "tokio",
  "uuid",
 ]
@@ -1141,7 +1134,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "clap",
- "config",
  "ephemera",
  "futures",
  "log",

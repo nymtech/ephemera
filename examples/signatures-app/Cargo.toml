@@ -9,7 +9,6 @@ ephemera = { path = "../../node" }
 log = "0.4.17"
 pretty_env_logger = "0.4"
 clap = { version = "4.0.26", features = ["derive"] }
-config = { version = "0.13", default-features = false, features = ["toml"] }
 anyhow = "1.0.66"
 thiserror = "1.0.38"
 futures = "0.3.18"
