@@ -3,5 +3,5 @@
 members = [
     "node",
     "client",
-    "ephemera-signatures-app",
+    "examples/ephemera-signatures-app",
 ]
