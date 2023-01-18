@@ -8,7 +8,7 @@ Logs go to _logs_ directory.
 
 ```bash
 ./scripts/run-local-p2p.sh cluster -n 22
-./scripts/run-local-p2p.sh run -a ephemera-signatures-app
+./scripts/run-local-p2p.sh run -a signatures-app
 ```
 
 ## Stopping

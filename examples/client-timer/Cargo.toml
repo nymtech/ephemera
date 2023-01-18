@@ -1,0 +1,8 @@
+[package]
+name = "client-timer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ephemera-client = { path = "../../client" }
+tokio = "1.24.2"

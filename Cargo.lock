@@ -531,6 +531,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "client-timer"
+version = "0.1.0"
+dependencies = [
+ "ephemera-client",
+ "tokio",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1094,10 +1102,8 @@ dependencies = [
  "prost-types",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
- "secrecy",
  "serde",
  "serde_derive",
- "serde_json",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -1116,6 +1122,7 @@ dependencies = [
  "clap",
  "digest 0.10.6",
  "ed25519-zebra",
+ "ephemera",
  "hex",
  "libp2p",
  "prost",
@@ -3381,16 +3388,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "secrecy"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
-dependencies = [
- "serde",
- "zeroize",
-]
-
-[[package]]
 name = "semver"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3756,9 +3753,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.23.0"
+version = "1.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eab6d665857cc6ca78d6e80303a02cea7a7851e85dfbd77cbdc09bd129f1ef46"
+checksum = "597a12a59981d9e3c38d216785b0c37399f6e415e8d0712047620f189371b0bb"
 dependencies = [
  "autocfg",
  "bytes",

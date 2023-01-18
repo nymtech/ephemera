@@ -1,12 +1,19 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser)]
 #[command()]
 pub struct Args {
-    #[arg(long)]
-    pub broadcast: bool,
-    #[arg(long)]
-    pub keypair: bool,
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    Broadcast {
+        #[clap(short, long)]
+        node_address: String,
+        #[clap(short, long)]
+        sleep_time_sec: u64 },
 }
 
 pub fn parse_args() -> Args {

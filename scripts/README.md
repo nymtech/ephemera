@@ -23,7 +23,7 @@ Runs _ephemera-signatures-app_ on all nodes in cluster.
 
 
 ```bash
-./run-local-p2p.sh run -a ../ephemera-signatures-app
+./run-local-p2p.sh run -a ../signatures-app
 ```
 
 ## Stop cluster

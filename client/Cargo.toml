@@ -5,7 +5,8 @@ edition = "2021"
 
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+ephemera = {path = "../node"}
+tokio = {version = "1.0", features = ["net"]}
 uuid = { version = "1.2.2", features = ["v4"] }
 prost = "0.11.2"
 prost-types = "0.11.2"

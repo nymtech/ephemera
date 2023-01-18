@@ -10,4 +10,4 @@
 
 ## Ephemera Signatures
 
-[README](examples/ephemera-signatures-app/README.md)
+[README](examples/signatures-app/README.md)

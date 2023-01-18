@@ -180,7 +180,6 @@ impl BroadcastCallBack for SigningBroadcastCallBack {
         log::debug!("COMMITTED");
 
         if let Some(scr) = self.requests.remove(&state.id) {
-
             if let Some(db_backend) = &mut self.db_backend {
                 db_backend.store(scr.clone()).await?
             }
