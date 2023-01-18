@@ -1,7 +1,9 @@
 # Ephemera client example
 
-Send messages from stdin to the ephemera server
+Send messages from stdin to the ephemera server. 
+
+From the top-level directory of the repo:
 
 ```bash
-cargo run -- broadcast  --node-address 127.0.0.1:4001
+cargo run --bin console-client -- broadcast  --node-address 127.0.0.1:4001
 ```
