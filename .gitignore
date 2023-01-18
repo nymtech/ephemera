@@ -1,5 +1,5 @@
 .idea
-/**/.iml
+*.iml
 /target
 
 /**/logs

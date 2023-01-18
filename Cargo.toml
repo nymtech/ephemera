@@ -5,4 +5,5 @@ members = [
     "client",
     "examples/signatures-app",
     "examples/client-timer",
+    "examples/console-client",
 ]

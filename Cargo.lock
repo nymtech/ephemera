@@ -535,6 +535,7 @@ name = "client-timer"
 version = "0.1.0"
 dependencies = [
  "ephemera-client",
+ "futures",
  "tokio",
 ]
 
@@ -569,6 +570,15 @@ dependencies = [
  "pathdiff",
  "serde",
  "toml",
+]
+
+[[package]]
+name = "console-client"
+version = "0.1.0"
+dependencies = [
+ "ephemera-client",
+ "futures",
+ "tokio",
 ]
 
 [[package]]
@@ -1123,6 +1133,7 @@ dependencies = [
  "prost",
  "prost-types",
  "tokio",
+ "tokio-stream",
  "uuid",
 ]
 

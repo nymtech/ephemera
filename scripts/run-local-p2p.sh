@@ -135,22 +135,23 @@ run_signatures_app() {
 
   CLIENT_LISTENER_ADDR=127.0.0.1
   WS_LISTENER_ADDR=127.0.0.1
-  SIGNATURES_FILE=$CLUSTER_DIR/signatures/signatures
-  LOGS_FILE=$CLUSTER_DIR/logs/
 
   COUNTER=1
   for d in ~/.ephemera/*/ephemera.toml; do
     DB_FILE="$CLUSTER_DIR"/db/ephemera$COUNTER.sqlite
+    SIGNATURES_FILE="$CLUSTER_DIR"/signatures/ephemera$COUNTER.txt
+    LOGS_FILE=$CLUSTER_DIR/logs/ephemera$COUNTER.log
     touch "$DB_FILE"
+    touch "$SIGNATURES_FILE"
     export export DATABASE_FILE=$DB_FILE
     export export DATABASE_URL=sqlite:$DB_FILE
     cargo build --manifest-path "$PROJECT_ROOT"/Cargo.toml --release
 
     echo "Starting $d"
     $SIGNATURES_APP --config-file ~/.ephemera/node"${COUNTER}"/ephemera.toml \
-     --client-listener-address $CLIENT_LISTENER_ADDR:400"$COUNTER" --signatures-file "$SIGNATURES_FILE""$COUNTER".txt \
+     --client-listener-address $CLIENT_LISTENER_ADDR:400"$COUNTER" --signatures-file "$SIGNATURES_FILE" \
      --ws-listen-addr=$WS_LISTENER_ADDR:600"$COUNTER" --db-url="$DB_FILE"\
-      > "$LOGS_FILE"node"$COUNTER".log 2>&1 &
+      > "$LOGS_FILE" 2>&1 &
 
     echo "$!" >> "$PIDS_FILE"
     COUNTER=$((COUNTER + 1))

@@ -1,21 +1,38 @@
 pub mod cli;
 
-use std::thread;
 use bytes::BytesMut;
-use prost_types::Timestamp;
-use tokio::io::AsyncWriteExt;
-use tokio::net::TcpStream;
-use uuid::Uuid;
 use ephemera::request::rb_msg::ReliableBroadcast::PrePrepare;
 use ephemera::request::{PrePrepareMsg, RbMsg};
+use prost_types::Timestamp;
+use tokio::io::{AsyncRead, AsyncWriteExt, AsyncReadExt};
+use tokio::net::TcpStream;
+use uuid::Uuid;
 
-pub async fn run_reliable_broadcast<F: Fn() -> Vec<u8>>(node_address: String, sleep_time_sec: u64, payload_generator: F) {
-    let mut conn = TcpStream::connect(node_address).await.unwrap();
-    loop {
-        let payload = payload_generator();
-        let mut message = quorum_message(payload);
-        conn.write_buf(&mut message).await.unwrap();
-        thread::sleep(std::time::Duration::from_secs(sleep_time_sec));
+pub struct RbClient<R> {
+    pub payload_stream: R,
+    pub node_address: String,
+}
+
+impl<R: AsyncRead + Unpin> RbClient<R> {
+    pub fn new(
+        node_address: String,
+        payload_stream: R,
+    ) -> Self {
+        RbClient {
+            payload_stream,
+            node_address,
+        }
+    }
+
+    pub async fn run_reliable_broadcast(&mut self) {
+        let mut conn = TcpStream::connect(&self.node_address).await.unwrap();
+        loop {
+            let mut buf = BytesMut::new();
+            self.payload_stream.read_buf(&mut buf).await.unwrap();
+            let payload = buf.to_vec();
+            let mut message = quorum_message(payload);
+            conn.write_buf(&mut message).await.unwrap();
+        }
     }
 }
 
