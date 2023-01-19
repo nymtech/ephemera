@@ -1,5 +1,5 @@
-use ephemera_client::{cli, RbClient};
 use ephemera_client::cli::Commands;
+use ephemera_client::{cli, RbClient};
 
 #[tokio::main]
 async fn main() {

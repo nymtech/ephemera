@@ -1,5 +1,5 @@
-pub mod ed25519;
-pub mod libp2p2_crypto;
+pub(crate) mod ed25519;
+pub(crate) mod libp2p2_crypto;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

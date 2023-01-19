@@ -1,14 +1,19 @@
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
+use crate::api::queries::MessagesApi;
 
 use crate::broadcast_protocol::protocol_handler::ProtocolHandler;
-use crate::broadcast_protocol::{BroadcastCallBack, ProtocolRequest};
+use crate::broadcast_protocol::signing::signer;
+use crate::broadcast_protocol::ProtocolRequest;
 use crate::config::configuration::Configuration;
+use crate::crypto::ed25519::Ed25519KeyPair;
+use crate::crypto::KeyPair;
 use crate::network::libp2p::swarm;
 use crate::network::Network;
 
-#[derive(Clone)]
 pub struct Ephemera {
     to_protocol: mpsc::Sender<ProtocolRequest>,
+    api: MessagesApi,
 }
 
 impl Ephemera {
@@ -17,28 +22,37 @@ impl Ephemera {
             panic!("Receiver closed: {}, unable to continue", err);
         }
     }
+
+    pub fn api(&self) -> &MessagesApi {
+        &self.api
+    }
 }
 
 pub struct EphemeraLauncher;
 
 impl EphemeraLauncher {
-    pub async fn launch<C: BroadcastCallBack + 'static>(
-        conf: Configuration,
-        protocol_callback: C,
-    ) -> Ephemera {
-        let (to_network, from_protocol) = mpsc::channel(500);
-        let (to_protocol, from_network) = mpsc::channel(500);
+    pub async fn launch(conf: Configuration) -> (Ephemera, JoinHandle<()>) {
+        let (to_network, from_protocol) = mpsc::channel(1000);
+        let (to_protocol, from_network) = mpsc::channel(1000);
 
         let network = swarm::SwarmNetwork::new(conf.clone(), to_protocol.clone(), from_protocol);
         tokio::spawn(async move {
             network.run().await;
         });
 
-        tokio::spawn(async move {
-            let protocol_handler = ProtocolHandler::new(conf, protocol_callback);
+        //TODO
+        let keypair = Ed25519KeyPair::generate().unwrap();
+        let signer = signer::Signer::start(keypair, conf.db_config.clone(), conf.ws_config.clone()).await.unwrap();
+
+        let handler_conf = conf.clone();
+        let join_handle = tokio::spawn(async move {
+            let protocol_handler = ProtocolHandler::new(handler_conf, signer);
             protocol_handler.run(from_network, to_network).await;
         });
 
-        Ephemera { to_protocol }
+        let api = MessagesApi::new(conf.db_config.clone());
+
+        let ephemera = Ephemera { to_protocol, api };
+        (ephemera, join_handle)
     }
 }

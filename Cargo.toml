@@ -3,7 +3,7 @@
 members = [
     "node",
     "client",
-    "examples/signatures-app",
     "examples/client-timer",
     "examples/console-client",
+    "examples/embedded-api",
 ]

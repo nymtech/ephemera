@@ -115,7 +115,7 @@ impl<C: BroadcastCallBack + Send> BroadcastProtocol<C> {
             contexts: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             quorum,
             callback,
-            node_id: config.address,
+            node_id: config.node_config.address,
         }
     }
 

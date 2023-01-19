@@ -4,7 +4,7 @@ use bytes::BytesMut;
 use ephemera::request::rb_msg::ReliableBroadcast::PrePrepare;
 use ephemera::request::{PrePrepareMsg, RbMsg};
 use prost_types::Timestamp;
-use tokio::io::{AsyncRead, AsyncWriteExt, AsyncReadExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use uuid::Uuid;
 
@@ -14,10 +14,7 @@ pub struct RbClient<R> {
 }
 
 impl<R: AsyncRead + Unpin> RbClient<R> {
-    pub fn new(
-        node_address: String,
-        payload_stream: R,
-    ) -> Self {
+    pub fn new(node_address: String, payload_stream: R) -> Self {
         RbClient {
             payload_stream,
             node_address,
@@ -30,25 +27,30 @@ impl<R: AsyncRead + Unpin> RbClient<R> {
             let mut buf = BytesMut::new();
             self.payload_stream.read_buf(&mut buf).await.unwrap();
             let payload = buf.to_vec();
-            let mut message = quorum_message(payload);
+
+            let msg = pre_prepare_msg("client", payload);
+            let mut message = quorum_message(msg);
             conn.write_buf(&mut message).await.unwrap();
         }
     }
 }
 
-fn quorum_message(payload: Vec<u8>) -> bytes::Bytes {
+pub fn quorum_message(msg: RbMsg) -> bytes::Bytes {
+    println!("Sending request {:?}", msg);
+
+    let mut buf = BytesMut::with_capacity(1028);
+    prost::Message::encode_length_delimited(&msg, &mut buf).unwrap();
+
+    buf.freeze()
+}
+
+pub fn pre_prepare_msg(sender_id: &str, payload: Vec<u8>) -> RbMsg {
     let timestamp = Timestamp::from(std::time::SystemTime::now());
     let request = RbMsg {
         id: Uuid::new_v4().to_string(),
-        node_id: "client".to_string(),
+        node_id: sender_id.to_string(),
         timestamp: Some(timestamp),
         reliable_broadcast: Some(PrePrepare(PrePrepareMsg { payload })),
     };
-
-    println!("Sending request {:?}", request);
-
-    let mut buf = BytesMut::with_capacity(1028);
-    prost::Message::encode_length_delimited(&request, &mut buf).unwrap();
-
-    buf.freeze()
+    request
 }

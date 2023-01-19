@@ -1,7 +1,7 @@
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use ephemera_client::cli::Commands;
 use ephemera_client::{cli, RbClient};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::thread;
 use tokio::io::{AsyncRead, ReadBuf};
 
@@ -19,7 +19,11 @@ async fn main() {
 struct PayloadStream;
 
 impl AsyncRead for PayloadStream {
-    fn poll_read(self: Pin<&mut Self>, _cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<Result<(), std::io::Error>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         thread::sleep(std::time::Duration::from_millis(3000));
         buf.put_slice(b"hello world");
         Poll::Ready(Ok(()))

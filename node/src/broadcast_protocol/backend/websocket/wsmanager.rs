@@ -12,11 +12,6 @@ use tokio_stream::wrappers;
 
 use tokio_tungstenite::tungstenite::Message;
 
-pub enum ConnectionState {
-    AwaitSubscriptions,
-    Subscribed,
-}
-
 pub struct WsConnection {
     socket: WebSocketStream<TcpStream>,
     pending_messages_rx: broadcast::Receiver<Message>,

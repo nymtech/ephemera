@@ -1,12 +1,11 @@
-use crate::broadcast_callback::SignaturesConsensusRequest;
-use ephemera::broadcast_protocol::websocket::wsmanager::WsManagerHandle;
-
+use crate::broadcast_protocol::backend::websocket::wsmanager::WsManagerHandle;
+use crate::broadcast_protocol::signing::signer::SignedConsensusMessage;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WsSignaturesMsg {
-    pub request: SignaturesConsensusRequest,
+    pub request: SignedConsensusMessage,
 }
 
 pub struct WsBackend {

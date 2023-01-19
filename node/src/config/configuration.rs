@@ -6,12 +6,20 @@ use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Configuration {
+    pub node_config: NodeConfig,
+    pub quorum: BroadcastProtocolSettings,
+    pub libp2p: Libp2pSettings,
+    pub db_config: DbConfig,
+    pub ws_config: WsConfig,
+    pub network_client_listener_config: NetworkClientListenerConfig,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct NodeConfig {
     pub address: String,
     pub pub_key: String,
     //TODO: clear memory after use
     pub priv_key: String,
-    pub quorum: BroadcastProtocolSettings,
-    pub libp2p: Libp2pSettings,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -34,8 +42,19 @@ pub struct PeerSetting {
     pub pub_key: String,
 }
 
-pub trait EphemeraConfiguration {
-    fn get_address(&self) -> String;
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct DbConfig {
+    pub db_path: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct WsConfig {
+    pub ws_address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct NetworkClientListenerConfig {
+    pub address: String,
 }
 
 #[derive(Debug, Error)]
@@ -56,17 +75,21 @@ const EPHEMERA_CONFIG_FILE: &str = "ephemera.toml";
 type Result<T> = std::result::Result<T, ConfigurationError>;
 
 impl Configuration {
-    pub fn try_load(node_name: &str, file: &str) -> Result<Configuration> {
-        let file_path = Self::ephemera_node_dir(node_name)?.join(file);
-
+    pub fn try_load(file: PathBuf) -> Result<Configuration> {
         let config = config::Config::builder()
-            .add_source(config::File::from(file_path))
+            .add_source(config::File::from(file))
             .build()
             .map_err(|e| ConfigurationError::Other(e.to_string()))?;
 
         Ok(config
             .try_deserialize()
             .map_err(|e| ConfigurationError::Other(e.to_string()))?)
+    }
+
+    pub fn try_load_node(node_name: &str, file: &str) -> Result<Configuration> {
+        let file_path = Self::ephemera_node_dir(node_name)?.join(file);
+
+        Configuration::try_load(file_path)
     }
 
     pub fn try_load_from_home_dir(node_name: &str) -> Result<Configuration> {

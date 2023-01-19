@@ -1,8 +1,9 @@
+mod backend;
 pub mod broadcast;
 pub mod protocol_handler;
-pub mod quorum;
+mod quorum;
+pub(crate) mod signing;
 mod test;
-pub mod websocket;
 
 #[derive(Debug, Clone)]
 pub struct ProtocolRequest {

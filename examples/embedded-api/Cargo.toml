@@ -1,0 +1,11 @@
+[package]
+name = "embedded-api"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+ephemera = { path = "../../node" }
+ephemera-client = { path = "../../client" }
+tokio = { version = "1.0", features = ["net"] }
+clap = { version = "4.0.26", features = ["derive"] }

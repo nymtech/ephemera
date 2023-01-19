@@ -83,8 +83,8 @@ impl AddLocalPeersCmd {
                 }
                 conf.libp2p.peers.push(PeerSetting {
                     name: node_name.to_string(),
-                    address: peer_conf.address.clone(),
-                    pub_key: peer_conf.pub_key.clone(),
+                    address: peer_conf.node_config.address.clone(),
+                    pub_key: peer_conf.node_config.pub_key.clone(),
                 });
                 conf.quorum.cluster_size = configs.len();
                 conf.quorum.quorum_threshold_size = configs.len();
