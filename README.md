@@ -2,12 +2,20 @@
 
 ## Client
 
-[README](ephemera-network-client/README.md)
+[README](client/README.md)
 
-## Ephemera
+## Ephemera Node
 
-[README](ephemera/README.md)
+[README](node/README.md)
 
-## Ephemera Signatures
+## Example Target Application
 
 [README](examples/signatures-app/README.md)
+
+## Example Timer Client
+
+[README](examples/client-timer/README.md)
+
+## Example Console Client
+
+[README](examples/console-client/README.md)
