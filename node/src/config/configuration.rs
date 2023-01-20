@@ -12,6 +12,7 @@ pub struct Configuration {
     pub db_config: DbConfig,
     pub ws_config: WsConfig,
     pub network_client_listener_config: NetworkClientListenerConfig,
+    pub http_config: HttpConfig,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -54,6 +55,11 @@ pub struct WsConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct NetworkClientListenerConfig {
+    pub address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct HttpConfig {
     pub address: String,
 }
 

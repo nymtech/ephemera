@@ -1,6 +1,5 @@
 #[derive(Debug)]
 pub enum KeyPairError {
-    InvalidSliceLength,
     InvalidSignature,
 }
 

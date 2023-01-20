@@ -1,9 +1,9 @@
-use std::thread;
 use clap::Parser;
 use ephemera::broadcast_protocol::ProtocolRequest;
 use ephemera::config::configuration::Configuration;
 use ephemera::logging::init_logging;
 use ephemera::network::ephemera::EphemeraLauncher;
+use std::thread;
 
 #[derive(Parser)]
 struct Args {
@@ -37,17 +37,19 @@ async fn main() {
         let request_id = msg.id.clone();
         println!("Sending request {:?}", msg);
 
-        ephemera_1.send_message(ProtocolRequest::new("client".to_string(), msg)).await;
+        ephemera_1
+            .send_message(ProtocolRequest::new("client".to_string(), msg))
+            .await;
 
         thread::sleep(std::time::Duration::from_secs(1));
 
-        let message = ephemera_1.api().get_message(request_id.clone()).unwrap();
+        let message = ephemera_1.api().get_message_by_request_id(request_id.clone()).unwrap();
         println!("Node 1 received message {:?}", message);
 
-        let message = ephemera_2.api().get_message(request_id.clone()).unwrap();
+        let message = ephemera_2.api().get_message_by_request_id(request_id.clone()).unwrap();
         println!("Node 2 received message {:?}", message);
 
-        let message = ephemera_3.api().get_message(request_id).unwrap();
+        let message = ephemera_3.api().get_message_by_request_id(request_id).unwrap();
         println!("Node 3 received message {:?}", message);
 
         thread::sleep(std::time::Duration::from_secs(5));

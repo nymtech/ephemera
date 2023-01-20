@@ -1,9 +1,9 @@
-use std::path::PathBuf;
 use crate::config::configuration::Configuration;
 use crate::network::client_listener::EphemeraNetworkCmdListener;
 use crate::network::ephemera::EphemeraLauncher;
 use clap::Parser;
 use futures::executor::block_on;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Parser)]
 pub struct RunNodeCmd {

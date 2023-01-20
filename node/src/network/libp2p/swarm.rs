@@ -66,7 +66,8 @@ impl Network for SwarmNetwork {
     async fn run(mut self) {
         log::info!("Starting network: {}", self.config.node_config.address.as_str());
 
-        let address = Multiaddr::from_str(self.config.node_config.address.as_str()).expect("Invalid multi-address");
+        let address =
+            Multiaddr::from_str(self.config.node_config.address.as_str()).expect("Invalid multi-address");
         self.swarm.listen_on(address).unwrap();
 
         let mut codec = ProtoCodec::<RbMsg, RbMsg>::new();

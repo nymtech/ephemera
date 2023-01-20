@@ -1,6 +1,6 @@
 use crate::config::configuration::{
-    BroadcastProtocolSettings, Configuration, DbConfig, Libp2pSettings, NetworkClientListenerConfig,
-    NodeConfig, WsConfig,
+    BroadcastProtocolSettings, Configuration, DbConfig, HttpConfig, Libp2pSettings,
+    NetworkClientListenerConfig, NodeConfig, WsConfig,
 };
 use clap::Parser;
 
@@ -28,6 +28,8 @@ pub struct InitCmd {
     pub ws_address: String,
     #[clap(short, long)]
     pub network_client_listener_address: String,
+    #[clap(short, long)]
+    pub http_server_address: String,
 }
 
 impl InitCmd {
@@ -62,6 +64,9 @@ impl InitCmd {
             },
             network_client_listener_config: NetworkClientListenerConfig {
                 address: self.network_client_listener_address,
+            },
+            http_config: HttpConfig {
+                address: self.http_server_address,
             },
         };
         if let Err(err) = configuration.try_create(&self.node) {

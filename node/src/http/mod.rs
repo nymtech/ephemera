@@ -1,24 +1,29 @@
-pub(crate) mod hello;
+pub(crate) mod message;
 
+use crate::config::configuration::{Configuration, HttpConfig};
+use actix_web::dev::Server;
 use actix_web::{App, HttpServer};
+use actix_web::web::Data;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-/// Starts the HTTP server.
-pub(crate) async fn start(port: u16) {
-    print_startup_messages(port);
+use anyhow::Result;
+use crate::api::queries::MessagesApi;
 
-    HttpServer::new(|| {
+/// Starts the HTTP server.
+pub(crate) fn start(config: Configuration) -> Result<Server> {
+    print_startup_messages(config.http_config.clone());
+
+    let server = HttpServer::new(move || {
+        let api = MessagesApi::new(config.db_config.clone());
         App::new()
-            .service(hello::index)
-            .service(hello::there)
+            .app_data(Data::new(api))
+            .service(message::message_by_id)
             .service(swagger_ui())
     })
-    .bind(("127.0.0.1", port.clone()))
-    .expect(&format!("Ephemera's HTTP server couldn't bind to port {}", port))
-    .run()
-    .await
-    .unwrap()
+        .bind(config.http_config.address)?
+        .run();
+    Ok(server)
 }
 
 /// Builds the Swagger UI.
@@ -26,7 +31,7 @@ pub(crate) async fn start(port: u16) {
 /// Note that all routes you want Swagger docs for must be in the `paths` annotation.
 fn swagger_ui() -> SwaggerUi {
     #[derive(OpenApi)]
-    #[openapi(paths(hello::index, hello::there))]
+    #[openapi(paths(message::message_by_id))]
     struct ApiDoc;
 
     SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-doc/openapi.json", ApiDoc::openapi())
@@ -34,11 +39,8 @@ fn swagger_ui() -> SwaggerUi {
 
 /// Prints messages saying which ports HTTP is running on, and some helpful pointers
 /// to the Swagger UI and OpenAPI spec.
-fn print_startup_messages(port: u16) {
-    println!("Server running on http://127.0.0.1:{}", port);
-    println!("Swagger UI: http://localhost:{}/swagger-ui/", port);
-    println!(
-        "OpenAPI spec is at: http://localhost:{}/api-doc/openapi.json",
-        port
-    );
+fn print_startup_messages(config: HttpConfig) {
+    log::info!("Server running on {}", config.address);
+    log::info!("Swagger UI: {}/swagger-ui/", config.address);
+    log::info!("OpenAPI spec is at: {}/api-doc/openapi.json", config.address);
 }

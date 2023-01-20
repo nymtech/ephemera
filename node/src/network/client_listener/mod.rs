@@ -1,5 +1,5 @@
-use std::sync::{Arc};
 use futures_util::StreamExt;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio_util::codec;
@@ -16,7 +16,10 @@ pub struct EphemeraNetworkCmdListener {
 
 impl EphemeraNetworkCmdListener {
     pub fn new(ephemera: Ephemera, address: String) -> EphemeraNetworkCmdListener {
-        EphemeraNetworkCmdListener { address, ephemera: Arc::new(Mutex::new(ephemera)) }
+        EphemeraNetworkCmdListener {
+            address,
+            ephemera: Arc::new(Mutex::new(ephemera)),
+        }
     }
 
     pub async fn run(self) {
@@ -25,7 +28,6 @@ impl EphemeraNetworkCmdListener {
                 log::info!("Listening client commands at: {}", &self.address);
                 loop {
                     if let Ok((mut stream, _)) = listener.accept().await {
-
                         let ephemera = self.ephemera.clone();
 
                         tokio::spawn(async move {
@@ -40,7 +42,9 @@ impl EphemeraNetworkCmdListener {
                                         log::debug!("Received msg: {:?}", rb_msg);
 
                                         ephemera
-                                            .lock().await.send_message(ProtocolRequest::new(peer_addr.clone(), rb_msg))
+                                            .lock()
+                                            .await
+                                            .send_message(ProtocolRequest::new(peer_addr.clone(), rb_msg))
                                             .await;
                                     }
                                     Some(Err(err)) => {

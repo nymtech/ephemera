@@ -9,18 +9,6 @@ pub struct Ed25519KeyPair {
     pub verification_key: VerificationKey,
 }
 
-impl Ed25519KeyPair {
-    pub fn from_hex(hex: &str) -> Result<Self, KeyPairError> {
-        let decoded = hex::decode(hex).map_err(|_| KeyPairError::PrivateKey)?;
-        let signing_key = SigningKey::try_from(decoded.as_slice()).map_err(|_| KeyPairError::SliceLength)?;
-        let verification_key = VerificationKey::from(&signing_key);
-        Ok(Self {
-            signing_key,
-            verification_key,
-        })
-    }
-}
-
 impl KeyPair for Ed25519KeyPair {
     type Signature = String;
 

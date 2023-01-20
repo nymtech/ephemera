@@ -18,8 +18,8 @@ use crate::broadcast_protocol::BroadcastCallBack;
 use crate::config::configuration::{DbConfig, WsConfig};
 use crate::crypto::ed25519::Ed25519KeyPair;
 use crate::crypto::KeyPair;
-use anyhow::Result;
 use crate::database::store::{DbBackendHandle, DbStore};
+use anyhow::Result;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SignatureRequest {
