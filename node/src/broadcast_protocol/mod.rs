@@ -43,6 +43,7 @@ pub trait BroadcastCallBack: Send {
     async fn pre_prepare(
         &mut self,
         _msg_id: String,
+        _custom_message_id: String,
         _sender: String,
         _payload: Vec<u8>,
         _ctx: &ConsensusContext,
@@ -52,13 +53,14 @@ pub trait BroadcastCallBack: Send {
     async fn prepare(
         &mut self,
         _msg_id: String,
+        _custom_message_id: String,
         _sender: String,
         _payload: Vec<u8>,
         _ctx: &ConsensusContext,
     ) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
-    async fn commit(&mut self, _msg_id: String, _sender: String, _ctx: &ConsensusContext) -> Result<()> {
+    async fn commit(&mut self, _msg_id: String, _custom_message_id: String, _sender: String, _ctx: &ConsensusContext) -> Result<()> {
         Ok(())
     }
     async fn prepared(&mut self, _ctx: &ConsensusContext) -> Result<()> {

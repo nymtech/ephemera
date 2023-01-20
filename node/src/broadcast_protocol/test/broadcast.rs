@@ -86,6 +86,7 @@ mod test {
                 id,
                 node_id: from.clone(),
                 timestamp,
+                custom_message_id: "custom_message_id".to_string(),
                 reliable_broadcast: Some(PrePrepare(PrePrepareMsg { payload })),
             };
             ProtocolRequest::new(from, rbm)
@@ -100,6 +101,7 @@ mod test {
             let timestamp = Some(Timestamp::from(time::SystemTime::now()));
             let rbm = RbMsg {
                 id: msg_id,
+                custom_message_id: "custom_message_id".to_string(),
                 node_id: from.clone(),
                 timestamp,
                 reliable_broadcast: Some(Prepare(PrepareMsg { payload })),
@@ -111,6 +113,7 @@ mod test {
             let timestamp = Some(Timestamp::from(time::SystemTime::now()));
             let rbm = RbMsg {
                 id: msg_id,
+                custom_message_id: "custom_message_id".to_string(),
                 node_id: from.clone(),
                 timestamp,
                 reliable_broadcast: Some(Commit(CommitMsg {})),

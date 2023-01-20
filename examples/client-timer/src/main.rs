@@ -25,7 +25,7 @@ impl AsyncRead for PayloadStream {
         buf: &mut ReadBuf<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
         thread::sleep(std::time::Duration::from_millis(3000));
-        buf.put_slice(b"hello world");
+        buf.put_slice(b"Message from client");
         Poll::Ready(Ok(()))
     }
 }

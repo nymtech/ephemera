@@ -1,4 +1,4 @@
-[peer1]
+[peer1.node_config]
 address = "peer1"
 pub_key = "peer1"
 priv_key = "peer1"
@@ -21,7 +21,19 @@ name = "peer3"
 address = "peer3"
 pub_key = "peer3"
 
-[peer2]
+[peer1.db_config]
+db_path = "peer1"
+
+[peer1.ws_config]
+ws_address = "peer1"
+
+[peer1.network_client_listener_config]
+address = "peer1"
+
+[peer1.http_config]
+address = "peer1"
+
+[peer2.node_config]
 address = "peer2"
 pub_key = "peer2"
 priv_key = "peer2"
@@ -44,7 +56,19 @@ name = "peer3"
 address = "peer3"
 pub_key = "peer3"
 
-[peer3]
+[peer2.db_config]
+db_path = "peer2"
+
+[peer2.ws_config]
+ws_address = "peer2"
+
+[peer2.network_client_listener_config]
+address = "peer2"
+
+[peer2.http_config]
+address = "peer2"
+
+[peer3.node_config]
 address = "peer3"
 pub_key = "peer3"
 priv_key = "peer3"
@@ -66,3 +90,15 @@ pub_key = "peer1"
 name = "peer2"
 address = "peer2"
 pub_key = "peer2"
+
+[peer3.db_config]
+db_path = "peer2"
+
+[peer3.ws_config]
+ws_address = "peer3"
+
+[peer3.network_client_listener_config]
+address = "peer3"
+
+[peer3.http_config]
+address = "peer3"

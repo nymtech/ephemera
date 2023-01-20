@@ -8,11 +8,12 @@ message RbMsg {
   string id = 1;
   string node_id = 2;
   google.protobuf.Timestamp timestamp = 3;
+  string custom_message_id = 4;
   oneof ReliableBroadcast {
-    PrePrepareMsg prePrepare = 4;
-    PrepareMsg prepare = 5;
-    CommitMsg commit = 6;
-    AckMsg ack = 7;
+    PrePrepareMsg prePrepare = 5;
+    PrepareMsg prepare = 6;
+    CommitMsg commit = 7;
+    AckMsg ack = 8;
   }
 }
 

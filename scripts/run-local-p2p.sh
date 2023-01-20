@@ -58,7 +58,7 @@ EPHEMERA="$PROJECT_ROOT"/target/release/ephemera
 HOSTNAME=$(hostname)
 DB_PATH="$CLUSTER_DIR"/db
 
-export RUST_LOG="debug"
+export RUST_LOG="ephemera=debug"
 
 build() {
   echo "Building ephemera..."

@@ -36,6 +36,7 @@ pub struct Signature {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SignedConsensusMessage {
     pub request_id: String,
+    pub custom_message_id: String,
     pub message: Vec<u8>,
     pub signatures: HashMap<String, Signature>,
 }
@@ -72,6 +73,7 @@ impl BroadcastCallBack for Signer {
     async fn pre_prepare(
         &mut self,
         msg_id: String,
+        custom_message_id: String,
         _sender: String,
         message: Vec<u8>,
         ctx: &ConsensusContext,
@@ -85,6 +87,7 @@ impl BroadcastCallBack for Signer {
 
         let mut scr = SignedConsensusMessage {
             request_id: msg_id.clone(),
+            custom_message_id,
             message: message.clone(),
             signatures: HashMap::new(),
         };
@@ -108,6 +111,7 @@ impl BroadcastCallBack for Signer {
     async fn prepare(
         &mut self,
         msg_id: String,
+        custom_message_id: String,
         sender: String,
         payload: Vec<u8>,
         ctx: &ConsensusContext,
@@ -121,6 +125,7 @@ impl BroadcastCallBack for Signer {
             .entry(msg_id.clone())
             .or_insert_with(|| SignedConsensusMessage {
                 request_id: msg_id.clone(),
+                custom_message_id,
                 message: sig_req.payload.clone(),
                 signatures: HashMap::new(),
             });

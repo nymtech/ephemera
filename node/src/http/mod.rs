@@ -19,6 +19,7 @@ pub(crate) fn start(config: Configuration) -> Result<Server> {
         App::new()
             .app_data(Data::new(api))
             .service(message::message_by_id)
+            .service(message::message_by_custom_id)
             .service(swagger_ui())
     })
         .bind(config.http_config.address)?
@@ -31,7 +32,7 @@ pub(crate) fn start(config: Configuration) -> Result<Server> {
 /// Note that all routes you want Swagger docs for must be in the `paths` annotation.
 fn swagger_ui() -> SwaggerUi {
     #[derive(OpenApi)]
-    #[openapi(paths(message::message_by_id))]
+    #[openapi(paths(message::message_by_id, message::message_by_custom_id))]
     struct ApiDoc;
 
     SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-doc/openapi.json", ApiDoc::openapi())

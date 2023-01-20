@@ -77,11 +77,11 @@ impl DbStore {
         let signatures = serde_json::to_vec(&req.signatures).map_err(|e| anyhow::anyhow!(e))?;
         let created_at = Utc::now().to_rfc3339();
         let mut statement = self.connection.prepare_cached(
-            "INSERT INTO messages (request_id, message, signatures, created_at) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO messages (request_id, custom_message_id, message, signatures, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
         )?;
 
         log::debug!("Inserting message: {:?}", req);
-        statement.execute(params![&req.request_id, &req.message, &signatures, &created_at])?;
+        statement.execute(params![&req.request_id, &req.custom_message_id, &req.message, &signatures, &created_at])?;
         Ok(())
     }
 
