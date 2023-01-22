@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use clap::Parser;
 use ephemera::broadcast_protocol::ProtocolRequest;
 use ephemera::config::configuration::Configuration;
@@ -32,7 +34,15 @@ async fn main() {
 
     thread::sleep(std::time::Duration::from_secs(5));
 
-    loop {
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_trigger = stop.clone();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        stop_trigger.store(true, std::sync::atomic::Ordering::Relaxed);
+        println!("Stopping...");
+    });
+
+    while !stop.load(std::sync::atomic::Ordering::Relaxed) {
         let msg = ephemera_client::pre_prepare_msg("client", "Payload".as_bytes().to_vec());
         let request_id = msg.id.clone();
         println!("Sending request {:?}", msg);
