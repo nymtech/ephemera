@@ -2,7 +2,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::broadcast_protocol::broadcast::BroadcastProtocol;
 use crate::broadcast_protocol::quorum::BasicQuorum;
-use crate::broadcast_protocol::{BroadcastCallBack, Kind, ProtocolRequest};
+use crate::broadcast_protocol::{BroadcastCallBack, EphemeraSigningRequest, Kind};
 use crate::config::configuration::Configuration;
 use crate::network::BroadcastMessage;
 use crate::request::RbMsg;
@@ -22,7 +22,7 @@ impl<C: BroadcastCallBack + Send> ProtocolHandler<C> {
 
     pub async fn run(
         mut self,
-        mut from_network: Receiver<ProtocolRequest>,
+        mut from_network: Receiver<EphemeraSigningRequest>,
         to_network: Sender<BroadcastMessage<RbMsg>>,
     ) {
         while let Some(pr) = from_network.recv().await {

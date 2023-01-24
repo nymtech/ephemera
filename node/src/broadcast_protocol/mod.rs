@@ -6,14 +6,14 @@ pub(crate) mod signing;
 mod test;
 
 #[derive(Debug, Clone)]
-pub struct ProtocolRequest {
+pub struct EphemeraSigningRequest {
     pub origin: String,
     pub message: RbMsg,
 }
 
-impl ProtocolRequest {
-    pub fn new(origin_host: String, message: RbMsg) -> ProtocolRequest {
-        ProtocolRequest {
+impl EphemeraSigningRequest {
+    pub fn new(origin_host: String, message: RbMsg) -> EphemeraSigningRequest {
+        EphemeraSigningRequest {
             origin: origin_host,
             message,
         }
@@ -34,9 +34,12 @@ pub struct ProtocolResponse {
 
 use crate::broadcast_protocol::broadcast::ConsensusContext;
 
-use crate::request::RbMsg;
+use crate::request::rb_msg::ReliableBroadcast::PrePrepare;
+use crate::request::{PrePrepareMsg, RbMsg};
 use anyhow::Result;
 use async_trait::async_trait;
+use prost_types::Timestamp;
+use uuid::Uuid;
 
 #[async_trait]
 pub trait BroadcastCallBack: Send {
@@ -60,7 +63,13 @@ pub trait BroadcastCallBack: Send {
     ) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
-    async fn commit(&mut self, _msg_id: String, _custom_message_id: String, _sender: String, _ctx: &ConsensusContext) -> Result<()> {
+    async fn commit(
+        &mut self,
+        _msg_id: String,
+        _custom_message_id: String,
+        _sender: String,
+        _ctx: &ConsensusContext,
+    ) -> Result<()> {
         Ok(())
     }
     async fn prepared(&mut self, _ctx: &ConsensusContext) -> Result<()> {
@@ -69,4 +78,16 @@ pub trait BroadcastCallBack: Send {
     async fn committed(&mut self, _ctx: &ConsensusContext) -> Result<()> {
         Ok(())
     }
+}
+
+pub fn pre_prepare_msg(sender_id: String, custom_message_id: String, payload: Vec<u8>) -> RbMsg {
+    let timestamp = Timestamp::from(std::time::SystemTime::now());
+    let request = RbMsg {
+        id: Uuid::new_v4().to_string(),
+        node_id: sender_id.to_string(),
+        timestamp: Some(timestamp),
+        custom_message_id,
+        reliable_broadcast: Some(PrePrepare(PrePrepareMsg { payload })),
+    };
+    request
 }

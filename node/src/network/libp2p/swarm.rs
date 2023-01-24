@@ -20,7 +20,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::codec::Decoder;
 use tokio_util::codec::Encoder;
 
-use crate::broadcast_protocol::ProtocolRequest;
+use crate::broadcast_protocol::EphemeraSigningRequest;
 use crate::config::configuration::Configuration;
 use crate::network::codec::ProtoCodec;
 use crate::network::peer_discovery::StaticPeerDiscovery;
@@ -30,14 +30,14 @@ use crate::request::RbMsg;
 pub struct SwarmNetwork {
     config: Configuration,
     swarm: Swarm<GroupNetworkBehaviour>,
-    to_protocol: Sender<ProtocolRequest>,
+    to_protocol: Sender<EphemeraSigningRequest>,
     from_protocol: Receiver<BroadcastMessage<RbMsg>>,
 }
 
 impl SwarmNetwork {
     pub fn new(
         conf: Configuration,
-        to_protocol: Sender<ProtocolRequest>,
+        to_protocol: Sender<EphemeraSigningRequest>,
         from_protocol: Receiver<BroadcastMessage<RbMsg>>,
     ) -> SwarmNetwork {
         let swarm = SwarmNetwork::create_swarm(conf.clone());
@@ -96,7 +96,7 @@ impl Network for SwarmNetwork {
 
 #[allow(clippy::collapsible_match, clippy::single_match)]
 async fn handle_incoming_messages<E>(
-    to_network: &Sender<ProtocolRequest>,
+    to_network: &Sender<EphemeraSigningRequest>,
     codec: &mut ProtoCodec<RbMsg, RbMsg>,
     swarm_event: SwarmEvent<GroupBehaviourEvent, E>,
 ) {
@@ -111,7 +111,7 @@ async fn handle_incoming_messages<E>(
                     let mut data = BytesMut::from(&message.data[..]);
                     if let Ok(Some(msg)) = codec.decode(&mut data) {
                         to_network
-                            .send(ProtocolRequest::new(propagation_source.to_string(), msg))
+                            .send(EphemeraSigningRequest::new(propagation_source.to_string(), msg))
                             .await
                             .unwrap();
                     } else {

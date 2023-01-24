@@ -42,6 +42,7 @@ toml = "0.5.9"
 tokio-tungstenite = "0.18.0"
 utoipa = { version = "2", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "2", features = ["actix-web"] }
+uuid = { version = "1.2.2", features = ["v4"] }
 
 
 [dev-dependencies]

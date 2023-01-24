@@ -10,7 +10,7 @@ mod test {
 
     use crate::broadcast_protocol::broadcast::{BroadcastProtocol, ProtocolResult};
     use crate::broadcast_protocol::quorum::BasicQuorum;
-    use crate::broadcast_protocol::{BroadcastCallBack, Kind, ProtocolRequest, ProtocolResponse};
+    use crate::broadcast_protocol::{BroadcastCallBack, EphemeraSigningRequest, Kind, ProtocolResponse};
 
     use crate::config::configuration::Configuration;
     use prost_types::Timestamp;
@@ -63,7 +63,7 @@ mod test {
         async fn broadcast_message_from_peer(
             &mut self,
             from: &str,
-            msg: ProtocolRequest,
+            msg: EphemeraSigningRequest,
         ) -> Vec<ProtocolResponse> {
             let mut responses = vec![];
             for (id, peer) in self.peers.iter_mut() {
@@ -80,7 +80,7 @@ mod test {
             id: String,
             from: String,
             payload: Vec<u8>,
-        ) -> ProtocolRequest {
+        ) -> EphemeraSigningRequest {
             let timestamp = Some(Timestamp::from(time::SystemTime::now()));
             let rbm = RbMsg {
                 id,
@@ -89,7 +89,7 @@ mod test {
                 custom_message_id: "custom_message_id".to_string(),
                 reliable_broadcast: Some(PrePrepare(PrePrepareMsg { payload })),
             };
-            ProtocolRequest::new(from, rbm)
+            EphemeraSigningRequest::new(from, rbm)
         }
 
         pub(crate) fn prepare_msg(
@@ -97,7 +97,7 @@ mod test {
             msg_id: String,
             from: String,
             payload: Vec<u8>,
-        ) -> ProtocolRequest {
+        ) -> EphemeraSigningRequest {
             let timestamp = Some(Timestamp::from(time::SystemTime::now()));
             let rbm = RbMsg {
                 id: msg_id,
@@ -106,10 +106,10 @@ mod test {
                 timestamp,
                 reliable_broadcast: Some(Prepare(PrepareMsg { payload })),
             };
-            ProtocolRequest::new(from, rbm)
+            EphemeraSigningRequest::new(from, rbm)
         }
 
-        pub(crate) fn commit_msg(&mut self, msg_id: String, from: String) -> ProtocolRequest {
+        pub(crate) fn commit_msg(&mut self, msg_id: String, from: String) -> EphemeraSigningRequest {
             let timestamp = Some(Timestamp::from(time::SystemTime::now()));
             let rbm = RbMsg {
                 id: msg_id,
@@ -118,7 +118,7 @@ mod test {
                 timestamp,
                 reliable_broadcast: Some(Commit(CommitMsg {})),
             };
-            ProtocolRequest::new(from, rbm)
+            EphemeraSigningRequest::new(from, rbm)
         }
 
         async fn send_pre_prepare(&mut self, to: &str, payload: Vec<u8>) -> ProtocolResult {

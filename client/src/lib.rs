@@ -1,9 +1,10 @@
 pub mod cli;
 
 use bytes::BytesMut;
-use ephemera::request::rb_msg::ReliableBroadcast::PrePrepare;
-use ephemera::request::{PrePrepareMsg, RbMsg};
-use prost_types::Timestamp;
+use ephemera::broadcast_protocol::pre_prepare_msg;
+
+use ephemera::request::{RbMsg};
+
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use uuid::Uuid;
@@ -28,7 +29,7 @@ impl<R: AsyncRead + Unpin> RbClient<R> {
             self.payload_stream.read_buf(&mut buf).await.unwrap();
             let payload = buf.to_vec();
 
-            let msg = pre_prepare_msg("client", payload);
+            let msg = pre_prepare_msg("client".to_string(), Uuid::new_v4().to_string(), payload);
             let mut message = quorum_message(msg);
             conn.write_buf(&mut message).await.unwrap();
         }
@@ -42,16 +43,4 @@ pub fn quorum_message(msg: RbMsg) -> bytes::Bytes {
     prost::Message::encode_length_delimited(&msg, &mut buf).unwrap();
 
     buf.freeze()
-}
-
-pub fn pre_prepare_msg(sender_id: &str, payload: Vec<u8>) -> RbMsg {
-    let timestamp = Timestamp::from(std::time::SystemTime::now());
-    let request = RbMsg {
-        id: Uuid::new_v4().to_string(),
-        node_id: sender_id.to_string(),
-        timestamp: Some(timestamp),
-        custom_message_id: format!("epoch-{}", Uuid::new_v4().to_string()),
-        reliable_broadcast: Some(PrePrepare(PrePrepareMsg { payload })),
-    };
-    request
 }

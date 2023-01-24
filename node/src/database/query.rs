@@ -18,19 +18,27 @@ impl DbQuery {
         }
     }
 
-    pub(crate) fn get_message_by_request_id(&self, request_id: String) -> Result<Option<SignedConsensusMessage>> {
-        let mut stmt = self
-            .connection
-            .prepare_cached("SELECT request_id, custom_message_id, message, signatures FROM messages WHERE request_id = ?1")?;
+    pub(crate) fn get_message_by_request_id(
+        &self,
+        request_id: String,
+    ) -> Result<Option<SignedConsensusMessage>> {
+        let mut stmt = self.connection.prepare_cached(
+            "SELECT request_id, custom_message_id, message, signatures FROM messages WHERE request_id = ?1",
+        )?;
         let message = stmt.query_row(params![request_id], Self::map_row()).optional()?;
         Ok(message)
     }
 
-    pub(crate) fn get_message_by_custom_message_id(&self, custom_message_id: String) -> Result<Option<SignedConsensusMessage>> {
+    pub(crate) fn get_message_by_custom_message_id(
+        &self,
+        custom_message_id: String,
+    ) -> Result<Option<SignedConsensusMessage>> {
         let mut stmt = self
             .connection
             .prepare_cached("SELECT request_id, custom_message_id, message, signatures FROM messages WHERE custom_message_id = ?1")?;
-        let message = stmt.query_row(params![custom_message_id], Self::map_row()).optional()?;
+        let message = stmt
+            .query_row(params![custom_message_id], Self::map_row())
+            .optional()?;
         Ok(message)
     }
 

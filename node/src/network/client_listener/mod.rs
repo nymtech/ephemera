@@ -4,7 +4,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio_util::codec;
 
-use crate::broadcast_protocol::ProtocolRequest;
+use crate::broadcast_protocol::EphemeraSigningRequest;
 use crate::network::codec::ProtoCodec;
 use crate::network::ephemera::Ephemera;
 use crate::request::RbMsg;
@@ -44,7 +44,11 @@ impl EphemeraNetworkCmdListener {
                                         ephemera
                                             .lock()
                                             .await
-                                            .send_message(ProtocolRequest::new(peer_addr.clone(), rb_msg))
+                                            .send_api()
+                                            .send_message(EphemeraSigningRequest::new(
+                                                peer_addr.clone(),
+                                                rb_msg,
+                                            ))
                                             .await;
                                     }
                                     Some(Err(err)) => {

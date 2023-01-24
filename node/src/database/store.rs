@@ -81,7 +81,13 @@ impl DbStore {
         )?;
 
         log::debug!("Inserting message: {:?}", req);
-        statement.execute(params![&req.request_id, &req.custom_message_id, &req.message, &signatures, &created_at])?;
+        statement.execute(params![
+            &req.request_id,
+            &req.custom_message_id,
+            &req.message,
+            &signatures,
+            &created_at
+        ])?;
         Ok(())
     }
 

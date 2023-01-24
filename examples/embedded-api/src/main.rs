@@ -1,11 +1,12 @@
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use clap::Parser;
-use ephemera::broadcast_protocol::ProtocolRequest;
+use ephemera::broadcast_protocol::{pre_prepare_msg, EphemeraSigningRequest};
 use ephemera::config::configuration::Configuration;
 use ephemera::logging::init_logging;
 use ephemera::network::ephemera::EphemeraLauncher;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::thread;
+use uuid::Uuid;
 
 #[derive(Parser)]
 struct Args {
@@ -43,23 +44,37 @@ async fn main() {
     });
 
     while !stop.load(std::sync::atomic::Ordering::Relaxed) {
-        let msg = ephemera_client::pre_prepare_msg("client", "Payload".as_bytes().to_vec());
+        let msg = pre_prepare_msg(
+            "client".to_string(),
+            Uuid::new_v4().to_string(),
+            "Embedded API test".as_bytes().to_vec(),
+        );
         let request_id = msg.id.clone();
         println!("Sending request {:?}", msg);
 
         ephemera_1
-            .send_message(ProtocolRequest::new("client".to_string(), msg))
+            .send_api()
+            .send_message(EphemeraSigningRequest::new("client".to_string(), msg))
             .await;
 
         thread::sleep(std::time::Duration::from_secs(1));
 
-        let message = ephemera_1.api().get_message_by_request_id(request_id.clone()).unwrap();
+        let message = ephemera_1
+            .query_api()
+            .get_message_by_request_id(request_id.clone())
+            .unwrap();
         println!("Node 1 received message {:?}", message);
 
-        let message = ephemera_2.api().get_message_by_request_id(request_id.clone()).unwrap();
+        let message = ephemera_2
+            .query_api()
+            .get_message_by_request_id(request_id.clone())
+            .unwrap();
         println!("Node 2 received message {:?}", message);
 
-        let message = ephemera_3.api().get_message_by_request_id(request_id).unwrap();
+        let message = ephemera_3
+            .query_api()
+            .get_message_by_request_id(request_id)
+            .unwrap();
         println!("Node 3 received message {:?}", message);
 
         thread::sleep(std::time::Duration::from_secs(5));
