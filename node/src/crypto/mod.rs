@@ -1,3 +1,5 @@
+//! Crytographic module used for signing and verifying messages.
+
 pub(crate) mod ed25519;
 pub(crate) mod libp2p2_crypto;
 use thiserror::Error;

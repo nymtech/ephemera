@@ -1,3 +1,5 @@
+//! The reliable broadcast protocol, deals with signing and broadcasting messages to nodes in the network.
+
 mod backend;
 pub mod broadcast;
 pub mod protocol_handler;

@@ -1,3 +1,5 @@
+//! Defines the external interface of the Ephemera node.
+
 use crate::broadcast_protocol::signing::signer::Signature;
 
 use crate::broadcast_protocol::EphemeraSigningRequest;

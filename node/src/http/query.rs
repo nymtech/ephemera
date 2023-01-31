@@ -1,3 +1,5 @@
+//! HTTP API for querying messages from Ephemera nodes.
+
 use crate::api::queries::MessagesQueryApi;
 use actix_web::{get, web, HttpResponse, Responder};
 

@@ -1,3 +1,5 @@
+//! An HTTP server allowing the node to be queried. Includes Swagger documentation for the API.
+
 pub(crate) mod query;
 pub(crate) mod send;
 

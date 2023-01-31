@@ -1,3 +1,5 @@
+//! Network module is responsible for network stack. It passes messages from network to broadcast_protocol.
+
 use async_trait::async_trait;
 
 pub mod client_listener;

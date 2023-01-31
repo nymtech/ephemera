@@ -1,3 +1,5 @@
+//! The command line interface for the node.
+
 pub mod init;
 pub mod peers;
 pub mod run_node;

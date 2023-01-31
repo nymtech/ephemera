@@ -1,7 +1,7 @@
-//Test consensus state machine internally.
+// Test consensus state machine internally.
 // It is not concerned about networking nor time etc.
 
-//Tests aren't very comprehensive yet because the exact formal requirements aren't specified for the time being.
+// Tests aren't very comprehensive yet because the exact formal requirements aren't specified for the time being.
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;

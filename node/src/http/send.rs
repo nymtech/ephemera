@@ -1,3 +1,5 @@
+//! HTTP API for sending messages to Ephemera nodes.
+
 use crate::api::send::MessageSendApi;
 use crate::broadcast_protocol::{pre_prepare_msg, EphemeraSigningRequest};
 
