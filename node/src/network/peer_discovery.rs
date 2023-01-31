@@ -1,5 +1,5 @@
-///! Knows about the topology of the network and potentially provides a way to discover peers
-///!
+//! Knows about the topology of the network and potentially provides a way to discover peers
+
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;

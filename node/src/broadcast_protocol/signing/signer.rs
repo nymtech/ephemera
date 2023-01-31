@@ -1,10 +1,10 @@
-///! A callback for BroadcastProtocol which signs message payloads.
-///!
-///! After a message reaches consensus('committed' call from BroadcastProtocol), it will pass the message and its signatures to a backend.
-///! Current backend implementation just saves the signatures in a file.
-///!
-///! Signatures verification for a message is not done at the moment.
-///!
+//! A callback for BroadcastProtocol which signs message payloads.
+//!
+//! After a message reaches consensus('committed' call from BroadcastProtocol), it will pass the message and its signatures to a backend.
+//! Current backend implementation just saves the signatures in a file.
+//!
+//! Signatures verification for a message is not done at the moment.
+
 use std::collections::HashMap;
 
 use async_trait::async_trait;

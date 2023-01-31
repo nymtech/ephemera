@@ -8,7 +8,7 @@ pub mod ephemera;
 pub mod libp2p;
 pub mod peer_discovery;
 
-///! Network trait is responsible for network stack. It passes messages from network to broadcast_protocol
+/// Network trait is responsible for network stack. It passes messages from network to broadcast_protocol
 /// and from broadcast_protocol to network.
 #[async_trait]
 pub trait Network {
