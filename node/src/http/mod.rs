@@ -40,13 +40,8 @@ pub(crate) fn start(config: Configuration, incoming_msg_api: MessageSendApi) -> 
 fn swagger_ui() -> SwaggerUi {
     #[derive(OpenApi)]
     #[openapi(
-        paths(
-            query::message_by_id,
-            query::message_by_custom_id,
-            send::send_message),
-        components(
-            schemas(send::MessageSigningRequest,)
-        ),
+        paths(query::message_by_id, query::message_by_custom_id, send::send_message),
+        components(schemas(send::MessageSigningRequest,))
     )]
 
     struct ApiDoc;

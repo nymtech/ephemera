@@ -21,6 +21,12 @@ impl<I, O> ProtoCodec<I, O> {
     }
 }
 
+impl<I, O> Default for ProtoCodec<I, O> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub const MAX_VARINT_LENGTH: usize = 16;
 
 impl<I: Message + Default, O: Message> Decoder for ProtoCodec<I, O> {

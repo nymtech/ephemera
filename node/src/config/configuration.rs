@@ -87,9 +87,9 @@ impl Configuration {
             .build()
             .map_err(|e| ConfigurationError::Other(e.to_string()))?;
 
-        Ok(config
+        config
             .try_deserialize()
-            .map_err(|e| ConfigurationError::Other(e.to_string()))?)
+            .map_err(|e| ConfigurationError::Other(e.to_string()))
     }
 
     pub fn try_load_node(node_name: &str, file: &str) -> Result<Configuration> {
@@ -105,9 +105,9 @@ impl Configuration {
             .build()
             .map_err(|e| ConfigurationError::Other(e.to_string()))?;
 
-        Ok(config
+        config
             .try_deserialize()
-            .map_err(|e| ConfigurationError::Other(e.to_string()))?)
+            .map_err(|e| ConfigurationError::Other(e.to_string()))
     }
 
     pub fn try_create(&self, node_name: &str) -> Result<()> {
@@ -143,11 +143,11 @@ impl Configuration {
     }
 
     fn ephemera_dir() -> Result<PathBuf> {
-        Ok(dirs::home_dir()
+        dirs::home_dir()
             .map(|home| home.join(EPHEMERA_DIR_NAME))
             .ok_or(ConfigurationError::Other(
                 "Could not find home directory".to_string(),
-            ))?)
+            ))
     }
 
     fn ephemera_node_dir(node_name: &str) -> Result<PathBuf> {

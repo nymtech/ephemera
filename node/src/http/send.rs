@@ -3,11 +3,10 @@
 use crate::api::send::MessageSendApi;
 use crate::broadcast_protocol::{pre_prepare_msg, EphemeraSigningRequest};
 
-
 use actix_web::{post, web, HttpRequest, HttpResponse};
+use serde_derive::Deserialize;
 use tokio::sync::Mutex;
-use serde_derive::{Deserialize};
-use utoipa::{ToSchema};
+use utoipa::ToSchema;
 
 #[derive(Deserialize, Debug, Clone, ToSchema)]
 pub struct MessageSigningRequest {

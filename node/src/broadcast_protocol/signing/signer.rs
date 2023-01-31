@@ -134,7 +134,7 @@ impl BroadcastCallBack for Signer {
             id: sender.clone(),
             signature: sig_req.signature.clone(),
         };
-        scr.signatures.insert(sender.clone(), signer);
+        scr.signatures.insert(sender, signer);
 
         if !ctx.original_sender && !scr.signatures.contains_key(&ctx.local_address) {
             let payload = sig_req.payload.clone();

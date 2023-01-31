@@ -84,12 +84,12 @@ pub trait BroadcastCallBack: Send {
 
 pub fn pre_prepare_msg(sender_id: String, custom_message_id: String, payload: Vec<u8>) -> RbMsg {
     let timestamp = Timestamp::from(std::time::SystemTime::now());
-    let request = RbMsg {
+
+    RbMsg {
         id: Uuid::new_v4().to_string(),
-        node_id: sender_id.to_string(),
+        node_id: sender_id,
         timestamp: Some(timestamp),
         custom_message_id,
         reliable_broadcast: Some(PrePrepare(PrePrepareMsg { payload })),
-    };
-    request
+    }
 }

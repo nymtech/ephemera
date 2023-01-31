@@ -235,7 +235,7 @@ mod test {
 
         let peer1 = suite.get_peer("peer1");
         let ctx = peer1.protocol.contexts.get(&id).unwrap();
-        assert_eq!(ctx.prepared, false);
+        assert!(!ctx.prepared);
         let _ = suite
             .send_prepare(id.clone(), "peer1", "peer3".to_string(), payload.clone())
             .await
@@ -243,7 +243,7 @@ mod test {
 
         let peer1 = suite.get_peer("peer1");
         let ctx = peer1.protocol.contexts.get(&id).unwrap();
-        assert_eq!(ctx.prepared, true);
+        assert!(ctx.prepared);
     }
 
     #[tokio::test]
@@ -259,7 +259,7 @@ mod test {
 
         let peer1 = suite.get_peer("peer1");
         let ctx = peer1.protocol.contexts.get(&id).unwrap();
-        assert_eq!(ctx.prepared, false);
+        assert!(!ctx.prepared);
         let _ = suite
             .send_prepare(id.clone(), "peer1", "peer3".to_string(), payload.clone())
             .await
@@ -267,7 +267,7 @@ mod test {
 
         let peer1 = suite.get_peer("peer1");
         let ctx = peer1.protocol.contexts.get(&id).unwrap();
-        assert_eq!(ctx.prepared, true);
+        assert!(ctx.prepared);
 
         let _ = suite
             .send_commit(id.clone(), "peer1", "peer2".to_string())
@@ -276,7 +276,7 @@ mod test {
 
         let peer1 = suite.get_peer("peer1");
         let ctx = peer1.protocol.contexts.get(&id).unwrap();
-        assert_eq!(ctx.committed, false);
+        assert!(!ctx.committed);
         let _ = suite
             .send_commit(id.clone(), "peer1", "peer3".to_string())
             .await
@@ -284,6 +284,6 @@ mod test {
 
         let peer1 = suite.get_peer("peer1");
         let ctx = peer1.protocol.contexts.get(&id).unwrap();
-        assert_eq!(ctx.committed, true);
+        assert!(ctx.committed);
     }
 }

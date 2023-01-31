@@ -19,7 +19,7 @@ pub enum DbBackendError {
 }
 
 pub enum DbBackendCmd {
-    STORE(SignedConsensusMessage),
+    Store(SignedConsensusMessage),
 }
 
 #[derive(Clone)]
@@ -33,7 +33,7 @@ impl DbBackendHandle {
     }
     pub async fn store(&self, request: SignedConsensusMessage) -> Result<()> {
         self.cmd_tx
-            .send(DbBackendCmd::STORE(request))
+            .send(DbBackendCmd::Store(request))
             .await
             .map_err(|e| DbBackendError::Other(format!("Error sending cmd to db backend: {}", e)).into())
     }
@@ -62,7 +62,7 @@ impl DbStore {
             let mut backend = DbStore::new(connection, cmd_rx);
             while let Some(cmd) = backend.cmd_rcv.recv().await {
                 match cmd {
-                    DbBackendCmd::STORE(request) => {
+                    DbBackendCmd::Store(request) => {
                         if let Err(err) = backend.insert_signatures(request) {
                             log::error!("Error inserting message: {}", err);
                         }
