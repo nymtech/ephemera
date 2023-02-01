@@ -1,3 +1,17 @@
+//! Interacting with Ephemera.
+//!
+//! It is possible to use Ephemera API in two ways - Ephemera Rust instance or over HTTP.
+//!
+//! A. Rust instance
+//!
+//!     1. Ephemera.send_message() - for sending messages
+//!     2. Ephemera.api() functions - for querying messages
+//!
+//! B. Http
+//!
+//!     3. http - for querying messages
+//!     4. http - for sending messages
+
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -12,18 +26,6 @@ use crate::crypto::KeyPair;
 use crate::http;
 use crate::network::libp2p::swarm;
 use crate::network::Network;
-
-/// Interacting with Ephemera.
-///
-/// It is possible to use Ephemera API in two ways - Ephemera Rust instance or over http.
-///
-/// 1. Rust instance
-///     A. Ephemera.send_message() - for sending messages
-///     B. Ephemera.api() functions - for querying messages
-///
-/// 2. Http
-///     C. http - for querying messages
-///     D. http - for sending messages
 
 pub struct Ephemera {
     query_api: MessagesQueryApi,
@@ -69,7 +71,6 @@ impl EphemeraLauncher {
             let protocol_handler = ProtocolHandler::new(handler_conf, signer);
             protocol_handler.run(from_network, to_network).await;
         });
-
 
         // API layer to submit and query messages
         let send_msg_api = MessageSendApi::new(to_protocol.clone());
