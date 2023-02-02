@@ -6,11 +6,6 @@ RUST_LOG="debug" cargo run -- --config-file config1.toml
 
 See also [scripts/README.md](../scripts/README.md).
 
-### Configuration
-
-`./configuration` directory contains configuration files for 3 nodes for testing.
-
-
 # Trying out how to implement broadcast and consensus protocols
 
 The goal is to try out something what might be called reliable broadcast and consensus protocols.
