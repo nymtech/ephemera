@@ -1,8 +1,8 @@
+use std::borrow::Borrow;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 
-use async_trait::async_trait;
-use bytes::BytesMut;
 use futures::StreamExt;
 use libp2p::core::{muxing::StreamMuxerBox, transport::Boxed};
 use libp2p::gossipsub::{
@@ -10,136 +10,194 @@ use libp2p::gossipsub::{
     ValidationMode,
 };
 use libp2p::mplex::MplexConfig;
-use libp2p::noise::NoiseAuthenticated;
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
 use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
 use libp2p::yamux::YamuxConfig;
-use libp2p::{identity::Keypair, Multiaddr, PeerId, Swarm, Transport};
+use libp2p::{identity::Keypair, noise, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
 use tokio::select;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio_util::codec::Decoder;
-use tokio_util::codec::Encoder;
 
-use crate::broadcast_protocol::EphemeraSigningRequest;
+use crate::block::{Block, SignedMessage};
+use crate::broadcast::RbMsg;
 use crate::config::configuration::Configuration;
-use crate::network::codec::ProtoCodec;
-use crate::network::peer_discovery::StaticPeerDiscovery;
-use crate::network::{BroadcastMessage, Network};
-use crate::request::RbMsg;
+use crate::network::libp2p::listener::{
+    BroadcastReceiverHandle, MessageReceiverHandle, MessagesReceiver, NetworkBroadcastReceiver,
+    NetworkMessages,
+};
+use crate::network::libp2p::peer_discovery::StaticPeerDiscovery;
+use crate::network::libp2p::sender::{EphemeraMessagesNotifier, EphemeraMessagesReceiver};
+use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
+
+pub(crate) struct NetworkMessage<T> {
+    pub(crate) msg: T,
+}
+
+impl<T> NetworkMessage<T> {
+    pub(crate) fn new(msg: T) -> Self {
+        NetworkMessage { msg }
+    }
+}
 
 pub struct SwarmNetwork {
     config: Configuration,
     swarm: Swarm<GroupNetworkBehaviour>,
-    to_protocol: Sender<EphemeraSigningRequest>,
-    from_protocol: Receiver<BroadcastMessage<RbMsg>>,
+    pub(crate) net_message_notifier: MessageReceiverHandle,
+    pub(crate) net_broadcast_notifier: BroadcastReceiverHandle,
+    pub(crate) ephemera_message_receiver: EphemeraMessagesReceiver,
 }
 
 impl SwarmNetwork {
-    pub fn new(
+    pub(crate) fn new(
         conf: Configuration,
-        to_protocol: Sender<EphemeraSigningRequest>,
-        from_protocol: Receiver<BroadcastMessage<RbMsg>>,
-    ) -> SwarmNetwork {
-        let swarm = SwarmNetwork::create_swarm(conf.clone());
-        SwarmNetwork {
+        keypair: Arc<Libp2pKeypair>,
+    ) -> (
+        SwarmNetwork,
+        EphemeraMessagesNotifier,
+        MessagesReceiver,
+        NetworkBroadcastReceiver,
+    ) {
+        let (
+            net_broadcast_notify_receiver,
+            net_broadcast_notifier,
+            net_message_notify_receiver,
+            net_message_notifier,
+        ) = NetworkMessages::init();
+
+        let (ephemera_message_notifier, ephemera_message_receiver) =
+            EphemeraMessagesReceiver::init();
+
+        let swarm = SwarmNetwork::create_swarm(conf.clone(), keypair);
+
+        let network = SwarmNetwork {
             config: conf,
             swarm,
-            to_protocol,
-            from_protocol,
-        }
+            net_message_notifier,
+            net_broadcast_notifier,
+            ephemera_message_receiver,
+        };
+
+        (
+            network,
+            ephemera_message_notifier,
+            net_message_notify_receiver,
+            net_broadcast_notify_receiver,
+        )
     }
     //Message delivery and peer discovery
-    fn create_swarm(conf: Configuration) -> Swarm<GroupNetworkBehaviour> {
-        let sec_key = hex::decode(&conf.node_config.priv_key).unwrap();
-        let local_key = Keypair::from_protobuf_encoding(&sec_key[..]).unwrap();
-        let local_id = PeerId::from(local_key.public());
-
-        let transport = create_transport(&local_key);
-        let behaviour = create_behaviour(conf, local_key);
+    fn create_swarm(
+        conf: Configuration,
+        keypair: Arc<Libp2pKeypair>,
+    ) -> Swarm<GroupNetworkBehaviour> {
+        let keypair: &Libp2pKeypair = keypair.borrow();
+        let local_id = Libp2pPeerId::from(keypair.as_ref().public());
+        let transport = create_transport(keypair.as_ref());
+        let behaviour = create_behaviour(conf, keypair.as_ref());
 
         Swarm::with_tokio_executor(transport, behaviour, local_id)
     }
-}
 
-#[async_trait]
-impl Network for SwarmNetwork {
-    async fn run(mut self) {
-        log::info!("Starting network: {}", self.config.node_config.address.as_str());
-
-        let address =
-            Multiaddr::from_str(self.config.node_config.address.as_str()).expect("Invalid multi-address");
+    pub(crate) async fn incoming(mut self) {
+        let address = Multiaddr::from_str(self.config.node_config.address.as_str())
+            .expect("Invalid multi-address");
         self.swarm.listen_on(address).unwrap();
 
-        let mut codec = ProtoCodec::<RbMsg, RbMsg>::new();
-        let topic = Topic::new(self.config.libp2p.topic_name);
+        let consensus_msg_topic = Topic::new(&self.config.libp2p.consensus_msg_topic_name);
+        let proposed_msg_topic = Topic::new(&self.config.libp2p.proposed_msg_topic_name);
+
         loop {
             select!(
                 // Handle incoming messages from the network
                 swarm_event = self.swarm.select_next_some() => {
-                    handle_incoming_messages(&self.to_protocol, &mut codec, swarm_event).await;
+                    self.handle_incoming_messages(
+                        swarm_event,
+                        &consensus_msg_topic,
+                        &proposed_msg_topic).await;
                 },
                 // Handle messages from broadcast_protocol
-                br = self.from_protocol.recv() => {
-                    match br {
-                        Some(b) => {
-                            send_message(b, &mut self.swarm.behaviour_mut().gossipsub, &topic,  &mut codec).await;
-                        }
-                        None => {
-                            log::error!("Broadcast channel closed"); break;
-                        }
-                    }
+                Some(cm) = self.ephemera_message_receiver.broadcast_sender_rcv.recv() => {
+                     self.send_protocol_message(cm, &consensus_msg_topic,).await;
+                }
+                // Handle messages from broadcast_protocol
+                Some(pm) = self.ephemera_message_receiver.message_sender_rcv.recv() => {
+                    self.send_proposed_message(pm, &proposed_msg_topic,).await;
                 }
             );
         }
     }
-}
 
-#[allow(clippy::collapsible_match, clippy::single_match)]
-async fn handle_incoming_messages<E>(
-    to_network: &Sender<EphemeraSigningRequest>,
-    codec: &mut ProtoCodec<RbMsg, RbMsg>,
-    swarm_event: SwarmEvent<GroupBehaviourEvent, E>,
-) {
-    match swarm_event {
-        SwarmEvent::Behaviour(b) => match b {
-            GroupBehaviourEvent::Gossipsub(gs) => match gs {
-                GossipsubEvent::Message {
-                    propagation_source,
-                    message_id: _,
-                    message,
-                } => {
-                    let mut data = BytesMut::from(&message.data[..]);
-                    if let Ok(Some(msg)) = codec.decode(&mut data) {
-                        to_network
-                            .send(EphemeraSigningRequest::new(propagation_source.to_string(), msg))
-                            .await
-                            .unwrap();
-                    } else {
-                        log::error!("Failed to decode message");
+    #[allow(clippy::collapsible_match, clippy::single_match)]
+    async fn handle_incoming_messages<E>(
+        &mut self,
+        swarm_event: SwarmEvent<GroupBehaviourEvent, E>,
+        protocol_msg_topic: &Topic,
+        signed_msg_topic: &Topic,
+    ) {
+        match swarm_event {
+            SwarmEvent::Behaviour(b) => match b {
+                GroupBehaviourEvent::Gossipsub(gs) => match gs {
+                    GossipsubEvent::Message {
+                        propagation_source,
+                        message_id: _,
+                        message,
+                    } => {
+                        if message.topic == (*protocol_msg_topic).clone().into() {
+                            let msg: RbMsg<Block> =
+                                serde_json::from_slice(&message.data[..]).unwrap();
+                            log::trace!(
+                                "Received protocol message {} from {}",
+                                msg.id,
+                                propagation_source
+                            );
+
+                            let nm = NetworkMessage::new(msg);
+                            if let Err(err) = self.net_broadcast_notifier.send(nm).await {
+                                log::error!(
+                                    "Error sending message to broadcaster channel: {}",
+                                    err
+                                );
+                            }
+                        } else if message.topic == (*signed_msg_topic).clone().into() {
+                            log::trace!("Received signed message from {}", propagation_source);
+
+                            let msg = serde_json::from_slice(&message.data[..]).unwrap();
+                            if let Err(err) = self.net_message_notifier.send(msg).await {
+                                log::error!("Error sending message to channel: {}", err);
+                            }
+                        }
                     }
-                }
+                    _ => {}
+                },
                 _ => {}
             },
-            //Ignore other NetworkBehaviour events for now
+            //Ignore other Swarm events for now
             _ => {}
-        },
-        //Ignore other Swarm events for now
-        _ => {}
+        }
     }
-}
 
-async fn send_message<R: Default + prost::Message, B: prost::Message>(
-    msg: BroadcastMessage<B>,
-    gossipsub: &mut Gossipsub,
-    topic: &Topic,
-    codec: &mut ProtoCodec<R, B>,
-) {
-    let mut buf = BytesMut::new();
-    if codec.encode(msg.message, &mut buf).is_ok() {
-        if let Err(err) = gossipsub.publish(topic.clone(), buf) {
+    async fn send_protocol_message(&mut self, msg: RbMsg<Block>, topic: &Topic) {
+        log::trace!("Sending protocol message: {}", msg.id);
+        let vec = serde_json::to_vec(&msg).unwrap();
+        if let Err(err) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(topic.clone(), vec)
+        {
             log::error!("Error publishing message: {}", err);
         }
-    };
+    }
+
+    async fn send_proposed_message(&mut self, msg: SignedMessage, topic: &Topic) {
+        log::trace!("Sending proposed message: {}", msg.id);
+        let vec = serde_json::to_vec(&msg).unwrap();
+        if let Err(err) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(topic.clone(), vec)
+        {
+            log::error!("Error publishing message: {}", err);
+        }
+    }
 }
 
 #[derive(NetworkBehaviour)]
@@ -170,13 +228,15 @@ impl From<()> for GroupBehaviourEvent {
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
 //Peer discovery takes care of locating peers
-fn create_behaviour(conf: Configuration, local_key: Keypair) -> GroupNetworkBehaviour {
+fn create_behaviour(conf: Configuration, local_key: &Keypair) -> GroupNetworkBehaviour {
+    let consensus_topic = Topic::new(&conf.libp2p.consensus_msg_topic_name);
+    let proposed_topic = Topic::new(&conf.libp2p.proposed_msg_topic_name);
+
     let mut gossipsub = create_gossipsub(local_key);
-    let topic = Topic::new(&conf.libp2p.topic_name);
-    gossipsub.subscribe(&topic).unwrap();
+    gossipsub.subscribe(&consensus_topic).unwrap();
+    gossipsub.subscribe(&proposed_topic).unwrap();
 
     let peer_discovery = StaticPeerDiscovery::new(conf);
-
     for peer in peer_discovery.peer_ids() {
         log::debug!("Adding peer: {}", peer);
         gossipsub.add_explicit_peer(&peer);
@@ -189,25 +249,33 @@ fn create_behaviour(conf: Configuration, local_key: Keypair) -> GroupNetworkBeha
 }
 
 //Configure networking messaging stack(Gossipsub)
-fn create_gossipsub(local_key: Keypair) -> Gossipsub {
+fn create_gossipsub(local_key: &Keypair) -> Gossipsub {
     let gossipsub_config = GossipsubConfigBuilder::default()
-        .heartbeat_interval(Duration::from_secs(1))
+        .heartbeat_interval(Duration::from_secs(5))
         .validation_mode(ValidationMode::Strict)
         .build()
         .expect("Valid config");
 
-    Gossipsub::new(MessageAuthenticity::Signed(local_key), gossipsub_config).expect("Correct configuration")
+    Gossipsub::new(
+        MessageAuthenticity::Signed(local_key.clone()),
+        gossipsub_config,
+    )
+    .expect("Correct configuration")
 }
 
 //Configure networking connection stack(Tcp, Noise, Yamux)
 //Tcp protocol for networking
 //Noise protocol for encryption
 //Yamux protocol for multiplexing
-fn create_transport(local_key: &Keypair) -> Boxed<(PeerId, StreamMuxerBox)> {
+fn create_transport(local_key: &Keypair) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
     let transport = TokioTransport::new(TokioConfig::default().nodelay(true));
+    let noise_keypair = noise::Keypair::<noise::X25519Spec>::new()
+        .into_authentic(local_key)
+        .unwrap();
+    let xx_config = noise::NoiseConfig::xx(noise_keypair);
     transport
         .upgrade(libp2p::core::upgrade::Version::V1)
-        .authenticate(NoiseAuthenticated::xx(local_key).unwrap())
+        .authenticate(xx_config.into_authenticated())
         .multiplex(libp2p::core::upgrade::SelectUpgrade::new(
             YamuxConfig::default(),
             MplexConfig::default(),

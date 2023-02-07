@@ -55,7 +55,6 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 CLUSTER_DIR="${PROJECT_ROOT}/cluster"
 PIDS_FILE=$CLUSTER_DIR/.pids
 EPHEMERA="$PROJECT_ROOT"/target/release/ephemera
-HOSTNAME=$(hostname)
 DB_PATH="$CLUSTER_DIR"/db
 
 export RUST_LOG="ephemera=debug"
@@ -72,13 +71,14 @@ create_cluster() {
 
   COUNTER=1
   for ((c = 1; c <= NR_OF_NODES; c++)); do
-    NETWORK_CLIENT_LISTENER_ADDRESS="$HOSTNAME":400"$COUNTER"
-    WS_ADDRESS="$HOSTNAME":600"$COUNTER"
-    HTTP_SERVER_ADDRESS="$HOSTNAME":700"$COUNTER"
+    NETWORK_CLIENT_LISTENER_ADDRESS=/ip4/127.0.0.1/tcp/400"$COUNTER"
+    WS_ADDRESS=127.0.0.1:600"$COUNTER"
+    HTTP_SERVER_ADDRESS=127.0.0.1:700"$COUNTER"
     $EPHEMERA init \
             --node node"$c" \
             --port 300"$c" \
-            --db-file "$DB_PATH"/ephemera"$COUNTER".sqlite \
+            --sqlite-path "$DB_PATH"/ephemera"$COUNTER".sqlite \
+            --rocket-path "$DB_PATH"/ephemera"$COUNTER".db \
             --ws-address "$WS_ADDRESS" \
             --network-client-listener-address "$NETWORK_CLIENT_LISTENER_ADDRESS" \
             --http-server-address "$HTTP_SERVER_ADDRESS"

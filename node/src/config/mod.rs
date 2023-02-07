@@ -5,7 +5,8 @@ pub const DEFAULT_LISTEN_ADDRESS: &str = "/ip4/127.0.0.1/tcp/";
 pub const DEFAULT_LISTEN_PORT: &str = "3000";
 
 //libp2p settings
-pub const DEFAULT_TOPIC_NAME: &str = "nym-ephemera";
+pub const DEFAULT_CONSENSUS_MSG_TOPIC_NAME: &str = "nym-ephemera-consensus";
+pub const DEFAULT_PROPOSED_MSG_TOPIC_NAME: &str = "nym-ephemera-proposed";
 pub const DEFAULT_HEARTBEAT_INTERVAL_SEC: u64 = 1;
 
 //protocol settings

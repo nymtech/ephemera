@@ -1,9 +1,9 @@
-use crate::config::configuration::Configuration;
-use crate::network::client_listener::EphemeraNetworkCmdListener;
-use crate::network::ephemera::EphemeraLauncher;
-use clap::Parser;
-use futures::executor::block_on;
 use std::path::PathBuf;
+
+use clap::Parser;
+
+use crate::config::configuration::Configuration;
+use crate::ephemera::Ephemera;
 
 #[derive(Debug, Clone, Parser)]
 pub struct RunNodeCmd {
@@ -15,14 +15,15 @@ impl RunNodeCmd {
     pub async fn execute(&self) {
         let conf = match Configuration::try_load(PathBuf::from(self.config_file.as_str())) {
             Ok(conf) => conf,
-            Err(err) => panic!("Error loading configuration file: {:?}", err),
+            Err(err) => panic!("Error loading configuration file: {err:?}",),
         };
-        log::info!("Starting ephemera node {}", self.config_file);
-        let (ephemera, _) = EphemeraLauncher::launch(conf.clone()).await;
 
-        //Gets commands from network and sends these to ephemera
-        block_on(
-            EphemeraNetworkCmdListener::new(ephemera, conf.network_client_listener_config.address).run(),
-        );
+        let mut ephemera = Ephemera::start_services(conf.clone()).await;
+
+        tokio::spawn(async move {
+            ephemera.run().await;
+        })
+        .await
+        .unwrap();
     }
 }

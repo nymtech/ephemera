@@ -1,10 +1,11 @@
 use clap::Parser;
+
 use ephemera::cli::{Cli, Subcommand};
-use ephemera::logging::init_logging;
+use ephemera::logging;
 
 #[tokio::main]
 async fn main() {
-    init_logging();
+    logging::init_logging();
 
     let cli = Cli::parse();
     match cli.subcommand {
@@ -19,6 +20,12 @@ async fn main() {
         }
         Subcommand::RunNode(run_node) => {
             run_node.execute().await;
+        }
+        Subcommand::SignMessage(sign_msg) => {
+            sign_msg.execute().await;
+        }
+        Subcommand::GenerateKeypair(gen_keypair) => {
+            gen_keypair.execute().await;
         }
     }
 }

@@ -1,9 +1,0 @@
-[package]
-name = "console-client"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-ephemera-client = { path = "../../client" }
-tokio = { version = "1.0", features = ["net"] }
-futures = "0.3.25"

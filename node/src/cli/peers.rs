@@ -1,7 +1,9 @@
-use crate::config::configuration::{Configuration, PeerSetting};
-use clap::Parser;
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+use clap::Parser;
+
+use crate::config::configuration::{Configuration, PeerSetting};
 
 #[derive(Debug, Clone, Parser)]
 pub struct AddPeerCmd {
@@ -65,7 +67,7 @@ impl AddLocalPeersCmd {
             if path.is_dir() {
                 let node_dir = path.file_name().unwrap().to_str().unwrap();
                 let conf = Configuration::try_load_from_home_dir(node_dir)
-                    .expect(format!("Error loading configuration for node {}", node_dir).as_str());
+                    .unwrap_or_else(|_| panic!("Error loading configuration for node {node_dir}"));
                 configs.insert(String::from(node_dir), conf);
             }
         }

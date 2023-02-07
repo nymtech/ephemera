@@ -2,8 +2,5 @@
 
 members = [
     "node",
-    "client",
-    "examples/client-timer",
-    "examples/console-client",
-    "examples/embedded-api",
+    "examples/http-ws",
 ]

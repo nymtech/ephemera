@@ -1,8 +1,9 @@
+use clap::Parser;
+
+mod crypto;
 pub mod init;
 pub mod peers;
 pub mod run_node;
-
-use clap::Parser;
 
 #[derive(Parser, Debug, Clone)]
 #[command()]
@@ -17,4 +18,6 @@ pub enum Subcommand {
     AddPeer(peers::AddPeerCmd),
     AddLocalPeers(peers::AddLocalPeersCmd),
     RunNode(run_node::RunNodeCmd),
+    SignMessage(crypto::SignMessageCmd),
+    GenerateKeypair(crypto::GenerateKeypairCmd),
 }

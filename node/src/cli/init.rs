@@ -1,14 +1,16 @@
-use crate::config::configuration::{
-    BroadcastProtocolSettings, Configuration, DbConfig, HttpConfig, Libp2pSettings,
-    NetworkClientListenerConfig, NodeConfig, WsConfig,
-};
 use clap::Parser;
 
-use crate::config::{
-    DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT,
-    DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOPIC_NAME, DEFAULT_TOTAL_NR_OF_NODES,
+use crate::config::configuration::{
+    BlockConfig, BroadcastProtocolSettings, Configuration, DbConfig, HttpConfig, Libp2pSettings,
+    NetworkClientListenerConfig, NodeConfig, WsConfig,
 };
-use crate::crypto::libp2p2_crypto::{KeyPair, Libp2pKeypair};
+use crate::config::{
+    DEFAULT_CONSENSUS_MSG_TOPIC_NAME, DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS,
+    DEFAULT_LISTEN_PORT, DEFAULT_PROPOSED_MSG_TOPIC_NAME, DEFAULT_QUORUM_THRESHOLD_COUNT,
+    DEFAULT_TOTAL_NR_OF_NODES,
+};
+use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
+use crate::utilities::crypto::KeyPair;
 
 #[derive(Debug, Clone, Parser)]
 pub struct InitCmd {
@@ -23,13 +25,17 @@ pub struct InitCmd {
     #[clap(short, long, default_value_t = DEFAULT_TOTAL_NR_OF_NODES)]
     pub total_nr_of_nodes: usize,
     #[clap(short, long)]
-    pub db_file: String,
+    pub sqlite_path: String,
+    #[clap(short, long)]
+    pub rocket_path: String,
     #[clap(short, long)]
     pub ws_address: String,
     #[clap(short, long)]
     pub network_client_listener_address: String,
     #[clap(short, long)]
     pub http_server_address: String,
+    #[clap(short, long)]
+    pub block_producer: bool,
 }
 
 impl InitCmd {
@@ -37,7 +43,7 @@ impl InitCmd {
         if Configuration::try_load_from_home_dir(&self.node).is_ok() {
             panic!("Configuration file already exists: {}", self.node);
         }
-        let keypair = Libp2pKeypair::generate(&[]).unwrap();
+        let keypair = Libp2pKeypair::generate().unwrap();
         let pub_key = hex::encode(keypair.0.public().to_protobuf_encoding());
         let priv_key = hex::encode(keypair.0.to_protobuf_encoding().unwrap());
 
@@ -52,12 +58,14 @@ impl InitCmd {
                 cluster_size: self.total_nr_of_nodes,
             },
             libp2p: Libp2pSettings {
-                topic_name: DEFAULT_TOPIC_NAME.to_string(),
+                consensus_msg_topic_name: DEFAULT_CONSENSUS_MSG_TOPIC_NAME.to_string(),
+                proposed_msg_topic_name: DEFAULT_PROPOSED_MSG_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
                 peers: Vec::new(),
             },
             db_config: DbConfig {
-                db_path: self.db_file,
+                sqlite_path: self.sqlite_path,
+                rocket_path: self.rocket_path,
             },
             ws_config: WsConfig {
                 ws_address: self.ws_address,
@@ -68,9 +76,12 @@ impl InitCmd {
             http_config: HttpConfig {
                 address: self.http_server_address,
             },
+            block_config: BlockConfig {
+                leader: self.block_producer,
+            },
         };
         if let Err(err) = configuration.try_create(&self.node) {
-            log::error!("Error creating configuration file: {:?}", err);
+            eprintln!("Error creating configuration file: {err:?}",);
         }
     }
 }

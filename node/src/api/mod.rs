@@ -1,35 +1,81 @@
-use crate::broadcast_protocol::signing::signer::Signature;
+use std::sync::Arc;
 
-use crate::broadcast_protocol::EphemeraSigningRequest;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::Mutex;
 
-use serde_derive::{Deserialize, Serialize};
-use utoipa::{ToSchema};
-use thiserror::Error;
+use crate::api::types::{ApiBlock, ApiKeypair, ApiSignature, ApiSignedMessage};
 
-/// 'Send' module allows external systems submit messages to "blockchain". It is not possible to 'save' anything directly in blockchain but
-/// only through this module.
-pub mod send;
+use crate::database::EphemeraDatabase;
 
-/// Query module allows to query immutable "blockchain"
-pub mod queries;
+use crate::ephemera::EphemeraDatabaseType;
+use crate::utilities::crypto::signer::CryptoApi;
+use crate::utilities::crypto::KeyPairError;
 
-#[derive(Error, Debug)]
-pub enum MessagesApiError {
-    #[error("Database error: '{}'", .0)]
-    DbError(String),
+pub mod types;
+
+#[derive(Debug, Clone)]
+pub(crate) enum ApiCmd {
+    SubmitSignedMessageRequest(ApiSignedMessage),
 }
 
-#[derive(Serialize, Debug, Clone)]
-pub struct SignedEphemeraMessageResponse {
-    pub request_id: String,
-    pub custom_message_id: String,
-    pub message: Vec<u8>,
-    pub signatures: Vec<Signature>,
+pub(crate) struct ApiListener {
+    pub(crate) signed_messages_rcv: Receiver<ApiCmd>,
 }
 
-#[derive(Deserialize, Debug, Clone, ToSchema)]
-pub struct MessageSigningRequest {
-    pub request_id: String,
-    pub custom_message_id: String,
-    pub message: Vec<u8>,
+impl ApiListener {
+    pub(crate) fn new(signed_messages_rcv: Receiver<ApiCmd>) -> Self {
+        Self {
+            signed_messages_rcv,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct EphemeraExternalApi {
+    pub(crate) database: Arc<Mutex<EphemeraDatabaseType>>,
+    pub(crate) submit_signed_messages_tx: Sender<ApiCmd>,
+}
+
+impl EphemeraExternalApi {
+    pub(crate) fn new(
+        database: Arc<Mutex<EphemeraDatabaseType>>,
+    ) -> (EphemeraExternalApi, ApiListener) {
+        let (submit_signed_messages_tx, signed_messages_rcv) = channel(100);
+
+        let api_listener = ApiListener::new(signed_messages_rcv);
+
+        let api = EphemeraExternalApi {
+            database,
+            submit_signed_messages_tx,
+        };
+        (api, api_listener)
+    }
+
+    pub async fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<ApiBlock>> {
+        let database = self.database.lock().await;
+        let db_block = database
+            .get_block_by_id(block_id)?
+            .map(|block| block.into());
+        Ok(db_block)
+    }
+
+    pub async fn submit_signed_message(&self, message: ApiSignedMessage) -> anyhow::Result<()> {
+        let message = ApiCmd::SubmitSignedMessageRequest(message);
+        self.submit_signed_messages_tx.send(message).await?;
+        Ok(())
+    }
+
+    pub fn sign_message(
+        &self,
+        request_id: String,
+        data: String,
+        private_key: String,
+    ) -> Result<ApiSignature, KeyPairError> {
+        let signature = CryptoApi::sign_message(request_id, data, private_key)?;
+        Ok(signature.into())
+    }
+
+    pub fn generate_key_pair(&self) -> Result<ApiKeypair, KeyPairError> {
+        CryptoApi::generate_keypair()
+    }
 }
