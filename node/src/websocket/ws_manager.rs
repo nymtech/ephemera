@@ -68,20 +68,22 @@ impl WsMessageBroadcast {
 pub(crate) struct WsManager {
     pub(crate) config: WsConfig,
     pub(crate) pending_messages_tx: broadcast::Sender<Message>,
+    pub(crate) pending_messages_rcv: broadcast::Receiver<Message>,
 }
 
 impl WsManager {
     pub(crate) fn new(config: WsConfig) -> Result<(WsManager, WsMessageBroadcast)> {
-        let (pending_messages_tx, _) = broadcast::channel(1000);
+        let (pending_messages_tx, pending_messages_rcv) = broadcast::channel(1000);
         let ws_message_broadcast = WsMessageBroadcast::new(pending_messages_tx.clone());
         let manager = WsManager {
             config,
             pending_messages_tx,
+            pending_messages_rcv,
         };
         Ok((manager, ws_message_broadcast))
     }
 
-    pub async fn bind(self) -> Result<()> {
+    pub async fn bind(mut self) -> Result<()> {
         let listener = TcpListener::bind(&self.config.ws_address).await?;
         log::info!(
             "Listening for websocket connections on {}",
@@ -100,6 +102,9 @@ impl WsManager {
                             log::error!("Error accepting websocket connection: {:?}", err);
                         }
                     }
+                }
+                msg = self.pending_messages_rcv.recv() => {
+                        log::trace!("Received message from broadcast channel {msg:?}");
                 }
             }
         }

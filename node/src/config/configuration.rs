@@ -21,7 +21,7 @@ pub struct NodeConfig {
     pub address: String,
     pub pub_key: String,
     //TODO: clear memory after use
-    pub priv_key: String,
+    pub private_key: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -69,6 +69,7 @@ pub struct HttpConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BlockConfig {
     pub leader: bool,
+    pub block_creation_interval_sec: u64,
 }
 
 #[derive(Debug, Error)]

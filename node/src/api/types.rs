@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -8,13 +6,12 @@ use crate::broadcast::PeerId;
 
 use crate::utilities::crypto::Signature;
 use crate::utilities::id_generator::EphemeraId;
-
-//TODO pattern - create a raw struct and calling Sign create a new struct with signature
+use crate::utilities::time::duration_now;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiSignedMessage {
     pub request_id: String,
-    pub timestamp: SystemTime,
+    pub timestamp: u128,
     pub data: String,
     pub signature: ApiSignature,
 }
@@ -23,7 +20,7 @@ impl ApiSignedMessage {
     pub fn new(request_id: String, data: String, signature: ApiSignature) -> Self {
         Self {
             request_id,
-            timestamp: SystemTime::now(),
+            timestamp: duration_now().as_millis(),
             data,
             signature,
         }
@@ -111,7 +108,7 @@ impl ApiRawMessage {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ApiBlockHeader {
     pub id: EphemeraId,
-    pub timestamp: SystemTime,
+    pub timestamp: u128,
     pub creator: PeerId,
     pub height: u64,
 }

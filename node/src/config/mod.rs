@@ -1,3 +1,5 @@
+//! Configuration options for the node.
+
 pub mod configuration;
 
 //network settings

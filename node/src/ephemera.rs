@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use futures_util::StreamExt;
-use libp2p::PeerId as Libp2pPeerId;
 use tokio::sync::Mutex;
 
 use crate::api::{ApiCmd, ApiListener, EphemeraExternalApi};
@@ -9,15 +8,13 @@ use crate::block::callback::DummyBlockProducerCallback;
 use crate::block::manager::BlockManager;
 use crate::broadcast::broadcast_callback::DummyBroadcastCallBack;
 use crate::broadcast::broadcaster::Broadcaster;
-use crate::broadcast::PeerId;
 use crate::config::configuration::Configuration;
 use crate::database::{CompoundDatabase, EphemeraDatabase};
 use crate::http;
 use crate::network::libp2p::listener::{MessagesReceiver, NetworkBroadcastReceiver};
 use crate::network::libp2p::sender::EphemeraMessagesNotifier;
 use crate::network::libp2p::swarm::SwarmNetwork;
-use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
-use crate::utilities::crypto::KeyPair;
+use crate::utilities::crypto::read_keypair;
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcast};
 
 pub(crate) type EphemeraDatabaseType = CompoundDatabase;
@@ -56,7 +53,7 @@ pub struct Ephemera {
 
 impl Ephemera {
     pub async fn start_services(config: Configuration) -> Ephemera {
-        let (local_peer_id, keypair) = Self::read_keypair(&config);
+        let (local_peer_id, keypair) = read_keypair(config.node_config.private_key.clone());
         log::info!("Local node id: {}", local_peer_id);
 
         log::info!("Starting broadcaster...");
@@ -240,12 +237,5 @@ impl Ephemera {
                 }
             }
         }
-    }
-
-    fn read_keypair(config: &Configuration) -> (PeerId, Arc<Libp2pKeypair>) {
-        let keypair = Libp2pKeypair::from_private_key_hex(&config.node_config.priv_key).unwrap();
-        let local_peer_id = Libp2pPeerId::from(keypair.as_ref().public());
-        let keypair = Arc::new(keypair);
-        (PeerId(local_peer_id), keypair)
     }
 }

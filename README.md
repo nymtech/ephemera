@@ -8,4 +8,8 @@
 
 [README](examples/http-ws/README.md)
 
+## How to run
+
+[README](scripts/README.md)
+
 

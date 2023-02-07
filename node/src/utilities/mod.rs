@@ -6,3 +6,4 @@ pub(crate) mod crypto;
 pub(crate) mod encoding;
 pub(crate) mod hash;
 pub(crate) mod id_generator;
+pub(crate) mod time;

@@ -74,14 +74,14 @@ impl BlockManager {
         &mut self,
         block_id: &EphemeraId,
     ) -> Result<(), BlockManagerError> {
-        log::debug!("Cleaning mempool from block: {} messages", block_id);
+        log::debug!("Cleaning mempool from block: {} messages...", block_id);
 
         if let Some(block) = self.last_blocks.get(&block_id.to_string()) {
             //Usually we clear messages from mempool when a block is committed.
             //But in case of specific configuration where all nodes are leaders, each node clears messages
             //from mempool only if it is it's own block
             if self.config.leader && block.header.creator != self.block_producer.peer_id {
-                log::debug!("Not my block, not cleaning mempool");
+                log::debug!("Not my block {block_id}, not cleaning mempool");
                 return Ok(());
             }
 
@@ -145,7 +145,8 @@ impl Stream for BlockManager {
                         Pending
                     }
                 };
-                self.delay.reset(time::Duration::from_secs(15));
+                let interval = self.config.block_creation_interval_sec;
+                self.delay.reset(time::Duration::from_secs(interval));
                 result
             }
             Pending => Pending,

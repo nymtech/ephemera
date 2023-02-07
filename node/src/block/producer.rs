@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time;
 
 use crate::block::callback::BlockProducerCallback;
 use crate::block::manager::BlockManagerError;
@@ -10,6 +9,7 @@ use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
 use crate::utilities::crypto::signer::Libp2pSigner;
 use crate::utilities::crypto::Signer;
 use crate::utilities::id_generator;
+use crate::utilities::time::duration_now;
 
 pub(crate) struct BlockProducer {
     message_pool: MessagePool,
@@ -96,7 +96,7 @@ impl BlockProducer {
 
         let header = BlockHeader {
             id: id_generator::generate(),
-            timestamp: time::SystemTime::now(),
+            timestamp: duration_now().as_millis(),
             creator: self.peer_id,
             height,
         };

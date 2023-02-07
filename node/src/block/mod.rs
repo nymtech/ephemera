@@ -1,13 +1,12 @@
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
-use std::time::SystemTime;
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::broadcast::{BroadcastData, PeerId};
 use crate::utilities::crypto::Signature;
 use crate::utilities::id_generator::EphemeraId;
+use crate::utilities::time::duration_now;
 
 pub(crate) mod callback;
 pub(crate) mod manager;
@@ -17,7 +16,7 @@ pub(crate) mod producer;
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct BlockHeader {
     pub(crate) id: EphemeraId,
-    pub(crate) timestamp: SystemTime,
+    pub(crate) timestamp: u128,
     pub(crate) creator: PeerId,
     pub(crate) height: u64,
 }
@@ -50,7 +49,7 @@ impl Display for Block {
         let header = &self.header;
         write!(
             f,
-            "header: {header}, nr of messages: {}",
+            "{header}, nr of messages: {}",
             self.signed_messages.len()
         )
     }
@@ -59,7 +58,7 @@ impl Display for Block {
 impl Display for BlockHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let id = &self.id;
-        let time: DateTime<Utc> = self.timestamp.into();
+        let time = self.timestamp;
         let creator = &self.creator;
         let height = self.height;
         write!(
@@ -97,7 +96,7 @@ impl RawBlock {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct SignedMessage {
     pub(crate) id: EphemeraId,
-    pub(crate) timestamp: SystemTime,
+    pub(crate) timestamp: u128,
     ///In hexadecimal format
     pub(crate) data: String,
     ///In hexadecimal format
@@ -137,7 +136,7 @@ impl SignedMessage {
     pub(crate) fn new(id: String, data: String, signature: Signature) -> Self {
         Self {
             id,
-            timestamp: SystemTime::now(),
+            timestamp: duration_now().as_millis(),
             data,
             signature,
         }

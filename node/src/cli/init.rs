@@ -34,8 +34,10 @@ pub struct InitCmd {
     pub network_client_listener_address: String,
     #[clap(short, long)]
     pub http_server_address: String,
-    #[clap(short, long)]
+    #[clap(short, long, default_value_t = true)]
     pub block_producer: bool,
+    #[clap(short, long, default_value_t = 15)]
+    pub block_creation_interval_sec: u64,
 }
 
 impl InitCmd {
@@ -51,7 +53,7 @@ impl InitCmd {
             node_config: NodeConfig {
                 address: format!("{}{}", self.address, self.port),
                 pub_key,
-                priv_key,
+                private_key: priv_key,
             },
             quorum: BroadcastProtocolSettings {
                 quorum_threshold_size: self.quorum_threshold_count,
@@ -78,6 +80,7 @@ impl InitCmd {
             },
             block_config: BlockConfig {
                 leader: self.block_producer,
+                block_creation_interval_sec: self.block_creation_interval_sec,
             },
         };
         if let Err(err) = configuration.try_create(&self.node) {

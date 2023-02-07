@@ -1,7 +1,9 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use crate::broadcast::PeerId;
 
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
 
@@ -91,3 +93,11 @@ pub trait Signer {
 }
 
 pub type EphemeraKeypair = Libp2pKeypair;
+
+pub(crate) fn read_keypair(private_key: String) -> (PeerId, Arc<Libp2pKeypair>) {
+    use libp2p::PeerId as Libp2pPeerId;
+    let keypair = Libp2pKeypair::from_private_key_hex(&private_key).unwrap();
+    let local_peer_id = Libp2pPeerId::from(keypair.as_ref().public());
+    let keypair = Arc::new(keypair);
+    (PeerId(local_peer_id), keypair)
+}
