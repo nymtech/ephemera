@@ -3,4 +3,5 @@
 members = [
     "node",
     "examples/http-ws",
+    "examples/metrics-aggregator",
 ]

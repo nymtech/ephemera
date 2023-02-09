@@ -3,24 +3,25 @@ use utoipa::ToSchema;
 
 use crate::block::{Block, SignedMessage};
 use crate::broadcast::PeerId;
-
 use crate::utilities::crypto::Signature;
-use crate::utilities::id_generator::EphemeraId;
+use crate::utilities::EphemeraId;
 use crate::utilities::time::duration_now;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiSignedMessage {
     pub request_id: String,
     pub timestamp: u128,
+    pub label: String,
     pub data: String,
     pub signature: ApiSignature,
 }
 
 impl ApiSignedMessage {
-    pub fn new(request_id: String, data: String, signature: ApiSignature) -> Self {
+    pub fn new(request_id: String, data: String, signature: ApiSignature, label: String) -> Self {
         Self {
             request_id,
             timestamp: duration_now().as_millis(),
+            label,
             data,
             signature,
         }
@@ -40,6 +41,7 @@ impl From<ApiSignedMessage> for SignedMessage {
             signed_message.request_id,
             signed_message.data,
             signed_message.signature.into(),
+            signed_message.label,
         )
     }
 }
@@ -49,6 +51,7 @@ impl From<SignedMessage> for ApiSignedMessage {
         Self {
             request_id: signed_message.id,
             timestamp: signed_message.timestamp,
+            label: signed_message.label,
             data: signed_message.data,
             signature: ApiSignature {
                 signature: signed_message.signature.signature,

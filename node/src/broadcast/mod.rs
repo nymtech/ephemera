@@ -4,8 +4,8 @@ use std::time::SystemTime;
 use libp2p::PeerId as Libp2pPeerId;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::utilities::id_generator;
-use crate::utilities::id_generator::EphemeraId;
+use crate::utilities;
+use crate::utilities::EphemeraId;
 
 pub(crate) mod broadcast_callback;
 pub(crate) mod broadcaster;
@@ -46,8 +46,8 @@ pub struct RbMsg<T: BroadcastData> {
 impl<T: BroadcastData> RbMsg<T> {
     pub(crate) fn new(data: T, original_sender: PeerId) -> RbMsg<T> {
         RbMsg {
-            id: id_generator::generate(),
-            request_id: id_generator::generate(),
+            id: utilities::generate_ephemera_id(),
+            request_id: utilities::generate_ephemera_id(),
             original_sender,
             data_identifier: data.get_id(),
             timestamp: SystemTime::now(),

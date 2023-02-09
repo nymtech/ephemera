@@ -41,14 +41,14 @@ use thiserror::Error;
 use tokio::time::Instant;
 
 use crate::block::Block;
+use crate::broadcast::{BroadcastData, Command, PeerId, RbMsg, ReliableBroadcast, Status};
 use crate::broadcast::broadcast_callback::BroadcastCallBack;
 use crate::broadcast::broadcaster::BroadcastError::InvalidBroadcast;
 use crate::broadcast::quorum::{BasicQuorum, Quorum};
 use crate::broadcast::ReliableBroadcast::{Ack, Commit, Init, Prepare};
-use crate::broadcast::{BroadcastData, Command, PeerId, RbMsg, ReliableBroadcast, Status};
 use crate::config::configuration::Configuration;
-use crate::utilities::id_generator;
-use crate::utilities::id_generator::EphemeraId;
+use crate::utilities;
+use crate::utilities::EphemeraId;
 
 #[derive(Debug, Clone)]
 pub struct ConsensusTimestamp(Instant);
@@ -331,7 +331,7 @@ impl<C: BroadcastCallBack<Message = Block>> Broadcaster<C> {
             command,
             protocol_reply: RbMsg {
                 id,
-                request_id: id_generator::generate(),
+                request_id: utilities::generate_ephemera_id(),
                 original_sender: self.peer_id,
                 data_identifier,
                 timestamp: SystemTime::now(),

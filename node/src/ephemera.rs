@@ -84,7 +84,7 @@ impl Ephemera {
             protocol_broadcast_receiver,
         ) = SwarmNetwork::new(config.clone(), keypair.clone());
 
-        tokio::spawn(network.incoming());
+        tokio::spawn(network.start());
 
         let (api, api_listener) = EphemeraExternalApi::new(storage.clone());
 
@@ -137,7 +137,7 @@ impl Ephemera {
                     self.ephemera_message_notifier.send_protocol_message(rb_result.unwrap().protocol_reply).await;
                 }
 
-                // //PROCESSING SIGNED MESSAGES(TRANSACTIONS) FROM NETWORK
+                //PROCESSING SIGNED MESSAGES(TRANSACTIONS) FROM NETWORK
                 Some(signed_msg) = self.net_message_notify_receiver.signed_messages_from_net_rcv.recv() => {
                     // 1. send to BlockManager
                     if let Err(err) = self.block_manager.new_message(signed_msg).await{

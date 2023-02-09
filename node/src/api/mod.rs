@@ -4,12 +4,10 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
 
 use crate::api::types::{ApiBlock, ApiKeypair, ApiSignature, ApiSignedMessage};
-
 use crate::database::EphemeraDatabase;
-
 use crate::ephemera::EphemeraDatabaseType;
-use crate::utilities::crypto::signer::CryptoApi;
 use crate::utilities::crypto::KeyPairError;
+use crate::utilities::crypto::signer::CryptoApi;
 
 pub mod types;
 
@@ -55,6 +53,14 @@ impl EphemeraExternalApi {
         let database = self.database.lock().await;
         let db_block = database
             .get_block_by_id(block_id)?
+            .map(|block| block.into());
+        Ok(db_block)
+    }
+
+    pub async fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<ApiBlock>> {
+        let database = self.database.lock().await;
+        let db_block = database
+            .get_block_by_label(label)?
             .map(|block| block.into());
         Ok(db_block)
     }

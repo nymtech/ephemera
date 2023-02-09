@@ -4,9 +4,9 @@
 
 [README](node/README.md)
 
-## Example Target Application
+## Examples
 
-[README](examples/http-ws/README.md)
+[README](examples/)
 
 ## How to run
 

@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{Connection, OptionalExtension, params, Row};
 
 use crate::block::Block;
 use crate::config::configuration::DbConfig;
@@ -49,6 +49,24 @@ impl DbQuery {
             log::debug!("Found last block: {}", block.header);
         } else {
             log::debug!("Last block not found");
+        };
+
+        Ok(block)
+    }
+
+    pub(crate) fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
+        log::debug!("Getting block by label {}", label);
+
+        let mut stmt = self
+            .connection
+            .prepare_cached("SELECT block FROM blocks where label = ?1")?;
+
+        let block = stmt.query_row(params![label], Self::map_block()).optional()?;
+
+        if let Some(_) = &block {
+            log::debug!("Found block by label: {}", label);
+        } else {
+            log::debug!("Block not found");
         };
 
         Ok(block)
