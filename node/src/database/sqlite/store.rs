@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 
 use crate::block::Block;
 use crate::config::configuration::DbConfig;
@@ -28,11 +28,12 @@ impl DbStore {
         log::debug!("Storing block: {}", block.header);
 
         let id = block.header.id.clone();
+        let label = block.header.label.clone();
         let body = serde_json::to_vec(&block).map_err(|e| anyhow::anyhow!(e))?;
         let mut statement = self
             .connection
-            .prepare_cached("INSERT INTO blocks (block_id, block) VALUES (?1, ?2)")?;
-        statement.execute(params![&id, &body,])?;
+            .prepare_cached("INSERT INTO blocks (block_id, label, block) VALUES (?1, ?2, ?3)")?;
+        statement.execute(params![&id, &label, &body,])?;
         Ok(())
     }
 

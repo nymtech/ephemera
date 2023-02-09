@@ -1,8 +1,8 @@
 use crate::block::Block;
 use crate::config::configuration::DbConfig;
+use crate::database::EphemeraDatabase;
 use crate::database::sqlite::query::DbQuery;
 use crate::database::sqlite::store::DbStore;
-use crate::database::EphemeraDatabase;
 
 pub(crate) mod query;
 pub(crate) mod store;
@@ -30,6 +30,10 @@ impl SqliteStorage {
     pub(crate) fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
         self.db_query.get_last_block()
     }
+
+    pub(crate) fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
+        self.db_query.get_block_by_label(label)
+    }
 }
 
 impl EphemeraDatabase for SqliteStorage {
@@ -43,5 +47,9 @@ impl EphemeraDatabase for SqliteStorage {
 
     fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
         self.get_last_block()
+    }
+
+    fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
+        self.get_block_by_label(label)
     }
 }

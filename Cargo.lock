@@ -334,9 +334,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.66"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
+checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
 
 [[package]]
 name = "arc-swap"
@@ -1467,6 +1467,28 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "uuid",
+]
+
+[[package]]
+name = "ephemera-metrics-aggregator-example"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "clap",
+ "ephemera",
+ "log",
+ "pretty_env_logger",
+ "rand 0.8.5",
+ "refinery",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tempfile",
+ "time 0.3.17",
+ "tokio",
 ]
 
 [[package]]
@@ -4110,9 +4132,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.91"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877c235533714907a8c2464236f5c4b2a17262ef1bd71f38f35ea592c8da6883"
+checksum = "cad406b69c91885b5107daf2c29572f6c8cdb3c66826821e286c533490c0bc76"
 dependencies = [
  "itoa",
  "ryu",

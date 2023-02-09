@@ -4,9 +4,9 @@ use rocksdb::TransactionDB;
 
 use crate::block::Block;
 use crate::config::configuration::DbConfig;
+use crate::database::EphemeraDatabase;
 use crate::database::rocksdb::query::DbQuery;
 use crate::database::rocksdb::store::DbStore;
-use crate::database::EphemeraDatabase;
 
 pub(crate) mod query;
 pub(crate) mod store;
@@ -17,6 +17,8 @@ pub(crate) struct RocksDbStorage {
 }
 
 const LAST_BLOCK_KEY: &[u8] = b"last_block";
+const PREFIX_BLOCK_ID: &str = "block_id:";
+const PREFIX_LABEL: &str = "label:";
 
 impl RocksDbStorage {
     pub fn new(config: DbConfig) -> Self {
@@ -41,6 +43,10 @@ impl RocksDbStorage {
     pub(crate) fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
         self.db_query.get_last_block()
     }
+
+    pub(crate) fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
+        self.db_query.get_block_by_label(label)
+    }
 }
 
 impl EphemeraDatabase for RocksDbStorage {
@@ -54,5 +60,9 @@ impl EphemeraDatabase for RocksDbStorage {
 
     fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
         self.get_last_block()
+    }
+
+    fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
+        self.get_block_by_label(label)
     }
 }

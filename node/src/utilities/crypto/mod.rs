@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use crate::broadcast::PeerId;
 
+use crate::broadcast::PeerId;
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
 
 pub(crate) mod ed25519;

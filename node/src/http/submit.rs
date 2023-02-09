@@ -1,7 +1,7 @@
-use actix_web::{post, web, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, post, web};
 
-use crate::api::types::ApiSignedMessage;
 use crate::api::EphemeraExternalApi;
+use crate::api::types::ApiSignedMessage;
 
 #[utoipa::path(
     request_body = ApiSignedMessage,

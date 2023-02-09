@@ -1,0 +1,22 @@
+[package]
+name = "ephemera-metrics-aggregator-example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ephemera = { path = "../../node" }
+anyhow = "1.0.69"
+tokio = { version = "1.0", features = ["full"] }
+clap = { version = "4.0.26", features = ["derive"] }
+log = "0.4.17"
+pretty_env_logger = "0.4.0"
+rusqlite = {version = "0.28.0", features = ["chrono"] }
+refinery = { version = "0.8.0", features = ["rusqlite"] }
+rand = "0.8.5"
+time = "0.3.17"
+actix-web = "4"
+reqwest = { version = "0.11.6", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0.149"
+serde_json = "1.0.91"
+tempfile = "3.3.0"

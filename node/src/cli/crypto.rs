@@ -1,7 +1,7 @@
 use clap::Parser;
 
-use crate::utilities::crypto::signer::CryptoApi;
 use crate::utilities::crypto::{EphemeraKeypair, KeyPair};
+use crate::utilities::crypto::signer::CryptoApi;
 
 #[derive(Debug, Clone, Parser)]
 pub struct SignMessageCmd {

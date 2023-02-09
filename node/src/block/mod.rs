@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::broadcast::{BroadcastData, PeerId};
 use crate::utilities::crypto::Signature;
-use crate::utilities::id_generator::EphemeraId;
+use crate::utilities::EphemeraId;
 use crate::utilities::time::duration_now;
 
 pub(crate) mod callback;
 pub(crate) mod manager;
-mod message_pool;
+pub(crate) mod message_pool;
 pub(crate) mod producer;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -19,6 +19,7 @@ pub(crate) struct BlockHeader {
     pub(crate) timestamp: u128,
     pub(crate) creator: PeerId,
     pub(crate) height: u64,
+    pub(crate) label: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -97,6 +98,8 @@ impl RawBlock {
 pub(crate) struct SignedMessage {
     pub(crate) id: EphemeraId,
     pub(crate) timestamp: u128,
+    ///Application specific logical identifier of the message
+    pub(crate) label: String,
     ///In hexadecimal format
     pub(crate) data: String,
     ///In hexadecimal format
@@ -106,12 +109,12 @@ pub(crate) struct SignedMessage {
 /// Raw message represents all the data what will be signed
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct RawMessage {
-    pub(crate) id: String,
+    pub(crate) id: EphemeraId,
     pub(crate) data: String,
 }
 
 impl RawMessage {
-    pub(crate) fn new(id: String, data: String) -> Self {
+    pub(crate) fn new(id: EphemeraId, data: String) -> Self {
         Self { id, data }
     }
 }
@@ -133,10 +136,11 @@ impl From<SignedMessage> for RawMessage {
 }
 
 impl SignedMessage {
-    pub(crate) fn new(id: String, data: String, signature: Signature) -> Self {
+    pub(crate) fn new(id: String, data: String, signature: Signature, label: String) -> Self {
         Self {
             id,
             timestamp: duration_now().as_millis(),
+            label,
             data,
             signature,
         }

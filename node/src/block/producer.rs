@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
-use crate::block::callback::BlockProducerCallback;
+use crate::block::{Block, BlockHeader, RawBlock, RawMessage, SignedMessage};
+use crate::block::callback::{ApplicationInfo, BlockProducerCallback};
 use crate::block::manager::BlockManagerError;
 use crate::block::message_pool::MessagePool;
-use crate::block::{Block, BlockHeader, RawBlock, RawMessage, SignedMessage};
 use crate::broadcast::PeerId;
+use crate::utilities;
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
-use crate::utilities::crypto::signer::Libp2pSigner;
 use crate::utilities::crypto::Signer;
-use crate::utilities::id_generator;
+use crate::utilities::crypto::signer::Libp2pSigner;
 use crate::utilities::time::duration_now;
 
 pub(crate) struct BlockProducer {
@@ -21,8 +21,8 @@ pub(crate) struct BlockProducer {
 
 impl BlockProducer {
     pub(crate) fn new<C>(callback: C, peer_id: PeerId, key_pair: Arc<Libp2pKeypair>) -> Self
-    where
-        C: BlockProducerCallback + Send + 'static,
+        where
+            C: BlockProducerCallback + Send + 'static,
     {
         let message_pool = MessagePool::new();
         let signer = Libp2pSigner::new(key_pair);
@@ -41,10 +41,10 @@ impl BlockProducer {
     ) -> anyhow::Result<Option<Block>> {
         let pending_messages = self.message_pool.get_messages();
 
-        if let Ok(true) = self.callback.on_proposed_messages(&pending_messages) {
-            let block = self.new_block(&pending_messages, last_block)?;
+        if let Ok(Some(propose_result)) = self.callback.on_proposed_block(&pending_messages) {
+            let block = self.new_block(last_block, propose_result.clone())?;
 
-            self.pending_messages = pending_messages;
+            self.pending_messages = propose_result.accepted_messages.into();
 
             return Ok(Some(block));
         }
@@ -83,10 +83,10 @@ impl BlockProducer {
 
     fn new_block(
         &mut self,
-        signed_messages: &[SignedMessage],
         last_block: Option<Block>,
+        application_info: ApplicationInfo,
     ) -> anyhow::Result<Block> {
-        let mut sorted_messages = signed_messages.to_owned();
+        let mut sorted_messages = application_info.accepted_messages.to_owned();
         sorted_messages.sort_by(|a, b| a.id.cmp(&b.id));
 
         let mut height = 0;
@@ -94,11 +94,13 @@ impl BlockProducer {
             height = block.header.height + 1;
         }
 
+        let id = utilities::generate_ephemera_id();
         let header = BlockHeader {
-            id: id_generator::generate(),
+            id: id.clone(),
             timestamp: duration_now().as_millis(),
             creator: self.peer_id,
             height,
+            label: application_info.label.unwrap_or(id),
         };
 
         let raw_block = RawBlock::new(header, sorted_messages);
