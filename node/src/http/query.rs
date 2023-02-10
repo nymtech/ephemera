@@ -1,4 +1,4 @@
-use actix_web::{get, HttpResponse, Responder, web};
+use actix_web::{get, web, HttpResponse, Responder};
 
 use crate::api::EphemeraExternalApi;
 
@@ -12,13 +12,13 @@ pub(crate) async fn block_by_id(
     id: web::Path<String>,
     api: web::Data<EphemeraExternalApi>,
 ) -> impl Responder {
-    log::debug!("GET /ephemera/block/{id}", );
+    log::debug!("GET /ephemera/block/{id}",);
 
     match api.get_block_by_id(id.into_inner()).await {
         Ok(Some(block)) => HttpResponse::Ok().json(block),
         Ok(_) => HttpResponse::NotFound().finish(),
         Err(err) => {
-            log::error!("Failed to get block by id: {err}", );
+            log::error!("Failed to get block by id: {err}",);
             HttpResponse::InternalServerError().finish()
         }
     }

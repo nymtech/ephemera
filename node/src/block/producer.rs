@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
-use crate::block::{Block, BlockHeader, RawBlock, RawMessage, SignedMessage};
 use crate::block::callback::{ApplicationInfo, BlockProducerCallback};
 use crate::block::manager::BlockManagerError;
 use crate::block::message_pool::MessagePool;
+use crate::block::{Block, BlockHeader, RawBlock, RawMessage, SignedMessage};
 use crate::broadcast::PeerId;
 use crate::utilities;
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
-use crate::utilities::crypto::Signer;
 use crate::utilities::crypto::signer::Libp2pSigner;
+use crate::utilities::crypto::Signer;
 use crate::utilities::time::duration_now;
 
 pub(crate) struct BlockProducer {
@@ -21,8 +21,8 @@ pub(crate) struct BlockProducer {
 
 impl BlockProducer {
     pub(crate) fn new<C>(callback: C, peer_id: PeerId, key_pair: Arc<Libp2pKeypair>) -> Self
-        where
-            C: BlockProducerCallback + Send + 'static,
+    where
+        C: BlockProducerCallback + Send + 'static,
     {
         let message_pool = MessagePool::new();
         let signer = Libp2pSigner::new(key_pair);

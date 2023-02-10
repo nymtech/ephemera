@@ -6,8 +6,8 @@ use tokio::sync::Mutex;
 use crate::api::types::{ApiBlock, ApiKeypair, ApiSignature, ApiSignedMessage};
 use crate::database::EphemeraDatabase;
 use crate::ephemera::EphemeraDatabaseType;
-use crate::utilities::crypto::KeyPairError;
 use crate::utilities::crypto::signer::CryptoApi;
+use crate::utilities::crypto::KeyPairError;
 
 pub mod types;
 

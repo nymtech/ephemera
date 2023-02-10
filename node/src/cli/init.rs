@@ -1,16 +1,16 @@
 use clap::Parser;
 
+use crate::config::configuration::{
+    BlockConfig, BroadcastProtocolSettings, Configuration, DbConfig, HttpConfig, Libp2pSettings,
+    NetworkClientListenerConfig, NodeConfig, WsConfig,
+};
 use crate::config::{
     DEFAULT_CONSENSUS_MSG_TOPIC_NAME, DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS,
     DEFAULT_LISTEN_PORT, DEFAULT_PROPOSED_MSG_TOPIC_NAME, DEFAULT_QUORUM_THRESHOLD_COUNT,
     DEFAULT_TOTAL_NR_OF_NODES,
 };
-use crate::config::configuration::{
-    BlockConfig, BroadcastProtocolSettings, Configuration, DbConfig, HttpConfig, Libp2pSettings,
-    NetworkClientListenerConfig, NodeConfig, WsConfig,
-};
-use crate::utilities::crypto::KeyPair;
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
+use crate::utilities::crypto::KeyPair;
 
 #[derive(Debug, Clone, Parser)]
 pub struct InitCmd {

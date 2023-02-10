@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 
 use crate::block::Block;
 use crate::config::configuration::DbConfig;

@@ -4,8 +4,8 @@ use utoipa::ToSchema;
 use crate::block::{Block, SignedMessage};
 use crate::broadcast::PeerId;
 use crate::utilities::crypto::Signature;
-use crate::utilities::EphemeraId;
 use crate::utilities::time::duration_now;
+use crate::utilities::EphemeraId;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiSignedMessage {

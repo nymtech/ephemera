@@ -1,8 +1,8 @@
-use std::{task, time};
 use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Poll::Pending;
+use std::{task, time};
 
 use futures::FutureExt;
 use futures::Stream;
@@ -10,9 +10,9 @@ use futures_timer::Delay;
 use lru::LruCache;
 use thiserror::Error;
 
-use crate::block::{Block, SignedMessage};
 use crate::block::callback::BlockProducerCallback;
 use crate::block::producer::BlockProducer;
+use crate::block::{Block, SignedMessage};
 use crate::broadcast::PeerId;
 use crate::config::configuration::{BlockConfig, Configuration};
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;

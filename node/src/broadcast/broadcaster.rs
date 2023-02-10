@@ -41,11 +41,11 @@ use thiserror::Error;
 use tokio::time::Instant;
 
 use crate::block::Block;
-use crate::broadcast::{BroadcastData, Command, PeerId, RbMsg, ReliableBroadcast, Status};
 use crate::broadcast::broadcast_callback::BroadcastCallBack;
 use crate::broadcast::broadcaster::BroadcastError::InvalidBroadcast;
 use crate::broadcast::quorum::{BasicQuorum, Quorum};
 use crate::broadcast::ReliableBroadcast::{Ack, Commit, Init, Prepare};
+use crate::broadcast::{BroadcastData, Command, PeerId, RbMsg, ReliableBroadcast, Status};
 use crate::config::configuration::Configuration;
 use crate::utilities;
 use crate::utilities::EphemeraId;

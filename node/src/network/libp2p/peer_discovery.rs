@@ -6,11 +6,11 @@ use std::str::FromStr;
 use std::task::{Context, Poll};
 
 use libp2p::core::{PeerId, PublicKey};
-use libp2p::Multiaddr;
 use libp2p::multiaddr::Protocol;
 use libp2p::swarm::{
     dummy::ConnectionHandler, NetworkBehaviour, NetworkBehaviourAction, PollParameters,
 };
+use libp2p::Multiaddr;
 use tokio::io;
 
 use crate::config::configuration::{Configuration, PeerSetting};
