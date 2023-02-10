@@ -10,7 +10,7 @@ This example connects to an Ephemera node.
 
 ## How to run
 
-### Create Ephemera cluster(if you don't have one)
+### Create Ephemera cluster (if you don't have one)
 
 ```bash
  ../../scripts/run-local-p2p.sh cluster -n 3
