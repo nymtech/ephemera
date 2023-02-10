@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
-use actix_web::{App, HttpServer};
 use actix_web::dev::Server;
 use actix_web::web::Data;
+use actix_web::{App, HttpServer};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tokio::sync::Mutex;
-
-
-
 
 use crate::contract::http::submit_reward;
 use crate::epoch::Epoch;
