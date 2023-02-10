@@ -15,7 +15,7 @@ use crate::network::libp2p::listener::{MessagesReceiver, NetworkBroadcastReceive
 use crate::network::libp2p::sender::EphemeraMessagesNotifier;
 use crate::network::libp2p::swarm::SwarmNetwork;
 use crate::utilities::crypto::read_keypair;
-use crate::websocket::ws_manager::{WsManager, WsMessageBroadcast};
+use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
 
 pub(crate) type EphemeraDatabaseType = CompoundDatabase;
 
@@ -34,7 +34,7 @@ pub struct Ephemera {
     pub(crate) ephemera_message_notifier: EphemeraMessagesNotifier,
 
     /// A component which receives messages from other nodes.
-    pub(crate) net_message_notify_receiver: MessagesReceiver,
+    pub(crate) net_messages_notify_receiver: MessagesReceiver,
 
     /// A component which receives blocks from other nodes.
     pub(crate) protocol_broadcast_receiver: NetworkBroadcastReceiver,
@@ -46,7 +46,7 @@ pub struct Ephemera {
     pub(crate) api_listener: ApiListener,
 
     /// A component which broadcasts messages to websocket clients.
-    pub(crate) ws_message_broadcast: WsMessageBroadcast,
+    pub(crate) ws_message_broadcaster: WsMessageBroadcaster,
 
     pub api: EphemeraExternalApi,
 }
@@ -100,11 +100,11 @@ impl Ephemera {
             block_manager,
             broadcaster,
             ephemera_message_notifier,
-            net_message_notify_receiver,
+            net_messages_notify_receiver: net_message_notify_receiver,
             protocol_broadcast_receiver,
             storage: storage.clone(),
             api_listener,
-            ws_message_broadcast,
+            ws_message_broadcaster: ws_message_broadcast,
             api,
         }
     }
@@ -138,7 +138,7 @@ impl Ephemera {
                 }
 
                 //PROCESSING SIGNED MESSAGES(TRANSACTIONS) FROM NETWORK
-                Some(signed_msg) = self.net_message_notify_receiver.signed_messages_from_net_rcv.recv() => {
+                Some(signed_msg) = self.net_messages_notify_receiver.signed_messages_from_net_rcv.recv() => {
                     // 1. send to BlockManager
                     if let Err(err) = self.block_manager.new_message(signed_msg).await{
                         log::error!("Error sending signed message to block manager: {:?}", err);
@@ -191,7 +191,7 @@ impl Ephemera {
 
                                         //Send to WS
                                         log::trace!("Sending block to WS: {:?}", block);
-                                        if let Err(err) = self.ws_message_broadcast.send_block(&block){
+                                        if let Err(err) = self.ws_message_broadcaster.send_block(&block){
                                             log::error!("Error sending block to WS: {:?}", err);
                                         }
                                     }
