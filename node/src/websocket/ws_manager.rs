@@ -45,13 +45,13 @@ impl WsConnection {
 }
 
 #[derive(Clone)]
-pub(crate) struct WsMessageBroadcast {
+pub(crate) struct WsMessageBroadcaster {
     pub(crate) pending_messages_tx: broadcast::Sender<Message>,
 }
 
-impl WsMessageBroadcast {
-    pub(crate) fn new(pending_messages_tx: broadcast::Sender<Message>) -> WsMessageBroadcast {
-        WsMessageBroadcast {
+impl WsMessageBroadcaster {
+    pub(crate) fn new(pending_messages_tx: broadcast::Sender<Message>) -> WsMessageBroadcaster {
+        WsMessageBroadcaster {
             pending_messages_tx,
         }
     }
@@ -72,9 +72,9 @@ pub(crate) struct WsManager {
 }
 
 impl WsManager {
-    pub(crate) fn new(config: WsConfig) -> Result<(WsManager, WsMessageBroadcast)> {
+    pub(crate) fn new(config: WsConfig) -> Result<(WsManager, WsMessageBroadcaster)> {
         let (pending_messages_tx, pending_messages_rcv) = broadcast::channel(1000);
-        let ws_message_broadcast = WsMessageBroadcast::new(pending_messages_tx.clone());
+        let ws_message_broadcast = WsMessageBroadcaster::new(pending_messages_tx.clone());
         let manager = WsManager {
             config,
             pending_messages_tx,
