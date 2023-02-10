@@ -13,7 +13,7 @@ This example connects to an Ephemera node.
 ### Create Ephemera cluster (if you don't have one)
 
 ```bash
- ../../scripts/run-local-p2p.sh cluster -n 3
+./scripts/local-cluster init -n 3
 ```
 
 ### Start the cluster 
@@ -24,8 +24,10 @@ This example connects to an Ephemera node.
 leader = false
 ```
 
+From the top-level directory: 
+
 ```bash
- ../../scripts/run-local-p2p.sh run
+./scripts/local-cluster run
 ```
 
 ### Run the example
@@ -61,19 +63,19 @@ Options:
 ### Monitor server logs
 
 ```bash
- tail -f ../../cluster/logs/ephemera1.log
+ tail -f cluster/logs/ephemera1.log
 ```
 
 ```bash
- tail -f ../../cluster/logs/ephemera2.log
+ tail -f cluster/logs/ephemera2.log
 ```
 
 ```bash
- tail -f ../../cluster/logs/ephemera3.log
+ tail -f cluster/logs/ephemera3.log
 ```
 
 ## Stop the cluster
 
 ```bash
- ../../scripts/run-local-p2p.sh stop
+./scripts/local-cluster stop
 ```

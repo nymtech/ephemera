@@ -15,19 +15,19 @@ Creates configuration for new cluster of nodes in `~/.ephemera` directory.
 From the top-level directory: 
 
 ```bash
-./scripts/run-local-p2p.sh cluster -n 3
+./scripts/local-cluster init -n 3
 ``` 
 
 ## Start cluster
 
 ```bash
-./scripts/run-local-p2p.sh run
+./scripts/local-cluster run
 tail -f cluster/logs/ephemera1.log
 ```
 
 ## Stop cluster
 
 ```bash
-./scripts/run-local-p2p.sh stop
+./scripts/local-cluster stop
 ```
 
