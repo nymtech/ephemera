@@ -48,7 +48,6 @@ fn swagger_ui() -> SwaggerUi {
 fn print_startup_messages(config: HttpConfig) {
     log::info!("Server running on {}", config.address);
     log::info!("Swagger UI: {}/swagger-ui/", config.address);
-    log::info!("Swagger UI: {}/swagger-ui/", config.address);
     log::info!(
         "OpenAPI spec is at: {}/api-doc/openapi.json",
         config.address
