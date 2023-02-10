@@ -10,21 +10,24 @@ All output goes to into $PROJECT_ROOT/cluster directory.
 
 ## Create new cluster
 
-Creates configuration for new cluster of nodes in `~/.ephemera` directory
+Creates configuration for new cluster of nodes in `~/.ephemera` directory.
+
+From the top-level directory: 
 
 ```bash
-./run-local-p2p.sh cluster -n 3
+./scripts/run-local-p2p.sh cluster -n 3
 ``` 
 
 ## Start cluster
 
 ```bash
-./run-local-p2p.sh run
+./scripts/run-local-p2p.sh run
+tail -f cluster/logs/ephemera1.log
 ```
 
 ## Stop cluster
 
 ```bash
-./run-local-p2p.sh stop
+./scripts/run-local-p2p.sh stop
 ```
 

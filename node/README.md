@@ -4,6 +4,7 @@
 
 * Accepts signed messages from clients which go to mempool
    *  Messages are signed by the client
+
 * Puts the messages from mempool into a block and runs reliable broadcast protocol to disseminate the block
    * Blocks are signed by the node
 
