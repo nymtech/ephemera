@@ -1,6 +1,6 @@
-use actix_web::{App, HttpServer};
 use actix_web::dev::Server;
 use actix_web::web::Data;
+use actix_web::{App, HttpServer};
 use anyhow::Result;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
