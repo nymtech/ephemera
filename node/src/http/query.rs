@@ -45,3 +45,26 @@ pub(crate) async fn block_by_label(
         }
     }
 }
+
+#[utoipa::path(
+responses(
+(status = 200, description = "Get block signatures")),
+params(("id", description = "Returns signatures for a block")),
+)]
+#[get("/ephemera/block/signatures/{id}")]
+pub(crate) async fn block_signatures(
+    id: web::Path<String>,
+    api: web::Data<EphemeraExternalApi>,
+) -> impl Responder {
+    let id = id.into_inner();
+    log::debug!("GET /ephemera/block/signatures/{id}");
+
+    match api.get_block_signatures(id.clone()).await {
+        Ok(Some(signatures)) => HttpResponse::Ok().json(signatures),
+        Ok(_) => HttpResponse::NotFound().finish(),
+        Err(err) => {
+            log::error!("Failed to get signatures {err}",);
+            HttpResponse::InternalServerError().finish()
+        }
+    }
+}

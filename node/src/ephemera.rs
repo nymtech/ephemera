@@ -120,7 +120,7 @@ impl Ephemera {
     /// 4. Receive new http messages from http server.
     /// 5. Publish messages to network
     pub async fn run(&mut self) {
-        log::debug!("Staring ephemera main loop...");
+        log::debug!("Starting ephemera main loop...");
         loop {
             tokio::select! {
                 // GENERATING NEW BLOCKS

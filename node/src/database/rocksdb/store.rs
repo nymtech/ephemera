@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rocksdb::TransactionDB;
 
 use crate::block::{Block, RawBlock};
-use crate::database::rocksdb::{LAST_BLOCK_KEY, PREFIX_BLOCK_ID, PREFIX_LABEL, PREFIX_SIGNATURES};
+use crate::database::rocksdb::{block_id_key, label_key, last_block_key, signatures_key};
 use crate::utilities::crypto::Signature;
 
 pub struct DbStore {
@@ -21,16 +21,11 @@ impl DbStore {
         signatures: Vec<Signature>,
     ) -> anyhow::Result<()> {
         log::debug!("Storing block: {}", block.header);
-        let block_id_key = format!("{}:{}", PREFIX_BLOCK_ID, block.header.id.clone());
+        let block_id_key = block_id_key(&block.header.id);
         log::trace!("Block id key: {}", block_id_key);
-        let block_label_key = format!("{}:{}", PREFIX_LABEL, block.header.label.clone());
+        let block_label_key = label_key(&block.header.label);
         log::trace!("Block label key: {}", block_label_key);
-        let signatures_key = format!(
-            "{}:{}:{}",
-            PREFIX_SIGNATURES,
-            PREFIX_BLOCK_ID,
-            block.header.label.clone()
-        );
+        let signatures_key = signatures_key(&block.header.id);
         log::trace!("Block signatures key: {}", signatures_key);
 
         let tx = self.database.transaction();
@@ -51,7 +46,7 @@ impl DbStore {
         tx.put(block_label_key.as_bytes(), block.header.id.as_bytes())?;
 
         // Store last block id(without prefix!)
-        tx.put(LAST_BLOCK_KEY, block.header.id.as_bytes())?;
+        tx.put(last_block_key(), block.header.id.as_bytes())?;
 
         // Store block(without signature)
         let block_bytes = serde_json::to_vec::<RawBlock>(block.into())?;

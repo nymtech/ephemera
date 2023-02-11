@@ -1,7 +1,8 @@
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
-use crate::block::Block;
+use crate::block::{Block, RawBlock};
 use crate::config::configuration::DbConfig;
+use crate::utilities::crypto::Signature;
 
 pub(crate) struct DbQuery {
     pub(crate) connection: Connection,
@@ -33,7 +34,7 @@ impl DbQuery {
             log::debug!("Block not found: {}", block_id);
         };
 
-        Ok(block)
+        Ok(block.map(|b| b.into()))
     }
 
     pub(crate) fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
@@ -51,7 +52,7 @@ impl DbQuery {
             log::debug!("Last block not found");
         };
 
-        Ok(block)
+        Ok(block.map(|b| b.into()))
     }
 
     pub(crate) fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
@@ -71,13 +72,44 @@ impl DbQuery {
             log::debug!("Block not found");
         };
 
-        Ok(block)
+        Ok(block.map(|b| b.into()))
     }
 
-    fn map_block() -> impl FnOnce(&Row) -> Result<Block, rusqlite::Error> {
+    pub(crate) fn get_block_signatures(
+        &self,
+        block_id: String,
+    ) -> anyhow::Result<Option<Vec<Signature>>> {
+        log::debug!("Getting block signatures by block id {}", block_id);
+
+        let mut stmt = self
+            .connection
+            .prepare_cached("SELECT signatures FROM signatures where block_id = ?1")?;
+
+        let signatures = stmt
+            .query_row(params![block_id], |row| {
+                let signatures: Vec<u8> = row.get(0)?;
+                let signatures =
+                    serde_json::from_slice::<Vec<Signature>>(&signatures).map_err(|e| {
+                        log::error!("Error deserializing block: {}", e);
+                        rusqlite::Error::InvalidQuery {}
+                    })?;
+                Ok(signatures)
+            })
+            .optional()?;
+
+        if signatures.is_some() {
+            log::debug!("Found block {} signatures", block_id);
+        } else {
+            log::debug!("Signatures not found");
+        };
+
+        Ok(signatures)
+    }
+
+    fn map_block() -> impl FnOnce(&Row) -> Result<RawBlock, rusqlite::Error> {
         |row| {
             let body: Vec<u8> = row.get(0)?;
-            let block = serde_json::from_slice::<Block>(&body).map_err(|e| {
+            let block = serde_json::from_slice::<RawBlock>(&body).map_err(|e| {
                 log::error!("Error deserializing block: {}", e);
                 rusqlite::Error::InvalidQuery {}
             })?;

@@ -26,6 +26,7 @@ pub(crate) struct BlockHeader {
 pub(crate) struct Block {
     pub(crate) header: BlockHeader,
     pub(crate) signed_messages: Vec<SignedMessage>,
+    //TODO move out to RbMsg
     pub(crate) signature: Signature,
 }
 
@@ -82,6 +83,19 @@ impl From<&Block> for &RawBlock {
     fn from(block: &Block) -> Self {
         let raw_block: RawBlock = block.clone().into();
         Box::leak(Box::new(raw_block))
+    }
+}
+
+impl From<RawBlock> for Block {
+    fn from(raw_block: RawBlock) -> Self {
+        Self {
+            header: raw_block.header,
+            signed_messages: raw_block.signed_messages,
+            signature: Signature {
+                signature: "TODO".to_string(),
+                public_key: "TODO".to_string(),
+            },
+        }
     }
 }
 

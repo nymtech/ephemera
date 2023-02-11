@@ -65,6 +65,20 @@ impl EphemeraExternalApi {
         Ok(db_block)
     }
 
+    pub async fn get_block_signatures(
+        &self,
+        block_id: String,
+    ) -> anyhow::Result<Option<Vec<ApiSignature>>> {
+        let database = self.database.lock().await;
+        let signatures = database.get_block_signatures(block_id)?.map(|signatures| {
+            signatures
+                .into_iter()
+                .map(|signature| signature.into())
+                .collect()
+        });
+        Ok(signatures)
+    }
+
     pub async fn submit_signed_message(&self, message: ApiSignedMessage) -> anyhow::Result<()> {
         let message = ApiCmd::SubmitSignedMessageRequest(message);
         self.submit_signed_messages_tx.send(message).await?;
