@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OptionalExtension, params, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::block::Block;
 use crate::config::configuration::DbConfig;
@@ -61,9 +61,11 @@ impl DbQuery {
             .connection
             .prepare_cached("SELECT block FROM blocks where label = ?1")?;
 
-        let block = stmt.query_row(params![label], Self::map_block()).optional()?;
+        let block = stmt
+            .query_row(params![label], Self::map_block())
+            .optional()?;
 
-        if let Some(_) = &block {
+        if block.is_some() {
             log::debug!("Found block by label: {}", label);
         } else {
             log::debug!("Block not found");

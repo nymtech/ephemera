@@ -14,10 +14,7 @@ impl DbQuery {
         Ok(DbQuery { database: db })
     }
 
-    pub(crate) fn get_block_by_id(
-        &self,
-        block_id: String,
-    ) -> anyhow::Result<Option<Block>> {
+    pub(crate) fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<Block>> {
         log::trace!("Getting block by id: {:?}", block_id);
 
         let block_id = format!("{}{}", PREFIX_BLOCK_ID, block_id);

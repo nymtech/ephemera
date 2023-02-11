@@ -2,6 +2,7 @@
 
 members = [
     "node",
+    "examples/rocksdb-cli",
     "examples/http-ws",
     "examples/metrics-aggregator",
 ]

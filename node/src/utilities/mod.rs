@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
-pub use crate::utilities::crypto::Signer;
 pub use crate::utilities::crypto::signer::CryptoApi;
+pub use crate::utilities::crypto::Signer;
 pub use crate::utilities::encoding::to_hex;
 
 pub(crate) mod crypto;

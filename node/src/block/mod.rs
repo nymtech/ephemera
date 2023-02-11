@@ -5,15 +5,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::broadcast::{BroadcastData, PeerId};
 use crate::utilities::crypto::Signature;
-use crate::utilities::EphemeraId;
 use crate::utilities::time::duration_now;
+use crate::utilities::EphemeraId;
 
 pub(crate) mod callback;
 pub(crate) mod manager;
 pub(crate) mod message_pool;
 pub(crate) mod producer;
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct BlockHeader {
     pub(crate) id: EphemeraId,
     pub(crate) timestamp: u128,
@@ -22,7 +22,7 @@ pub(crate) struct BlockHeader {
     pub(crate) label: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct Block {
     pub(crate) header: BlockHeader,
     pub(crate) signed_messages: Vec<SignedMessage>,
@@ -94,7 +94,7 @@ impl RawBlock {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct SignedMessage {
     pub(crate) id: EphemeraId,
     pub(crate) timestamp: u128,
@@ -107,7 +107,7 @@ pub(crate) struct SignedMessage {
 }
 
 /// Raw message represents all the data what will be signed
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct RawMessage {
     pub(crate) id: EphemeraId,
     pub(crate) data: String,
@@ -123,6 +123,12 @@ impl Hash for RawMessage {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
         self.data.hash(state);
+    }
+}
+
+impl PartialEq for RawMessage {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.data == other.data
     }
 }
 
@@ -159,6 +165,15 @@ impl Hash for BlockHeader {
     }
 }
 
+impl PartialEq for BlockHeader {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.creator == other.creator
+            && self.height == other.height
+            && self.label == other.label
+    }
+}
+
 /// Block signature includes fields:
 /// - header
 /// - signed_messages
@@ -169,6 +184,12 @@ impl Hash for Block {
     }
 }
 
+impl PartialEq for Block {
+    fn eq(&self, other: &Self) -> bool {
+        self.header == other.header && self.signed_messages == other.signed_messages
+    }
+}
+
 /// SignedMessage signature includes fields:
 /// - id
 /// - data
@@ -176,5 +197,11 @@ impl Hash for SignedMessage {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
         self.data.hash(state);
+    }
+}
+
+impl PartialEq for SignedMessage {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.data == other.data
     }
 }

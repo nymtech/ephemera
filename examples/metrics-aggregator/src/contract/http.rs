@@ -1,10 +1,6 @@
-
-
-use actix_web::{HttpRequest, HttpResponse, post, web};
-
+use actix_web::{post, web, HttpRequest, HttpResponse};
 
 use crate::contract::{MixnodeToReward, SmartContract};
-
 
 #[post("/contract/submit_reward")]
 pub(crate) async fn submit_reward(

@@ -24,14 +24,14 @@ EOH
 
 SUBCMD=$1
 
-[[ $SUBCMD == "cluster" || $SUBCMD == "run" || $SUBCMD == "stop" ]] ||
-  { echo "Please specify a subcommand of \`cluster\` or \`run\` or \`stop\`" && exit 1; }
+[[ $SUBCMD == "init" || $SUBCMD == "run" || $SUBCMD == "stop" ]] ||
+  { echo "Please specify a subcommand of \`init\` or \`run\` or \`stop\`" && exit 1; }
 
 shift
 
-[[ $SUBCMD == "cluster" ]] && [[ $# -lt 1 || $# -gt 2 ]] && echo "$CLUSTER_HELP" && exit 1
+[[ $SUBCMD == "init" ]] && [[ $# -lt 1 || $# -gt 2 ]] && echo "$CLUSTER_HELP" && exit 1
 
-[[ $SUBCMD == "cluster" ]] && {
+[[ $SUBCMD == "init" ]] && {
   while getopts :n opt; do
     case $opt in
     n)
@@ -94,7 +94,7 @@ create_cluster() {
 
 start_cluster() {
   if test -f "$PIDS_FILE"; then
-    echo "Cluster is already running, try stopping it first by executing /run-local-p2p.sh stop."
+    echo "Cluster is already running, try stopping it first by executing ./local-cluster stop."
     exit 1
   fi
 
@@ -146,6 +146,6 @@ stop_cluster() {
   fi
 }
 
-[[ $SUBCMD == "cluster" ]] && create_cluster
+[[ $SUBCMD == "init" ]] && create_cluster
 [[ $SUBCMD == "run" ]] && start_cluster
 [[ $SUBCMD == "stop" ]] && stop_cluster

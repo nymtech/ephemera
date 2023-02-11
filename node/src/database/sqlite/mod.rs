@@ -1,8 +1,8 @@
 use crate::block::Block;
 use crate::config::configuration::DbConfig;
-use crate::database::EphemeraDatabase;
 use crate::database::sqlite::query::DbQuery;
 use crate::database::sqlite::store::DbStore;
+use crate::database::EphemeraDatabase;
 
 pub(crate) mod query;
 pub(crate) mod store;

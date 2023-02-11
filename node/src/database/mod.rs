@@ -15,7 +15,6 @@ pub(crate) trait EphemeraDatabase {
     fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>>;
 }
 
-
 pub(super) struct CompoundDatabase {
     pub(crate) sqlite: sqlite::SqliteStorage,
     pub(crate) rocksdb: rocksdb::RocksDbStorage,

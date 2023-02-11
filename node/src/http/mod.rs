@@ -1,6 +1,6 @@
-use actix_web::{App, HttpServer};
 use actix_web::dev::Server;
 use actix_web::web::Data;
+use actix_web::{App, HttpServer};
 use anyhow::Result;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -46,11 +46,10 @@ fn swagger_ui() -> SwaggerUi {
 /// Prints messages saying which ports HTTP is running on, and some helpful pointers
 /// to the Swagger UI and OpenAPI spec.
 fn print_startup_messages(config: HttpConfig) {
-    log::info!("Server running on {}", config.address);
-    log::info!("Swagger UI: {}/swagger-ui/", config.address);
-    log::info!("Swagger UI: {}/swagger-ui/", config.address);
+    log::info!("Server running on http://{}", config.address);
+    log::info!("Swagger UI: http://{}/swagger-ui/", config.address);
     log::info!(
-        "OpenAPI spec is at: {}/api-doc/openapi.json",
+        "OpenAPI spec is at: http://{}/api-doc/openapi.json",
         config.address
     );
 }
