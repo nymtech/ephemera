@@ -7,6 +7,7 @@ use crate::config::configuration::DbConfig;
 use crate::database::rocksdb::query::DbQuery;
 use crate::database::rocksdb::store::DbStore;
 use crate::database::EphemeraDatabase;
+use crate::utilities::crypto::Signature;
 
 pub(crate) mod query;
 pub(crate) mod store;
@@ -16,9 +17,10 @@ pub(crate) struct RocksDbStorage {
     pub(crate) db_query: DbQuery,
 }
 
-const LAST_BLOCK_KEY: &[u8] = b"last_block";
-const PREFIX_BLOCK_ID: &str = "block_id:";
-const PREFIX_LABEL: &str = "label:";
+const LAST_BLOCK_KEY: &str = "last_block";
+const PREFIX_BLOCK_ID: &str = "block_id";
+const PREFIX_LABEL: &str = "label";
+const PREFIX_SIGNATURES: &str = "signatures";
 
 impl RocksDbStorage {
     pub fn new(config: DbConfig) -> Self {
@@ -36,8 +38,12 @@ impl RocksDbStorage {
         self.db_query.get_block_by_id(block_id)
     }
 
-    pub(crate) fn store_block(&mut self, block: &Block) -> anyhow::Result<()> {
-        self.db_store.store_block(block)
+    pub(crate) fn store_block(
+        &mut self,
+        block: &Block,
+        signatures: Vec<Signature>,
+    ) -> anyhow::Result<()> {
+        self.db_store.store_block(block, signatures)
     }
 
     pub(crate) fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
@@ -54,8 +60,8 @@ impl EphemeraDatabase for RocksDbStorage {
         self.get_block_by_id(block_id)
     }
 
-    fn store_block(&mut self, block: &Block) -> anyhow::Result<()> {
-        self.store_block(block)
+    fn store_block(&mut self, block: &Block, signatures: Vec<Signature>) -> anyhow::Result<()> {
+        self.store_block(block, signatures)
     }
 
     fn get_last_block(&self) -> anyhow::Result<Option<Block>> {

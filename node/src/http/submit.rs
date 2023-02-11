@@ -4,10 +4,10 @@ use crate::api::types::ApiSignedMessage;
 use crate::api::EphemeraExternalApi;
 
 #[utoipa::path(
-    request_body = ApiSignedMessage,
-    responses(
-        (status = 200, description = "Send a message to an Ephemera node to be signed by Ephemera cluster")
-    )
+request_body = ApiSignedMessage,
+responses(
+(status = 200, description = "Send a message to an Ephemera node to be signed by Ephemera cluster")
+)
 )]
 #[post("/ephemera/submit_message")]
 pub(crate) async fn submit_message(

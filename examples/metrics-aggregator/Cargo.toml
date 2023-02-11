@@ -10,7 +10,7 @@ tokio = { version = "1.0", features = ["full"] }
 clap = { version = "4.0.26", features = ["derive"] }
 log = "0.4.17"
 pretty_env_logger = "0.4.0"
-rusqlite = {version = "0.28.0", features = ["chrono"] }
+rusqlite = { version = "0.28.0", features = ["chrono"] }
 refinery = { version = "0.8.0", features = ["rusqlite"] }
 rand = "0.8.5"
 time = "0.3.17"

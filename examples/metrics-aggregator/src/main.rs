@@ -1,7 +1,6 @@
 use std::env;
-use std::ops::{Add};
+use std::ops::Add;
 use std::sync::Arc;
-
 
 use time::{Duration, OffsetDateTime};
 use tokio::sync::Mutex;
@@ -65,8 +64,7 @@ async fn main() {
         metrics_collector.collect().await.unwrap();
     });
 
-    let mut reward_calculator =
-        RewardManager::new(storage.clone(), epoch, smart_contract_url);
+    let mut reward_calculator = RewardManager::new(storage.clone(), epoch, smart_contract_url);
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {

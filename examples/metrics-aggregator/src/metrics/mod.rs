@@ -4,10 +4,9 @@ use rand::Rng;
 use time::{Duration, OffsetDateTime};
 use tokio::sync::Mutex;
 
-
 use crate::metrics::types::MixnodeResult;
-use crate::NR_OF_MIX_NODES;
 use crate::storage::db::Storage;
+use crate::NR_OF_MIX_NODES;
 
 pub(crate) mod types;
 

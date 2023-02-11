@@ -1,7 +1,6 @@
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
-use rusqlite::{Connection, params};
-
+use rusqlite::{params, Connection};
 
 use crate::contract::MixnodeToReward;
 use crate::metrics::types::MixnodeResult;

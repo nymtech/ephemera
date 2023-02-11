@@ -48,7 +48,11 @@ impl SignedMessageClient {
         }
     }
 
-    pub(crate) async fn signed_message(&self, keypair: ApiKeypair, label: String) -> ApiSignedMessage {
+    pub(crate) async fn signed_message(
+        &self,
+        keypair: ApiKeypair,
+        label: String,
+    ) -> ApiSignedMessage {
         let id = uuid::Uuid::new_v4().to_string();
         let signature =
             CryptoApi::sign_message(id.clone(), "Message".to_string(), keypair.private_key)

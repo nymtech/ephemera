@@ -78,6 +78,13 @@ impl From<Block> for RawBlock {
     }
 }
 
+impl From<&Block> for &RawBlock {
+    fn from(block: &Block) -> Self {
+        let raw_block: RawBlock = block.clone().into();
+        Box::leak(Box::new(raw_block))
+    }
+}
+
 /// Raw block represents all the data what will be signed
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct RawBlock {

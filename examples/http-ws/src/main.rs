@@ -89,7 +89,9 @@ async fn send_signed_messages(keypair: ApiKeypair, shared_data: Arc<Mutex<Data>>
     let mut client = SignedMessageClient::new(http_url, shared_data);
     let mut counter = 0;
     loop {
-        let msg = client.signed_message(keypair.clone(), format!("Epoch {}", counter)).await;
+        let msg = client
+            .signed_message(keypair.clone(), format!("Epoch {counter}",))
+            .await;
         client.send_message(msg).await;
         counter += 1;
         thread::sleep(std::time::Duration::from_millis(args.messages_frequency_ms));

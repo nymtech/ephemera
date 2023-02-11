@@ -166,12 +166,17 @@ impl Ephemera {
 
                     //Send to local RB protocol
                     match self.broadcaster.handle_broadcast_from_net(network_msg.msg).await {
-                        Ok(response) => {
+                        Ok(mut response) => {
                             log::trace!("RB response: {:?}", response);
 
                             use crate::broadcast::{Status, Command};
                             //Send protocol response to network
                             if response.command == Command::Broadcast {
+                                //data_identifier is a bit awkward here, should think better solution
+                                let block = self.block_manager.get_block_by_id(&response.protocol_reply.data_identifier).expect("Error getting block by id");
+                                let locally_signed = self.block_manager.sign_block(block).expect("Error signing block");
+                                response.protocol_reply.update_data(locally_signed);
+
                                 log::trace!("Broadcasting block to network: {:?}", response.protocol_reply);
                                 self.ephemera_message_notifier.send_protocol_message(response.protocol_reply.clone()).await;
                             }
@@ -181,8 +186,10 @@ impl Ephemera {
                                 let block = self.block_manager.get_block_by_id(&response.protocol_reply.data_identifier);
                                 match block {
                                     Some(block) => {
+                                        let signatures = self.block_manager.get_block_signatures(&block.header.id).expect("Error getting block signatures");
+                                        log::info!("Signatures for block {}: {:?}", block.header.id, signatures);
                                         //Store in DB
-                                        self.storage.lock().await.store_block(&block).expect("Error storing block");
+                                        self.storage.lock().await.store_block(&block, signatures).expect("Error storing block");
 
                                         //Notify BlockManager to clean up memory pool
                                         if let Err(err) = self.block_manager.on_block_committed(&block.header.id){

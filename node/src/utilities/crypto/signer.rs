@@ -34,7 +34,7 @@ impl Libp2pSigner {
 }
 
 impl Signer for Libp2pSigner {
-    fn sign<T: Serialize>(&mut self, data: &T) -> Result<Signature, KeyPairError> {
+    fn sign<T: Serialize>(&self, data: &T) -> Result<Signature, KeyPairError> {
         let bytes = Self::bytes(&data).map_err(|_| KeyPairError::Serialization)?;
         let hash = Self::hash(bytes);
 
@@ -63,7 +63,7 @@ impl CryptoApi {
         private_key: String,
     ) -> Result<Signature, KeyPairError> {
         let keypair = Libp2pKeypair::from_private_key_hex(&private_key)?;
-        let mut signer = get_default_signer(keypair)?;
+        let signer = get_default_signer(keypair)?;
         let raw_msg = RawMessage::new(request_id, data);
         let signature_hex = signer.sign(&raw_msg)?;
         Ok(signature_hex)

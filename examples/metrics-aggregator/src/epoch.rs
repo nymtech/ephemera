@@ -1,10 +1,6 @@
-
 use std::ops::Mul;
 
-
-
 use time::{Duration, OffsetDateTime};
-
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Epoch {

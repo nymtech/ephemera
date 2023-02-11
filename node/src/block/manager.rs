@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use crate::block::{Block, SignedMessage};
 use crate::broadcast::PeerId;
 use crate::config::configuration::{BlockConfig, Configuration};
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
+use crate::utilities::crypto::Signature;
 use crate::utilities::EphemeraId;
 
 #[derive(Error, Debug)]
@@ -33,6 +35,8 @@ pub(crate) struct BlockManager {
     config: BlockConfig,
     /// All blocks what we received from the network or created by us
     last_blocks: LruCache<String, Block>,
+    /// All signatures of the last blocks that we received from the network(+ our own)
+    last_block_signatures: LruCache<String, HashSet<Signature>>,
     /// The last block that we created(in case we are the leader)
     last_created_block: Option<Block>,
     block_producer: BlockProducer,
@@ -51,11 +55,14 @@ impl BlockManager {
         C: BlockProducerCallback + Send + 'static,
     {
         let block_producer = BlockProducer::new(callback, peer_id, key_pair);
-        let delay = Delay::new(time::Duration::from_secs(10));
+        let delay = Delay::new(time::Duration::from_secs(
+            config.block_config.block_creation_interval_sec,
+        ));
 
         Self {
             config: config.block_config,
-            last_blocks: LruCache::new(NonZeroUsize::new(100).unwrap()),
+            last_blocks: LruCache::new(NonZeroUsize::new(1000).unwrap()),
+            last_block_signatures: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             last_created_block: last_block_from_db,
             block_producer,
             delay,
@@ -63,8 +70,19 @@ impl BlockManager {
     }
 
     pub(crate) fn on_block(&mut self, block: Block) -> Result<(), BlockManagerError> {
+        log::info!("Block received: {}", block.header.id);
+        let signature = block.signature.clone();
+        let id = block.header.id.clone();
         self.verify_block(&block)?;
-        self.last_blocks.put(block.header.id.clone(), block);
+        self.last_blocks.put(id.clone(), block);
+        self.last_block_signatures
+            .get_or_insert_mut(id.clone(), HashSet::new)
+            .insert(signature);
+        log::info!(
+            "Block {} signatures {:?} added",
+            id,
+            self.last_block_signatures.get(&id)
+        );
         Ok(())
     }
 
@@ -98,12 +116,32 @@ impl BlockManager {
         self.last_blocks.get(block_id).cloned()
     }
 
+    pub(crate) fn get_block_signatures(&mut self, block_id: &EphemeraId) -> Option<Vec<Signature>> {
+        self.last_block_signatures
+            .get(block_id)
+            .map(|signatures| signatures.iter().cloned().collect())
+    }
+
     pub(crate) fn verify_message(&mut self, msg: &SignedMessage) -> Result<(), BlockManagerError> {
         self.block_producer.verify_message(msg)
     }
 
     pub(crate) fn verify_block(&mut self, block: &Block) -> Result<(), BlockManagerError> {
         self.block_producer.verify_block(block)
+    }
+
+    pub(crate) fn sign_block(&mut self, block: Block) -> Result<Block, BlockManagerError> {
+        log::debug!("Signing block: {}", block.header.id);
+
+        let block_id = block.header.id.clone();
+        let locally_signed_block = self.block_producer.sign_block(block).map_err(|e| {
+            log::error!("Failed to sign block: {}", e);
+            BlockManagerError::InvalidBlock(e.to_string())
+        })?;
+        self.last_block_signatures
+            .get_or_insert_mut(block_id, HashSet::new)
+            .insert(locally_signed_block.signature.clone());
+        Ok(locally_signed_block)
     }
 
     pub(crate) async fn new_message(
@@ -134,6 +172,11 @@ impl Stream for BlockManager {
                     Ok(Some(block)) => {
                         self.last_created_block = Some(block.clone());
                         self.last_blocks.put(block.header.id.clone(), block.clone());
+
+                        let signatures = self
+                            .last_block_signatures
+                            .get_or_insert_mut(block.header.id.clone(), HashSet::new);
+                        signatures.insert(block.signature.clone());
 
                         task::Poll::Ready(Some(block))
                     }

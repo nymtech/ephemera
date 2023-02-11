@@ -1,5 +1,6 @@
 use crate::block::Block;
 use crate::config::configuration::DbConfig;
+use crate::utilities::crypto::Signature;
 
 pub(crate) mod rocksdb;
 pub(crate) mod sqlite;
@@ -8,7 +9,7 @@ pub(crate) mod sqlite;
 pub(crate) trait EphemeraDatabase {
     fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<Block>>;
     //TODO: doesn't belong here
-    fn store_block(&mut self, block: &Block) -> anyhow::Result<()>;
+    fn store_block(&mut self, block: &Block, signatures: Vec<Signature>) -> anyhow::Result<()>;
 
     fn get_last_block(&self) -> anyhow::Result<Option<Block>>;
 
@@ -40,9 +41,9 @@ impl EphemeraDatabase for CompoundDatabase {
         Ok(sqlite_block)
     }
 
-    fn store_block(&mut self, block: &Block) -> anyhow::Result<()> {
-        self.sqlite.store_block(block)?;
-        self.rocksdb.store_block(block)?;
+    fn store_block(&mut self, block: &Block, signatures: Vec<Signature>) -> anyhow::Result<()> {
+        self.sqlite.store_block(block, signatures.clone())?;
+        self.rocksdb.store_block(block, signatures)?;
         Ok(())
     }
 

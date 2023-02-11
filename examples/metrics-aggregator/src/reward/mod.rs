@@ -1,10 +1,11 @@
 use std::sync::Arc;
+
 use tokio::sync::Mutex;
 
-use crate::contract::{MixnodeToReward};
+use crate::contract::MixnodeToReward;
 use crate::epoch::Epoch;
-use crate::NR_OF_MIX_NODES;
 use crate::storage::db::Storage;
+use crate::NR_OF_MIX_NODES;
 
 pub(crate) struct RewardManager {
     pub(crate) storage: Arc<Mutex<Storage>>,
@@ -21,7 +22,7 @@ impl RewardManager {
         }
     }
 
-    pub(crate) async fn reward(&mut self,) -> anyhow::Result<()> {
+    pub(crate) async fn reward(&mut self) -> anyhow::Result<()> {
         loop {
             tokio::select! {
                 _ = self.epoch.tick() => {

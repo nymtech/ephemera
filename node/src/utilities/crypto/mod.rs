@@ -67,7 +67,7 @@ impl KeypairHex {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
 pub struct Signature {
     pub(crate) signature: String,
     pub(crate) public_key: String,
@@ -83,7 +83,7 @@ impl Signature {
 }
 
 pub trait Signer {
-    fn sign<T: Serialize>(&mut self, data: &T) -> Result<Signature, KeyPairError>;
+    fn sign<T: Serialize>(&self, data: &T) -> Result<Signature, KeyPairError>;
 
     fn verify<T: Serialize + Debug>(
         &self,

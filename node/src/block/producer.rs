@@ -81,6 +81,14 @@ impl BlockProducer {
         }
     }
 
+    pub(crate) fn sign_block(&mut self, block: Block) -> anyhow::Result<Block> {
+        let raw_block = block.into();
+        let signature = self.signer.sign(&raw_block)?;
+
+        let block = Block::new(raw_block, signature);
+        Ok(block)
+    }
+
     fn new_block(
         &mut self,
         last_block: Option<Block>,

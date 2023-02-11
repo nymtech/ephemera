@@ -16,15 +16,16 @@ This example connects to an Ephemera node.
 ./scripts/local-cluster init -n 3
 ```
 
-### Start the cluster 
+### Start the cluster
 
 **PS! By default, all nodes produce blocks. To turn it off for a node, edit configuration:**
+
 ```text
 [block_config]
 leader = false
 ```
 
-From the top-level directory: 
+From the top-level directory:
 
 ```bash
 ./scripts/local-cluster run

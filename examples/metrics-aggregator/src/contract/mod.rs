@@ -9,7 +9,6 @@ use tokio::sync::Mutex;
 
 use crate::contract::http::submit_reward;
 use crate::epoch::Epoch;
-
 use crate::storage::db::Storage;
 
 pub(crate) mod http;

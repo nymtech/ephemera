@@ -12,7 +12,7 @@ All output goes to into $PROJECT_ROOT/cluster directory.
 
 Creates configuration for new cluster of nodes in `~/.ephemera` directory.
 
-From the top-level directory: 
+From the top-level directory:
 
 ```bash
 ./scripts/local-cluster init -n 3

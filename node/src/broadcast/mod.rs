@@ -55,6 +55,10 @@ impl<T: BroadcastData> RbMsg<T> {
             reliable_broadcast: ReliableBroadcast::Init,
         }
     }
+
+    pub(crate) fn update_data(&mut self, data: T) {
+        self.data = Some(data);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
