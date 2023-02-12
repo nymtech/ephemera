@@ -1,10 +1,12 @@
 use std::fmt::Display;
 use std::time::SystemTime;
 
+use crate::block::Block;
 use libp2p::PeerId as Libp2pPeerId;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::utilities;
+use crate::utilities::crypto::Signature;
 use crate::utilities::EphemeraId;
 
 pub(crate) mod broadcast_callback;
@@ -40,11 +42,12 @@ pub struct RbMsg<T: BroadcastData> {
     pub timestamp: SystemTime,
     pub data: Option<T>,
     pub reliable_broadcast: ReliableBroadcast,
+    pub signature: Signature,
 }
 
 //TODO create appropriate builder so that id can't be changed
-impl<T: BroadcastData> RbMsg<T> {
-    pub(crate) fn new(data: T, original_sender: PeerId) -> RbMsg<T> {
+impl RbMsg<Block> {
+    pub(crate) fn new(data: Block, original_sender: PeerId) -> RbMsg<Block> {
         RbMsg {
             id: utilities::generate_ephemera_id(),
             request_id: utilities::generate_ephemera_id(),
@@ -53,11 +56,12 @@ impl<T: BroadcastData> RbMsg<T> {
             timestamp: SystemTime::now(),
             data: Some(data),
             reliable_broadcast: ReliableBroadcast::Init,
+            signature: Signature::default(),
         }
     }
 
-    pub(crate) fn update_data(&mut self, data: T) {
-        self.data = Some(data);
+    pub(crate) fn add_signature(&mut self, signature: Signature) {
+        self.signature = signature;
     }
 }
 

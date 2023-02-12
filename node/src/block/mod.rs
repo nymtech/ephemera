@@ -26,16 +26,13 @@ pub(crate) struct BlockHeader {
 pub(crate) struct Block {
     pub(crate) header: BlockHeader,
     pub(crate) signed_messages: Vec<SignedMessage>,
-    //TODO move out to RbMsg
-    pub(crate) signature: Signature,
 }
 
 impl Block {
-    pub(crate) fn new(raw_block: RawBlock, signature: Signature) -> Self {
+    pub(crate) fn new(raw_block: RawBlock) -> Self {
         Self {
             header: raw_block.header,
             signed_messages: raw_block.signed_messages,
-            signature,
         }
     }
 }
@@ -91,10 +88,6 @@ impl From<RawBlock> for Block {
         Self {
             header: raw_block.header,
             signed_messages: raw_block.signed_messages,
-            signature: Signature {
-                signature: "TODO".to_string(),
-                public_key: "TODO".to_string(),
-            },
         }
     }
 }

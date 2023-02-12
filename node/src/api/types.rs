@@ -120,7 +120,6 @@ pub struct ApiBlockHeader {
 pub struct ApiBlock {
     pub header: ApiBlockHeader,
     pub signed_messages: Vec<ApiSignedMessage>,
-    pub signature: ApiSignature,
 }
 
 impl ApiBlock {
@@ -169,10 +168,6 @@ impl From<Block> for ApiBlock {
                 .into_iter()
                 .map(|signed_message| signed_message.into())
                 .collect(),
-            signature: ApiSignature {
-                signature: block.signature.signature,
-                public_key: block.signature.public_key,
-            },
         }
     }
 }

@@ -127,10 +127,8 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
                 }
             }
 
-            println!("Verifying block signature");
-            if let Err(err) = CryptoApi::verify(&block.as_raw_block(), &block.signature.clone()) {
-                println!("Block signature mismatch: {err:?}\n",);
-            }
+            //TODO: verify all signatures
+            println!("Verifying block signature... TODO");
 
             println!("Verifying messages signatures");
             for message in block.signed_messages {
@@ -159,16 +157,6 @@ fn compare_blocks(block: &ApiBlock, http_block: &ApiBlock) {
         println!("HTTP: {http_block_header:?}",);
     } else {
         println!("Block header match");
-    }
-
-    let ws_block_signature = &block.signature;
-    let http_block_signature = &http_block.signature;
-    if ws_block_signature != http_block_signature {
-        println!("Block signature mismatch");
-        println!("WS: {ws_block_signature:?}",);
-        println!("HTTP: {http_block_signature:?}");
-    } else {
-        println!("Block signature match");
     }
 
     println!(

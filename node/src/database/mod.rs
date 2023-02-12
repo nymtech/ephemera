@@ -79,7 +79,7 @@ impl EphemeraDatabase for CompoundDatabase {
         log::trace!("sqlite_signatures: {:?}", sqlite_signatures);
 
         let rocksdb_signatures =
-            EphemeraDatabase::get_block_signatures(&self.rocksdb, block_id.clone())?;
+            EphemeraDatabase::get_block_signatures(&self.rocksdb, block_id)?;
         log::trace!("rocksdb_signatures: {:?}", rocksdb_signatures);
 
         assert_eq!(sqlite_signatures, rocksdb_signatures);

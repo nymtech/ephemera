@@ -131,10 +131,20 @@ impl Ephemera {
                     //We start reliable broadcaster protocol to broadcaster it to other nodes.
 
                     //1. send to local RB
-                    let rb_result = self.broadcaster.new_broadcast(new_block).await;
+                    match self.broadcaster.new_broadcast(new_block.clone()).await{
+                        Ok(mut rb_result) => {
 
-                    //2. send to network
-                    self.ephemera_message_notifier.send_protocol_message(rb_result.unwrap().protocol_reply).await;
+                            //2. sign block
+                            let signature = self.block_manager.sign_block(new_block).expect("Error signing block");
+                            rb_result.protocol_reply.add_signature(signature);
+
+                            //3. send to network
+                            self.ephemera_message_notifier.send_protocol_message(rb_result.protocol_reply).await;
+                        }
+                        Err(err) => {
+                            log::error!("Error sending new block to broadcaster: {:?}", err);
+                        }
+                    }
                 }
 
                 //PROCESSING SIGNED MESSAGES(TRANSACTIONS) FROM NETWORK
@@ -155,7 +165,7 @@ impl Ephemera {
                     //Verify that block is signed correctly.
                     //We don't verify if sender's public keys in allow list(assume such a thing for security could exist)
                     if let Some(block) = &network_msg.msg.data {
-                        if let Err(err) = self.block_manager.on_block(block.clone()) {
+                        if let Err(err) = self.block_manager.on_block(block.clone(), &network_msg.msg.signature) {
                             log::error!("Error processing block: {:?}", err);
                             continue;
                         }
@@ -172,16 +182,20 @@ impl Ephemera {
                             use crate::broadcast::{Status, Command};
                             //Send protocol response to network
                             if response.command == Command::Broadcast {
+
+                                //Sign block
                                 //data_identifier is a bit awkward here, should think better solution
                                 let block = self.block_manager.get_block_by_id(&response.protocol_reply.data_identifier).expect("Error getting block by id");
-                                let locally_signed = self.block_manager.sign_block(block).expect("Error signing block");
-                                response.protocol_reply.update_data(locally_signed);
+                                let signature = self.block_manager.sign_block(block).expect("Error signing block");
+                                response.protocol_reply.add_signature(signature);
 
+
+                                //Send to network
                                 log::trace!("Broadcasting block to network: {:?}", response.protocol_reply);
                                 self.ephemera_message_notifier.send_protocol_message(response.protocol_reply.clone()).await;
                             }
 
-                            // //If committed, store in DB, send to WS
+                            //If committed, store in DB, send to WS
                             if response.status == Status::Committed {
                                 let block = self.block_manager.get_block_by_id(&response.protocol_reply.data_identifier);
                                 match block {

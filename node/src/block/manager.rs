@@ -69,15 +69,20 @@ impl BlockManager {
         }
     }
 
-    pub(crate) fn on_block(&mut self, block: Block) -> Result<(), BlockManagerError> {
+    pub(crate) fn on_block(
+        &mut self,
+        block: Block,
+        signature: &Signature,
+    ) -> Result<(), BlockManagerError> {
         log::info!("Block received: {}", block.header.id);
-        let signature = block.signature.clone();
+        self.verify_block(&block, signature)?;
+
         let id = block.header.id.clone();
-        self.verify_block(&block)?;
+
         self.last_blocks.put(id.clone(), block);
         self.last_block_signatures
             .get_or_insert_mut(id.clone(), HashSet::new)
-            .insert(signature);
+            .insert(signature.to_owned());
         log::info!(
             "Block {} signatures {:?} added",
             id,
@@ -126,22 +131,26 @@ impl BlockManager {
         self.block_producer.verify_message(msg)
     }
 
-    pub(crate) fn verify_block(&mut self, block: &Block) -> Result<(), BlockManagerError> {
-        self.block_producer.verify_block(block)
+    pub(crate) fn verify_block(
+        &mut self,
+        block: &Block,
+        signature: &Signature,
+    ) -> Result<(), BlockManagerError> {
+        self.block_producer.verify_block(block, signature)
     }
 
-    pub(crate) fn sign_block(&mut self, block: Block) -> Result<Block, BlockManagerError> {
+    pub(crate) fn sign_block(&mut self, block: Block) -> Result<Signature, BlockManagerError> {
         log::debug!("Signing block: {}", block.header.id);
 
         let block_id = block.header.id.clone();
-        let locally_signed_block = self.block_producer.sign_block(block).map_err(|e| {
+        let signature = self.block_producer.sign_block(block).map_err(|e| {
             log::error!("Failed to sign block: {}", e);
             BlockManagerError::InvalidBlock(e.to_string())
         })?;
         self.last_block_signatures
             .get_or_insert_mut(block_id, HashSet::new)
-            .insert(locally_signed_block.signature.clone());
-        Ok(locally_signed_block)
+            .insert(signature.clone());
+        Ok(signature)
     }
 
     pub(crate) async fn new_message(
@@ -172,11 +181,6 @@ impl Stream for BlockManager {
                     Ok(Some(block)) => {
                         self.last_created_block = Some(block.clone());
                         self.last_blocks.put(block.header.id.clone(), block.clone());
-
-                        let signatures = self
-                            .last_block_signatures
-                            .get_or_insert_mut(block.header.id.clone(), HashSet::new);
-                        signatures.insert(block.signature.clone());
 
                         task::Poll::Ready(Some(block))
                     }

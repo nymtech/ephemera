@@ -337,6 +337,7 @@ impl<C: BroadcastCallBack<Message = Block>> Broadcaster<C> {
                 timestamp: SystemTime::now(),
                 data,
                 reliable_broadcast: msg,
+                signature: Default::default(),
             },
         })
     }

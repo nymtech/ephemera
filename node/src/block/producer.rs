@@ -8,7 +8,7 @@ use crate::broadcast::PeerId;
 use crate::utilities;
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
 use crate::utilities::crypto::signer::Libp2pSigner;
-use crate::utilities::crypto::Signer;
+use crate::utilities::crypto::{Signature, Signer};
 use crate::utilities::time::duration_now;
 
 pub(crate) struct BlockProducer {
@@ -55,9 +55,13 @@ impl BlockProducer {
         &mut self.message_pool
     }
 
-    pub(crate) fn verify_block(&mut self, block: &Block) -> Result<(), BlockManagerError> {
+    pub(crate) fn verify_block(
+        &mut self,
+        block: &Block,
+        signature: &Signature,
+    ) -> Result<(), BlockManagerError> {
         let raw_block: RawBlock = (*block).clone().into();
-        match self.signer.verify(&raw_block, &block.signature) {
+        match self.signer.verify(&raw_block, signature) {
             Ok(true) => Ok(()),
             Ok(false) => Err(BlockManagerError::InvalidBlock(
                 "Invalid signature".to_string(),
@@ -81,12 +85,10 @@ impl BlockProducer {
         }
     }
 
-    pub(crate) fn sign_block(&mut self, block: Block) -> anyhow::Result<Block> {
-        let raw_block = block.into();
+    pub(crate) fn sign_block(&mut self, block: Block) -> anyhow::Result<Signature> {
+        let raw_block: RawBlock = block.into();
         let signature = self.signer.sign(&raw_block)?;
-
-        let block = Block::new(raw_block, signature);
-        Ok(block)
+        Ok(signature)
     }
 
     fn new_block(
@@ -112,9 +114,7 @@ impl BlockProducer {
         };
 
         let raw_block = RawBlock::new(header, sorted_messages);
-        let signature = self.signer.sign(&raw_block)?;
-
-        let block = Block::new(raw_block, signature);
+        let block = Block::new(raw_block);
         Ok(block)
     }
 }
