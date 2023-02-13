@@ -42,6 +42,8 @@ impl MessagePool {
         );
     }
 
+    /// Returns a `Vec` of all `SignedMessage`s in the message pool.
+    /// The message pool is not cleared.
     pub(crate) fn get_messages(&self) -> Vec<SignedMessage> {
         self.pending_messages.values().cloned().collect()
     }
