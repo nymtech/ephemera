@@ -140,8 +140,7 @@ impl SwarmNetwork {
                         message,
                     } => {
                         if message.topic == (*protocol_msg_topic).clone().into() {
-                            let msg: RbMsg =
-                                serde_json::from_slice(&message.data[..]).unwrap();
+                            let msg: RbMsg = serde_json::from_slice(&message.data[..]).unwrap();
                             log::trace!(
                                 "Received protocol message {:?} from {}",
                                 msg,

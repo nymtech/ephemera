@@ -55,8 +55,6 @@ impl BlockProducer {
         &mut self.message_pool
     }
 
-
-
     pub(crate) fn verify_message(&mut self, msg: &SignedMessage) -> Result<(), BlockManagerError> {
         let raw_message: RawMessage = (*msg).clone().into();
         match self.signer.verify(&raw_message, &msg.signature) {

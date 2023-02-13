@@ -6,8 +6,8 @@ use lru::LruCache;
 
 use crate::block::{Block, RawBlock};
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
-use crate::utilities::crypto::Signature;
 use crate::utilities::crypto::signer::Libp2pSigner;
+use crate::utilities::crypto::Signature;
 use crate::utilities::Signer;
 
 pub(crate) struct BlockSigner {
@@ -19,11 +19,16 @@ pub(crate) struct BlockSigner {
 impl BlockSigner {
     pub fn new(key_pair: Arc<Libp2pKeypair>) -> Self {
         let signer = Libp2pSigner::new(key_pair);
-        Self { recent_verified_block_signatures: LruCache::new(NonZeroUsize::new(1000).unwrap()), signer }
+        Self {
+            recent_verified_block_signatures: LruCache::new(NonZeroUsize::new(1000).unwrap()),
+            signer,
+        }
     }
 
     pub(crate) fn get_block_signatures(&mut self, block_id: &str) -> Option<Vec<Signature>> {
-        self.recent_verified_block_signatures.get_mut(block_id).map(|signatures| signatures.iter().cloned().collect())
+        self.recent_verified_block_signatures
+            .get_mut(block_id)
+            .map(|signatures| signatures.iter().cloned().collect())
     }
 
     pub(crate) fn sign_block(&mut self, block: Block) -> anyhow::Result<Signature> {
@@ -39,8 +44,15 @@ impl BlockSigner {
         block: &Block,
         signature: &Signature,
     ) -> anyhow::Result<()> {
-        if self.recent_verified_block_signatures.contains(&block.header.id) &&
-            self.recent_verified_block_signatures.get(&block.header.id).unwrap().contains(signature) {
+        if self
+            .recent_verified_block_signatures
+            .contains(&block.header.id)
+            && self
+                .recent_verified_block_signatures
+                .get(&block.header.id)
+                .unwrap()
+                .contains(signature)
+        {
             return Ok(());
         }
         let raw_block: RawBlock = (*block).clone().into();

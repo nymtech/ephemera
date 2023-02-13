@@ -10,8 +10,8 @@ use crate::utilities::crypto::Signature;
 use crate::utilities::EphemeraId;
 
 pub(crate) mod broadcaster;
-pub(crate) mod signing;
 mod quorum;
+pub(crate) mod signing;
 
 pub(crate) type PeerIdType = Libp2pPeerId;
 
@@ -65,12 +65,7 @@ impl RbMsg {
         }
     }
 
-    pub(crate) fn reply(
-        &self,
-        local_id: PeerId,
-        phase: Phase,
-        signature: Signature,
-    ) -> Self {
+    pub(crate) fn reply(&self, local_id: PeerId, phase: Phase, signature: Signature) -> Self {
         RbMsg {
             id: self.id.clone(),
             request_id: utilities::generate_ephemera_id(),
@@ -91,21 +86,12 @@ impl RbMsg {
         self.reply(local_id, Phase::Prepare(data), signature)
     }
 
-    pub(crate) fn commit_reply(
-        &self,
-        local_id: PeerId,
-        data: Block,
-        signature: Signature,
-    ) -> Self {
+    pub(crate) fn commit_reply(&self, local_id: PeerId, data: Block, signature: Signature) -> Self {
         self.reply(local_id, Phase::Commit(data), signature)
     }
 
     pub(crate) fn ack_reply(&self, local_id: PeerId, signature: Signature) -> Self {
-        self.reply(
-            local_id,
-            Phase::Ack,
-            signature,
-        )
+        self.reply(local_id, Phase::Ack, signature)
     }
 }
 

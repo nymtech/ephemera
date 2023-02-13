@@ -64,12 +64,10 @@ impl BlockManager {
         }
     }
 
-    pub(crate) fn on_block(
-        &mut self,
-        block: &Block,
-    ) -> Result<(), BlockManagerError> {
+    pub(crate) fn on_block(&mut self, block: &Block) -> Result<(), BlockManagerError> {
         log::info!("Block received: {}", block.header.id);
-        self.last_blocks.put(block.header.id.clone(), block.to_owned());
+        self.last_blocks
+            .put(block.header.id.clone(), block.to_owned());
         Ok(())
     }
 

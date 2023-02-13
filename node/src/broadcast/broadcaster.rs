@@ -40,11 +40,11 @@ use lru::LruCache;
 use thiserror::Error;
 
 use crate::block::Block;
-use crate::broadcast::{Command, PeerId, RbMsg, Status};
 use crate::broadcast::broadcaster::BroadcastError::InvalidBroadcast;
-use crate::broadcast::Phase::{Commit, Prepare};
 use crate::broadcast::quorum::{BasicQuorum, Quorum};
 use crate::broadcast::signing::BlockSigner;
+use crate::broadcast::Phase::{Commit, Prepare};
+use crate::broadcast::{Command, PeerId, RbMsg, Status};
 use crate::config::configuration::Configuration;
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
 use crate::utilities::crypto::Signature;
@@ -113,14 +113,20 @@ impl Broadcaster {
         }
     }
 
-    pub(crate) async fn new_broadcast(&mut self, block: Block) -> Result<ProtocolResponse, BroadcastError> {
+    pub(crate) async fn new_broadcast(
+        &mut self,
+        block: Block,
+    ) -> Result<ProtocolResponse, BroadcastError> {
         log::debug!("Starting protocol for new block {}", block);
         let signature = self.block_signer.sign_block(block.clone())?;
         let rb_msg = RbMsg::new(block, self.peer_id, signature);
         self.handle(rb_msg).await
     }
 
-    pub(crate) async fn handle(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
+    pub(crate) async fn handle(
+        &mut self,
+        rb_msg: RbMsg,
+    ) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
         self.block_signer.verify_block(block, &rb_msg.signature)?;
 
@@ -134,7 +140,10 @@ impl Broadcaster {
                 log::trace!("Processing COMMIT {}", rb_msg.id);
                 self.process_commit(rb_msg).await
             }
-            _ => Err(InvalidBroadcast(format!("Invalid broadcast message {}", rb_msg.id))),
+            _ => Err(InvalidBroadcast(format!(
+                "Invalid broadcast message {}",
+                rb_msg.id
+            ))),
         };
         log::trace!("Context after new broadcast: {:?}", self.contexts.get(&id));
         result
@@ -142,7 +151,9 @@ impl Broadcaster {
 
     async fn process_prepare(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
-        let mut ctx = self.contexts.get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
+        let mut ctx = self
+            .contexts
+            .get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
 
         if self.peer_id != rb_msg.original_sender {
             ctx.add_prepare(rb_msg.original_sender);
@@ -182,7 +193,9 @@ impl Broadcaster {
 
     async fn process_commit(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
-        let mut ctx = self.contexts.get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
+        let mut ctx = self
+            .contexts
+            .get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
 
         if self.peer_id != rb_msg.original_sender {
             ctx.add_commit(rb_msg.original_sender);
