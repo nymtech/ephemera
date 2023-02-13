@@ -6,7 +6,6 @@ use tokio::sync::Mutex;
 use crate::api::{ApiCmd, ApiListener, EphemeraExternalApi};
 use crate::block::callback::DummyBlockProducerCallback;
 use crate::block::manager::BlockManager;
-use crate::broadcast::broadcast_callback::DummyBroadcastCallBack;
 use crate::broadcast::broadcaster::Broadcaster;
 use crate::config::configuration::Configuration;
 use crate::database::{CompoundDatabase, EphemeraDatabase};
@@ -27,7 +26,7 @@ pub struct Ephemera {
     pub(crate) block_manager: BlockManager,
 
     /// Broadcaster is making sure that blocks are deterministically agreed by all nodes.
-    pub(crate) broadcaster: Broadcaster<DummyBroadcastCallBack>,
+    pub(crate) broadcaster: Broadcaster,
 
     /// A component which sends messages to other nodes.
     /// This includes client messages and blocks.
@@ -57,7 +56,7 @@ impl Ephemera {
         log::info!("Local node id: {}", local_peer_id);
 
         log::info!("Starting broadcaster...");
-        let broadcaster = Broadcaster::new(config.clone(), DummyBroadcastCallBack, local_peer_id);
+        let broadcaster = Broadcaster::new(config.clone(), local_peer_id, keypair.clone());
 
         log::info!("Starting storage...");
         let storage = Arc::new(Mutex::new(CompoundDatabase::new(config.db_config.clone())));
@@ -132,14 +131,12 @@ impl Ephemera {
 
                     //1. send to local RB
                     match self.broadcaster.new_broadcast(new_block.clone()).await{
-                        Ok(mut rb_result) => {
-
-                            //2. sign block
-                            let signature = self.block_manager.sign_block(new_block).expect("Error signing block");
-                            rb_result.protocol_reply.add_signature(signature);
-
-                            //3. send to network
-                            self.ephemera_message_notifier.send_protocol_message(rb_result.protocol_reply).await;
+                        Ok(rb_result) => {
+                            use crate::broadcast::Command;
+                            if rb_result.command == Command::Broadcast {
+                                //1. send to network
+                                self.ephemera_message_notifier.send_protocol_message(rb_result.protocol_reply).await;
+                            }
                         }
                         Err(err) => {
                             log::error!("Error sending new block to broadcaster: {:?}", err);
@@ -164,8 +161,8 @@ impl Ephemera {
                     //Item: WE COULD POTENTIALLY VERIFY THAT PUBLIC KEY OF SENDER IS IN ALLOW LIST.
                     //Verify that block is signed correctly.
                     //We don't verify if sender's public keys in allow list(assume such a thing for security could exist)
-                    if let Some(block) = &network_msg.msg.data {
-                        if let Err(err) = self.block_manager.on_block(block.clone(), &network_msg.msg.signature) {
+                    if let Some(block) = &network_msg.msg.get_data() {
+                        if let Err(err) = self.block_manager.on_block(block,) {
                             log::error!("Error processing block: {:?}", err);
                             continue;
                         }
@@ -175,22 +172,14 @@ impl Ephemera {
                     //Which also means abandoning the the creation our own block which includes some of those transactions.
 
                     //Send to local RB protocol
-                    match self.broadcaster.handle_broadcast_from_net(network_msg.msg).await {
-                        Ok(mut response) => {
+                    match self.broadcaster.handle(network_msg.msg).await {
+                        Ok(response) => {
                             log::trace!("RB response: {:?}", response);
 
                             use crate::broadcast::{Status, Command};
                             //Send protocol response to network
                             if response.command == Command::Broadcast {
 
-                                //Sign block
-                                //data_identifier is a bit awkward here, should think better solution
-                                let block = self.block_manager.get_block_by_id(&response.protocol_reply.data_identifier).expect("Error getting block by id");
-                                let signature = self.block_manager.sign_block(block).expect("Error signing block");
-                                response.protocol_reply.add_signature(signature);
-
-
-                                //Send to network
                                 log::trace!("Broadcasting block to network: {:?}", response.protocol_reply);
                                 self.ephemera_message_notifier.send_protocol_message(response.protocol_reply.clone()).await;
                             }
@@ -200,7 +189,7 @@ impl Ephemera {
                                 let block = self.block_manager.get_block_by_id(&response.protocol_reply.data_identifier);
                                 match block {
                                     Some(block) => {
-                                        let signatures = self.block_manager.get_block_signatures(&block.header.id).expect("Error getting block signatures");
+                                        let signatures = self.broadcaster.get_block_signatures(&block.header.id).expect("Error getting block signatures");
                                         log::info!("Signatures for block {}: {:?}", block.header.id, signatures);
                                         //Store in DB
                                         self.storage.lock().await.store_block(&block, signatures).expect("Error storing block");

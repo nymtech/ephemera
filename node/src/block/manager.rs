@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -17,7 +16,6 @@ use crate::block::{Block, SignedMessage};
 use crate::broadcast::PeerId;
 use crate::config::configuration::{BlockConfig, Configuration};
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
-use crate::utilities::crypto::Signature;
 use crate::utilities::EphemeraId;
 
 #[derive(Error, Debug)]
@@ -35,8 +33,6 @@ pub(crate) struct BlockManager {
     config: BlockConfig,
     /// All blocks what we received from the network or created by us
     last_blocks: LruCache<String, Block>,
-    /// All signatures of the last blocks that we received from the network(+ our own)
-    last_block_signatures: LruCache<String, HashSet<Signature>>,
     /// The last block that we created(in case we are the leader)
     last_created_block: Option<Block>,
     block_producer: BlockProducer,
@@ -62,7 +58,6 @@ impl BlockManager {
         Self {
             config: config.block_config,
             last_blocks: LruCache::new(NonZeroUsize::new(1000).unwrap()),
-            last_block_signatures: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             last_created_block: last_block_from_db,
             block_producer,
             delay,
@@ -71,23 +66,10 @@ impl BlockManager {
 
     pub(crate) fn on_block(
         &mut self,
-        block: Block,
-        signature: &Signature,
+        block: &Block,
     ) -> Result<(), BlockManagerError> {
         log::info!("Block received: {}", block.header.id);
-        self.verify_block(&block, signature)?;
-
-        let id = block.header.id.clone();
-
-        self.last_blocks.put(id.clone(), block);
-        self.last_block_signatures
-            .get_or_insert_mut(id.clone(), HashSet::new)
-            .insert(signature.to_owned());
-        log::info!(
-            "Block {} signatures {:?} added",
-            id,
-            self.last_block_signatures.get(&id)
-        );
+        self.last_blocks.put(block.header.id.clone(), block.to_owned());
         Ok(())
     }
 
@@ -121,36 +103,8 @@ impl BlockManager {
         self.last_blocks.get(block_id).cloned()
     }
 
-    pub(crate) fn get_block_signatures(&mut self, block_id: &EphemeraId) -> Option<Vec<Signature>> {
-        self.last_block_signatures
-            .get(block_id)
-            .map(|signatures| signatures.iter().cloned().collect())
-    }
-
     pub(crate) fn verify_message(&mut self, msg: &SignedMessage) -> Result<(), BlockManagerError> {
         self.block_producer.verify_message(msg)
-    }
-
-    pub(crate) fn verify_block(
-        &mut self,
-        block: &Block,
-        signature: &Signature,
-    ) -> Result<(), BlockManagerError> {
-        self.block_producer.verify_block(block, signature)
-    }
-
-    pub(crate) fn sign_block(&mut self, block: Block) -> Result<Signature, BlockManagerError> {
-        log::debug!("Signing block: {}", block.header.id);
-
-        let block_id = block.header.id.clone();
-        let signature = self.block_producer.sign_block(block).map_err(|e| {
-            log::error!("Failed to sign block: {}", e);
-            BlockManagerError::InvalidBlock(e.to_string())
-        })?;
-        self.last_block_signatures
-            .get_or_insert_mut(block_id, HashSet::new)
-            .insert(signature.clone());
-        Ok(signature)
     }
 
     pub(crate) async fn new_message(

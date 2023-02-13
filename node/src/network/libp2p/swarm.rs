@@ -16,7 +16,7 @@ use libp2p::yamux::YamuxConfig;
 use libp2p::{identity::Keypair, noise, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
 use tokio::select;
 
-use crate::block::{Block, SignedMessage};
+use crate::block::SignedMessage;
 use crate::broadcast::RbMsg;
 use crate::config::configuration::Configuration;
 use crate::network::libp2p::listener::{
@@ -140,11 +140,11 @@ impl SwarmNetwork {
                         message,
                     } => {
                         if message.topic == (*protocol_msg_topic).clone().into() {
-                            let msg: RbMsg<Block> =
+                            let msg: RbMsg =
                                 serde_json::from_slice(&message.data[..]).unwrap();
                             log::trace!(
-                                "Received protocol message {} from {}",
-                                msg.id,
+                                "Received protocol message {:?} from {}",
+                                msg,
                                 propagation_source
                             );
 
@@ -159,6 +159,8 @@ impl SwarmNetwork {
                             log::trace!("Received signed message from {}", propagation_source);
 
                             let msg = serde_json::from_slice(&message.data[..]).unwrap();
+                            log::trace!("Received signed message: {:?}", msg);
+
                             if let Err(err) = self.net_message_notifier.send(msg).await {
                                 log::error!("Error sending message to channel: {}", err);
                             }
@@ -173,7 +175,7 @@ impl SwarmNetwork {
         }
     }
 
-    async fn send_protocol_message(&mut self, msg: RbMsg<Block>, topic: &Topic) {
+    async fn send_protocol_message(&mut self, msg: RbMsg, topic: &Topic) {
         log::trace!("Sending protocol message: {}", msg.id);
         let vec = serde_json::to_vec(&msg).unwrap();
         if let Err(err) = self

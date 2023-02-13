@@ -68,8 +68,6 @@ impl KeypairHex {
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
-//FIXME - remove
-#[derive(Default)]
 pub struct Signature {
     pub(crate) signature: String,
     pub(crate) public_key: String,

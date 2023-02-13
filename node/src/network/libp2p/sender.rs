@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 use tokio::time;
 use tokio::time::Interval;
 
-use crate::block::{Block, SignedMessage};
+use crate::block::SignedMessage;
 use crate::broadcast::RbMsg;
 
 impl EphemeraMessagesReceiver {
@@ -23,21 +23,21 @@ impl EphemeraMessagesReceiver {
 
 pub struct EphemeraMessagesReceiver {
     pub(crate) message_sender_rcv: mpsc::Receiver<SignedMessage>,
-    pub(crate) broadcast_sender_rcv: mpsc::Receiver<RbMsg<Block>>,
+    pub(crate) broadcast_sender_rcv: mpsc::Receiver<RbMsg>,
 }
 
 pub(crate) struct EphemeraMessagesNotifier {
     pub(crate) pending_messages: Vec<SignedMessage>,
-    pub(crate) pending_broadcasts: Vec<RbMsg<Block>>,
+    pub(crate) pending_broadcasts: Vec<RbMsg>,
     pub(crate) message_sender_tx: mpsc::Sender<SignedMessage>,
-    pub(crate) broadcast_sender_tx: mpsc::Sender<RbMsg<Block>>,
+    pub(crate) broadcast_sender_tx: mpsc::Sender<RbMsg>,
     pub(crate) flush_timer: Interval,
 }
 
 impl EphemeraMessagesNotifier {
     pub(crate) fn new(
         message_sender_tx: mpsc::Sender<SignedMessage>,
-        broadcast_sender_tx: mpsc::Sender<RbMsg<Block>>,
+        broadcast_sender_tx: mpsc::Sender<RbMsg>,
     ) -> Self {
         Self {
             pending_messages: Default::default(),
@@ -53,7 +53,7 @@ impl EphemeraMessagesNotifier {
         self.pending_messages.push(msg);
     }
 
-    pub async fn send_protocol_message(&mut self, msg: RbMsg<Block>) {
+    pub async fn send_protocol_message(&mut self, msg: RbMsg) {
         log::trace!("Sending broadcaster message: {:?}", msg);
         self.pending_broadcasts.push(msg);
         self.flush().await.unwrap();

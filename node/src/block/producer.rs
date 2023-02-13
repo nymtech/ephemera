@@ -8,7 +8,7 @@ use crate::broadcast::PeerId;
 use crate::utilities;
 use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
 use crate::utilities::crypto::signer::Libp2pSigner;
-use crate::utilities::crypto::{Signature, Signer};
+use crate::utilities::crypto::Signer;
 use crate::utilities::time::duration_now;
 
 pub(crate) struct BlockProducer {
@@ -55,22 +55,7 @@ impl BlockProducer {
         &mut self.message_pool
     }
 
-    pub(crate) fn verify_block(
-        &mut self,
-        block: &Block,
-        signature: &Signature,
-    ) -> Result<(), BlockManagerError> {
-        let raw_block: RawBlock = (*block).clone().into();
-        match self.signer.verify(&raw_block, signature) {
-            Ok(true) => Ok(()),
-            Ok(false) => Err(BlockManagerError::InvalidBlock(
-                "Invalid signature".to_string(),
-            )),
-            Err(err) => Err(BlockManagerError::InvalidBlock(format!(
-                "Invalid signature: {err}",
-            ))),
-        }
-    }
+
 
     pub(crate) fn verify_message(&mut self, msg: &SignedMessage) -> Result<(), BlockManagerError> {
         let raw_message: RawMessage = (*msg).clone().into();
@@ -83,12 +68,6 @@ impl BlockProducer {
                 "Invalid signature: {err}",
             ))),
         }
-    }
-
-    pub(crate) fn sign_block(&mut self, block: Block) -> anyhow::Result<Signature> {
-        let raw_block: RawBlock = block.into();
-        let signature = self.signer.sign(&raw_block)?;
-        Ok(signature)
     }
 
     fn new_block(

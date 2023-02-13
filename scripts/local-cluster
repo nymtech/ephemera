@@ -57,7 +57,7 @@ PIDS_FILE=$CLUSTER_DIR/.pids
 EPHEMERA="$PROJECT_ROOT"/target/release/ephemera
 DB_PATH="$CLUSTER_DIR"/db
 
-export RUST_LOG="ephemera=debug"
+export RUST_LOG="ephemera=trace"
 
 build() {
   echo "Building ephemera..."

@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 use futures::Stream;
 use tokio::sync::mpsc;
 
-use crate::block::{Block, SignedMessage};
+use crate::block::SignedMessage;
 use crate::broadcast::RbMsg;
 use crate::network::libp2p::swarm::NetworkMessage;
 
@@ -30,20 +30,20 @@ impl NetworkMessages {
 
 #[derive(Clone)]
 pub struct BroadcastReceiverHandle {
-    pub(crate) rb_msg_from_net_rcv: mpsc::Sender<NetworkMessage<RbMsg<Block>>>,
+    pub(crate) rb_msg_from_net_rcv: mpsc::Sender<NetworkMessage<RbMsg>>,
 }
 
 impl BroadcastReceiverHandle {
     pub(crate) async fn send(
         &mut self,
-        msg: NetworkMessage<RbMsg<Block>>,
-    ) -> Result<(), mpsc::error::SendError<NetworkMessage<RbMsg<Block>>>> {
+        msg: NetworkMessage<RbMsg>,
+    ) -> Result<(), mpsc::error::SendError<NetworkMessage<RbMsg>>> {
         self.rb_msg_from_net_rcv.send(msg).await
     }
 }
 
 pub(crate) struct NetworkBroadcastReceiver {
-    pub(crate) rb_msg_from_net_rcv: mpsc::Receiver<NetworkMessage<RbMsg<Block>>>,
+    pub(crate) rb_msg_from_net_rcv: mpsc::Receiver<NetworkMessage<RbMsg>>,
 }
 
 impl NetworkBroadcastReceiver {
@@ -60,7 +60,7 @@ impl NetworkBroadcastReceiver {
 }
 
 impl Stream for NetworkBroadcastReceiver {
-    type Item = NetworkMessage<RbMsg<Block>>;
+    type Item = NetworkMessage<RbMsg>;
 
     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
