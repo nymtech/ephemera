@@ -18,7 +18,7 @@ impl RunNodeCmd {
             Err(err) => panic!("Error loading configuration file: {err:?}",),
         };
 
-        let mut ephemera = Ephemera::start_services(conf.clone()).await;
+        let mut ephemera = Ephemera::start_services(conf.clone()).await.unwrap();
 
         tokio::spawn(async move {
             ephemera.run().await;

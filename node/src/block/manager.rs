@@ -1,6 +1,5 @@
 use std::num::NonZeroUsize;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::Poll::Pending;
 use std::{task, time};
 
@@ -10,12 +9,10 @@ use futures_timer::Delay;
 use lru::LruCache;
 use thiserror::Error;
 
-use crate::block::callback::BlockProducerCallback;
 use crate::block::producer::BlockProducer;
 use crate::block::{Block, SignedMessage};
 use crate::broadcast::PeerId;
 use crate::config::configuration::{BlockConfig, Configuration};
-use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
 use crate::utilities::EphemeraId;
 
 #[derive(Error, Debug)]
@@ -40,17 +37,12 @@ pub(crate) struct BlockManager {
 }
 
 impl BlockManager {
-    pub(crate) fn new<C>(
-        callback: C,
+    pub(crate) fn new(
         config: Configuration,
         peer_id: PeerId,
-        key_pair: Arc<Libp2pKeypair>,
         last_block_from_db: Option<Block>,
-    ) -> Self
-    where
-        C: BlockProducerCallback + Send + 'static,
-    {
-        let block_producer = BlockProducer::new(callback, peer_id, key_pair);
+    ) -> Self {
+        let block_producer = BlockProducer::new(peer_id);
         let delay = Delay::new(time::Duration::from_secs(
             config.block_config.block_creation_interval_sec,
         ));
@@ -101,15 +93,10 @@ impl BlockManager {
         self.last_blocks.get(block_id).cloned()
     }
 
-    pub(crate) fn verify_message(&mut self, msg: &SignedMessage) -> Result<(), BlockManagerError> {
-        self.block_producer.verify_message(msg)
-    }
-
     pub(crate) async fn new_message(
         &mut self,
         msg: SignedMessage,
     ) -> Result<(), BlockManagerError> {
-        self.verify_message(&msg)?;
         self.block_producer.message_pool_mut().add_message(msg)
     }
 }

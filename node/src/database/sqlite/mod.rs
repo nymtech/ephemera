@@ -34,10 +34,6 @@ impl EphemeraDatabase for SqliteStorage {
         self.db_query.get_last_block()
     }
 
-    fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_block_by_label(label)
-    }
-
     fn get_block_signatures(&self, block_id: String) -> anyhow::Result<Option<Vec<Signature>>> {
         self.db_query.get_block_signatures(block_id)
     }

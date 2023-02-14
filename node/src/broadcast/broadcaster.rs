@@ -203,7 +203,9 @@ impl Broadcaster {
 
         let signature = self.block_signer.sign_block(block.clone())?;
 
-        //Because we don't control in which order nodes receive prepare and commit messages, we do may do commit even if we haven't prepared yet
+        //Because we don't control in which order nodes receive prepare and commit messages
+        //(because current implementation is really basic),
+        //we add commit even if we haven't prepared yet. It still first waits enough prepare messages before it sends its commit message.
         if !ctx.commit.contains(&self.peer_id) {
             ctx.add_commit(self.peer_id);
 

@@ -19,7 +19,6 @@ pub(crate) struct RocksDbStorage {
 
 const PREFIX_LAST_BLOCK_KEY: &str = "last_block";
 const PREFIX_BLOCK_ID: &str = "block_id";
-const PREFIX_LABEL: &str = "label";
 const PREFIX_SIGNATURES: &str = "signatures";
 
 impl RocksDbStorage {
@@ -48,10 +47,6 @@ impl EphemeraDatabase for RocksDbStorage {
         self.db_query.get_last_block()
     }
 
-    fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_block_by_label(label)
-    }
-
     fn get_block_signatures(&self, block_id: String) -> anyhow::Result<Option<Vec<Signature>>> {
         self.db_query.get_block_signatures(block_id)
     }
@@ -63,10 +58,6 @@ fn block_id_key(block_id: &str) -> String {
 
 fn last_block_key() -> String {
     PREFIX_LAST_BLOCK_KEY.to_string()
-}
-
-fn label_key(label: &str) -> String {
-    format!("{PREFIX_LABEL}:{label}",)
 }
 
 fn signatures_key(block_id: &str) -> String {

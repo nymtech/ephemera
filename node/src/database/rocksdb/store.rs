@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rocksdb::TransactionDB;
 
 use crate::block::{Block, RawBlock};
-use crate::database::rocksdb::{block_id_key, label_key, last_block_key, signatures_key};
+use crate::database::rocksdb::{block_id_key, last_block_key, signatures_key};
 use crate::utilities::crypto::Signature;
 
 pub struct DbStore {
@@ -23,8 +23,6 @@ impl DbStore {
         log::debug!("Storing block: {}", block.header);
         let block_id_key = block_id_key(&block.header.id);
         log::trace!("Block id key: {}", block_id_key);
-        let block_label_key = label_key(&block.header.label);
-        log::trace!("Block label key: {}", block_label_key);
         let signatures_key = signatures_key(&block.header.id);
         log::trace!("Block signatures key: {}", signatures_key);
 
@@ -35,15 +33,6 @@ impl DbStore {
         if existing_id.is_some() {
             return Err(anyhow::anyhow!("Block already exists"));
         }
-
-        // Block label UNIQUE constraint check
-        let existing_label = tx.get(block_label_key.as_bytes())?;
-        if existing_label.is_some() {
-            return Err(anyhow::anyhow!("Block already exists"));
-        }
-
-        //Store block label(without prefix!)
-        tx.put(block_label_key.as_bytes(), block.header.id.as_bytes())?;
 
         // Store last block id(without prefix!)
         tx.put(last_block_key(), block.header.id.as_bytes())?;

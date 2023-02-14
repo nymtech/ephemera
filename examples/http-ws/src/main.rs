@@ -3,7 +3,7 @@ use std::thread;
 
 use clap::Parser;
 
-use ephemera::api::types::{ApiBlock, ApiKeypair, ApiSignedMessage};
+use ephemera::api::types::{ApiBlock, ApiKeypair, ApiRawMessage, ApiSignedMessage};
 use ephemera::logging::init_logging;
 use ephemera::utilities::CryptoApi;
 
@@ -133,7 +133,7 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
             println!("Verifying messages signatures");
             for message in block.signed_messages {
                 let signature = message.signature.clone();
-                if let Err(err) = CryptoApi::verify(&message.into_raw_message(), &signature) {
+                if let Err(err) = CryptoApi::verify::<ApiRawMessage>(&message.into(), &signature) {
                     println!("Message signature mismatch: {err:?}\n",);
                 }
             }

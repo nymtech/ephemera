@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::block::{Block, SignedMessage};
+use crate::block::{Block, RawMessage, SignedMessage};
 use crate::broadcast::PeerId;
 use crate::utilities::crypto::Signature;
 use crate::utilities::time::duration_now;
@@ -26,12 +26,20 @@ impl ApiSignedMessage {
             signature,
         }
     }
+}
 
-    pub fn into_raw_message(self) -> ApiRawMessage {
+impl From<ApiSignedMessage> for ApiRawMessage {
+    fn from(signed_message: ApiSignedMessage) -> Self {
         ApiRawMessage {
-            request_id: self.request_id,
-            data: self.data,
+            request_id: signed_message.request_id,
+            data: signed_message.data,
         }
+    }
+}
+
+impl From<ApiRawMessage> for RawMessage {
+    fn from(raw_message: ApiRawMessage) -> Self {
+        RawMessage::new(raw_message.request_id, raw_message.data)
     }
 }
 

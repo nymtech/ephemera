@@ -3,8 +3,8 @@ use std::sync::Arc;
 use futures_util::StreamExt;
 use tokio::sync::Mutex;
 
+use crate::api::app_hook::{ApplicationHook, SignatureVerificationApplicationHook};
 use crate::api::{ApiCmd, ApiListener, EphemeraExternalApi};
-use crate::block::callback::DummyBlockProducerCallback;
 use crate::block::manager::BlockManager;
 use crate::broadcast::broadcaster::Broadcaster;
 use crate::config::configuration::Configuration;
@@ -45,13 +45,15 @@ pub struct Ephemera {
     pub(crate) api_listener: ApiListener,
 
     /// A component which broadcasts messages to websocket clients.
-    pub(crate) ws_message_broadcaster: WsMessageBroadcaster,
+    pub(crate) ws_message_broadcast: WsMessageBroadcaster,
+
+    pub(crate) application: SignatureVerificationApplicationHook,
 
     pub api: EphemeraExternalApi,
 }
 
 impl Ephemera {
-    pub async fn start_services(config: Configuration) -> Ephemera {
+    pub async fn start_services(config: Configuration) -> anyhow::Result<Ephemera> {
         let (local_peer_id, keypair) = read_keypair(config.node_config.private_key.clone());
         log::info!("Local node id: {}", local_peer_id);
 
@@ -62,50 +64,44 @@ impl Ephemera {
         let storage = Arc::new(Mutex::new(CompoundDatabase::new(config.db_config.clone())));
 
         log::info!("Starting block manager...");
-        let last_block = storage
-            .lock()
-            .await
-            .get_last_block()
-            .expect("Failed to get last block");
-        let block_manager = BlockManager::new(
-            DummyBlockProducerCallback,
-            config.clone(),
-            local_peer_id,
-            keypair.clone(),
-            last_block,
-        );
+        let last_block = storage.lock().await.get_last_block()?;
+        let block_manager = BlockManager::new(config.clone(), local_peer_id, last_block);
 
-        log::info!("Starting network...");
         let (
             network,
             ephemera_message_notifier,
-            net_message_notify_receiver,
+            net_messages_notify_receiver,
             protocol_broadcast_receiver,
         ) = SwarmNetwork::new(config.clone(), keypair.clone());
 
+        let (api, api_listener) = EphemeraExternalApi::new(storage.clone());
+        let http = http::init(config.http_config.clone(), api.clone())?;
+        let (websocket, ws_message_broadcast) = WsManager::new(config.ws_config.clone())?;
+
+        log::info!("Starting network...");
         tokio::spawn(network.start());
 
-        let (api, api_listener) = EphemeraExternalApi::new(storage.clone());
-
         log::info!("Starting http server...");
-        let server = http::start(config.http_config.clone(), api.clone())
-            .expect("Failed to start http server");
-        tokio::spawn(server);
+        tokio::spawn(http);
 
-        let (ws_manager, ws_message_broadcast) = WsManager::new(config.ws_config.clone()).unwrap();
-        tokio::spawn(ws_manager.bind());
+        log::info!("Starting websocket listener...");
+        tokio::spawn(websocket.bind());
 
-        Ephemera {
+        let app_placeholder_for_now = SignatureVerificationApplicationHook::new(keypair);
+
+        let ephemera = Ephemera {
             block_manager,
             broadcaster,
             ephemera_message_notifier,
-            net_messages_notify_receiver: net_message_notify_receiver,
+            net_messages_notify_receiver,
             protocol_broadcast_receiver,
             storage: storage.clone(),
             api_listener,
-            ws_message_broadcaster: ws_message_broadcast,
+            ws_message_broadcast,
             api,
-        }
+            application: app_placeholder_for_now,
+        };
+        Ok(ephemera)
     }
 
     pub fn api(&self) -> EphemeraExternalApi {
@@ -119,7 +115,7 @@ impl Ephemera {
     /// 4. Receive new http messages from http server.
     /// 5. Publish messages to network
     pub async fn run(&mut self) {
-        log::debug!("Starting ephemera main loop...");
+        log::info!("Starting ephemera...");
         loop {
             tokio::select! {
                 // GENERATING NEW BLOCKS
@@ -146,9 +142,18 @@ impl Ephemera {
 
                 //PROCESSING SIGNED MESSAGES(TRANSACTIONS) FROM NETWORK
                 Some(signed_msg) = self.net_messages_notify_receiver.signed_messages_from_net_rcv.recv() => {
-                    // 1. send to BlockManager
-                    if let Err(err) = self.block_manager.new_message(signed_msg).await{
-                        log::error!("Error sending signed message to block manager: {:?}", err);
+                    // 1. Ask application to decide if we should accept this message.
+                    match self.application.check_tx(Into::into(signed_msg.clone())){
+                        Ok(_) => {
+                            // 2. send to BlockManager
+                            if let Err(err) = self.block_manager.new_message(signed_msg).await{
+                                log::error!("Error sending signed message to block manager: {:?}", err);
+                            }
+                        }
+                        Err(err) => {
+                            log::error!("Application rejected transaction: {:?}", err);
+                            continue;
+                        }
                     }
                 }
 
@@ -179,7 +184,6 @@ impl Ephemera {
                             use crate::broadcast::{Status, Command};
                             //Send protocol response to network
                             if response.command == Command::Broadcast {
-
                                 log::trace!("Broadcasting block to network: {:?}", response.protocol_reply);
                                 self.ephemera_message_notifier.send_protocol_message(response.protocol_reply.clone()).await;
                             }
@@ -189,21 +193,31 @@ impl Ephemera {
                                 let block = self.block_manager.get_block_by_id(&response.protocol_reply.data_identifier);
                                 match block {
                                     Some(block) => {
-                                        let signatures = self.broadcaster.get_block_signatures(&block.header.id).expect("Error getting block signatures");
-                                        log::info!("Signatures for block {}: {:?}", block.header.id, signatures);
-                                        //Store in DB
-                                        self.storage.lock().await.store_block(&block, signatures).expect("Error storing block");
-
-                                        //Notify BlockManager to clean up memory pool
-                                        if let Err(err) = self.block_manager.on_block_committed(&block.header.id){
-                                            log::error!("Error notifying BlockManager about block commit: {:?}", err);
+                                        //DB
+                                        {
+                                            let signatures = self.broadcaster.get_block_signatures(&block.header.id).expect("Error getting block signatures");
+                                            self.storage.lock().await.store_block(&block, signatures).expect("Error storing block");
                                         }
 
-                                        //Send to WS
-                                        log::trace!("Sending block to WS: {:?}", block);
-                                        if let Err(err) = self.ws_message_broadcaster.send_block(&block){
-                                            log::error!("Error sending block to WS: {:?}", err);
-                                        }
+                                        //ABCI
+                                        {
+                                            if let Err(err) = self.application.deliver_block(Into::into(block.clone())){
+                                                log::error!("Error delivering block to ABCI: {:?}", err);
+                                        }}
+
+
+                                        //BlockManager
+                                        {
+                                            if let Err(err) = self.block_manager.on_block_committed(&block.header.id){
+                                                log::error!("Error notifying BlockManager about block commit: {:?}", err);
+                                        }}
+
+                                        //WS
+                                        {
+                                            log::trace!("Sending block to WS: {:?}", block);
+                                            if let Err(err) = self.ws_message_broadcast.send_block(&block){
+                                                log::error!("Error sending block to WS: {:?}", err);
+                                        }}
                                     }
                                     None => log::error!("Block not found in BlockManager: {:?}", response.protocol_reply.data_identifier)
                                 }
@@ -222,13 +236,23 @@ impl Ephemera {
                                 ApiCmd::SubmitSignedMessageRequest(sm) => {
 
                                     //Send to BlockManager for verification and put into memory pool
-                                    let signed_message: crate::block::SignedMessage = sm.into();
-                                    match self.block_manager.new_message(signed_message.clone()).await {
+                                    let signed_msg: crate::block::SignedMessage = sm.into();
+                                    // 1. Ask application to decide if we should accept this message.
+                                    match self.application.check_tx(Into::into(signed_msg.clone())){
                                         Ok(_) => {
-                                            //Gossip to network for other nodes to receive
-                                            self.ephemera_message_notifier.gossip_signed_message(signed_message);
+                                            // 2. send to BlockManager
+                                            match self.block_manager.new_message(signed_msg.clone()).await {
+                                                Ok(_) => {
+                                                    //Gossip to network for other nodes to receive
+                                                    self.ephemera_message_notifier.gossip_signed_message(signed_msg);
+                                                }
+                                                Err(e) => log::error!("Error: {}", e),
+                                            }
                                         }
-                                        Err(e) => log::error!("Error: {}", e),
+                                        Err(err) => {
+                                            log::error!("Application rejected transaction: {:?}", err);
+                                            continue;
+                                        }
                                     }
                                 }
                             }

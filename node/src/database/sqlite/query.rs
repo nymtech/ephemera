@@ -55,26 +55,6 @@ impl DbQuery {
         Ok(block.map(|b| b.into()))
     }
 
-    pub(crate) fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
-        log::debug!("Getting block by label {}", label);
-
-        let mut stmt = self
-            .connection
-            .prepare_cached("SELECT block FROM blocks where label = ?1")?;
-
-        let block = stmt
-            .query_row(params![label], Self::map_block())
-            .optional()?;
-
-        if block.is_some() {
-            log::debug!("Found block by label: {}", label);
-        } else {
-            log::debug!("Block not found");
-        };
-
-        Ok(block.map(|b| b.into()))
-    }
-
     pub(crate) fn get_block_signatures(
         &self,
         block_id: String,

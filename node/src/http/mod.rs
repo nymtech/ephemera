@@ -12,14 +12,13 @@ pub(crate) mod query;
 pub(crate) mod submit;
 
 /// Starts the HTTP server.
-pub(crate) fn start(config: HttpConfig, api: EphemeraExternalApi) -> Result<Server> {
+pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> Result<Server> {
     print_startup_messages(config.clone());
 
     let server = HttpServer::new(move || {
         App::new()
             .app_data(Data::new(api.clone()))
             .service(query::block_by_id)
-            .service(query::block_by_label)
             .service(query::block_signatures)
             .service(submit::submit_message)
             .service(swagger_ui())
@@ -37,12 +36,7 @@ fn swagger_ui() -> SwaggerUi {
     use crate::api::types;
     #[derive(OpenApi)]
     #[openapi(
-        paths(
-            query::block_by_id,
-            query::block_by_label,
-            query::block_signatures,
-            submit::submit_message
-        ),
+        paths(query::block_by_id, query::block_signatures, submit::submit_message),
         components(schemas(types::ApiBlock, types::ApiSignedMessage, types::ApiSignature))
     )]
     struct ApiDoc;

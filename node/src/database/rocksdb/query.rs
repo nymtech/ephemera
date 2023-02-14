@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rocksdb::TransactionDB;
 
 use crate::block::{Block, RawBlock};
-use crate::database::rocksdb::{block_id_key, label_key, last_block_key, signatures_key};
+use crate::database::rocksdb::{block_id_key, last_block_key, signatures_key};
 use crate::utilities::crypto::Signature;
 
 pub struct DbQuery {
@@ -38,19 +38,6 @@ impl DbQuery {
             self.get_block_by_id(String::from_utf8(block_id)?)
         } else {
             log::debug!("Unable to get last block");
-            Ok(None)
-        }
-    }
-
-    pub(crate) fn get_block_by_label(&self, label: &str) -> anyhow::Result<Option<Block>> {
-        log::debug!("Getting block by label: {}", label);
-
-        let block_label = label_key(label);
-
-        if let Some(block_id) = self.database.get(block_label)? {
-            self.get_block_by_id(String::from_utf8(block_id)?)
-        } else {
-            log::debug!("Unable to get block by label {label}");
             Ok(None)
         }
     }

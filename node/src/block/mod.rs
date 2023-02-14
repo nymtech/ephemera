@@ -19,7 +19,6 @@ pub(crate) struct BlockHeader {
     pub(crate) timestamp: u128,
     pub(crate) creator: PeerId,
     pub(crate) height: u64,
-    pub(crate) label: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -182,9 +181,6 @@ impl Hash for BlockHeader {
 impl PartialEq for BlockHeader {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
-            && self.creator == other.creator
-            && self.height == other.height
-            && self.label == other.label
     }
 }
 
