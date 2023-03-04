@@ -1,16 +1,15 @@
 use clap::Parser;
 
-use crate::config::configuration::{
-    BlockConfig, BroadcastProtocolSettings, Configuration, DbConfig, HttpConfig, Libp2pSettings,
-    NetworkClientListenerConfig, NodeConfig, WsConfig,
-};
 use crate::config::{
-    DEFAULT_CONSENSUS_MSG_TOPIC_NAME, DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS,
-    DEFAULT_LISTEN_PORT, DEFAULT_PROPOSED_MSG_TOPIC_NAME, DEFAULT_QUORUM_THRESHOLD_COUNT,
-    DEFAULT_TOTAL_NR_OF_NODES,
+    BlockConfig, BroadcastProtocolSettings, Configuration, DbConfig, HttpConfig, Libp2pSettings,
+    NodeConfig, WsConfig, DEFAULT_CONSENSUS_MSG_TOPIC_NAME, DEFAULT_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT, DEFAULT_PROPOSED_MSG_TOPIC_NAME,
+    DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOTAL_NR_OF_NODES,
 };
-use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
-use crate::utilities::crypto::KeyPair;
+use crate::utilities::crypto::ed25519::Ed25519Keypair;
+use crate::utilities::crypto::PublicKey;
+use crate::utilities::encoding::to_base58;
+use crate::utilities::Keypair;
 
 #[derive(Debug, Clone, Parser)]
 pub struct InitCmd {
@@ -45,15 +44,16 @@ impl InitCmd {
         if Configuration::try_load_from_home_dir(&self.node).is_ok() {
             panic!("Configuration file already exists: {}", self.node);
         }
-        let keypair = Libp2pKeypair::generate().unwrap();
-        let pub_key = hex::encode(keypair.0.public().to_protobuf_encoding());
-        let priv_key = hex::encode(keypair.0.to_protobuf_encoding().unwrap());
+
+        let keypair = Ed25519Keypair::generate_pair(None);
+        let pub_key = to_base58(keypair.public_key().to_raw_vec());
+        let private_key = to_base58(keypair.to_raw_vec());
 
         let configuration = Configuration {
             node_config: NodeConfig {
                 address: format!("{}{}", self.address, self.port),
                 pub_key,
-                private_key: priv_key,
+                private_key,
             },
             quorum: BroadcastProtocolSettings {
                 quorum_threshold_size: self.quorum_threshold_count,
@@ -72,14 +72,11 @@ impl InitCmd {
             ws_config: WsConfig {
                 ws_address: self.ws_address,
             },
-            network_client_listener_config: NetworkClientListenerConfig {
-                address: self.network_client_listener_address,
-            },
             http_config: HttpConfig {
                 address: self.http_server_address,
             },
             block_config: BlockConfig {
-                leader: self.block_producer,
+                block_producer: self.block_producer,
                 block_creation_interval_sec: self.block_creation_interval_sec,
             },
         };

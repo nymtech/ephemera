@@ -1,93 +1,86 @@
-//! Uses the `ed25519-zebra` crate to implement signing and signature verification.
-use ed25519_zebra::{Signature, SigningKey, VerificationKey};
-use rand_chacha::rand_core::{RngCore, SeedableRng};
+use crate::utilities::crypto::peer::PeerId;
+use crate::utilities::crypto::{KeyPairError, PublicKey};
+use crate::utilities::{Keypair, ToPeerId};
 
-use crate::utilities::crypto::{KeyPair, KeyPairError, KeypairHex};
+// Careful with DEBUG, DISPLAY!!!
+// Internally uses libp2p for now
+pub struct Ed25519Keypair(pub libp2p::identity::Keypair);
+pub struct Ed25519PublicKey(pub libp2p::identity::PublicKey);
 
-#[derive(Debug)]
-pub struct Ed25519KeyPair {
-    pub signing_key: SigningKey,
-    pub verification_key: VerificationKey,
+impl Ed25519Keypair {
+    pub(crate) fn as_ref(&self) -> &libp2p::identity::Keypair {
+        &self.0
+    }
 }
 
-impl KeyPair for Ed25519KeyPair {
-    type Signature = String;
-    type PublicKey = VerificationKey;
+/// A wrapper around the libp2p Keypair type.
+/// libp2p internally supports different key types, we only use Ed25519.
+impl Keypair for Ed25519Keypair {
+    type Signature = Vec<u8>;
+    type PublicKey = Ed25519PublicKey;
 
-    fn from_private_key_hex(hex: &str) -> Result<Self, KeyPairError> {
-        array_bytes::hex2bytes(hex)
-            .map_err(|err| {
-                log::error!("Error decoding hex: {:?}", err);
-                KeyPairError::PrivateKey("Hex decoding error".into())
-            })
-            .and_then(|bytes| {
-                SigningKey::try_from(&bytes[..]).map_err(|err| {
-                    log::error!("Error decoding private key: {:?}", err);
-                    KeyPairError::PrivateKey("Private key decoding error".into())
-                })
-            })
-            .map(|signing_key| {
-                let verification_key = VerificationKey::from(&signing_key);
-                Self {
-                    signing_key,
-                    verification_key,
-                }
-            })
+    fn generate_pair(_seed: Option<Vec<u8>>) -> Self {
+        let keypair = libp2p::identity::Keypair::generate_ed25519();
+        Ed25519Keypair(keypair)
     }
 
-    fn verify_hex<M: AsRef<[u8]>>(
-        message: M,
-        pub_key: String,
-        sig_data: &Self::Signature,
-    ) -> Result<bool, KeyPairError> {
-        let public_key = Self::pub_key_from_hex(pub_key)?;
-        let sig_bytes = array_bytes::hex2bytes(sig_data).map_err(|_| KeyPairError::Signature)?;
-        let signature = Signature::from(<[u8; 64]>::try_from(sig_bytes.as_slice()).unwrap());
-        let message_bytes = array_bytes::hex2bytes(message.as_ref())
-            .map_err(|_| KeyPairError::InvalidHexadecimal)?;
-        let valid = public_key.verify(&signature, &message_bytes).is_ok();
-        Ok(valid)
+    fn sign<M: AsRef<[u8]>>(&self, msg: &M) -> Result<Self::Signature, KeyPairError> {
+        self.as_ref()
+            .sign(msg.as_ref())
+            .map_err(|_| KeyPairError::Signature)
     }
 
-    fn sign_hex<M: AsRef<[u8]>>(&self, message: M) -> Result<Self::Signature, KeyPairError> {
-        let signature = self.signing_key.sign(message.as_ref());
-        let sig_data: [u8; 64] = signature.into();
-        Ok(array_bytes::bytes2hex("", sig_data))
+    fn verify<M: AsRef<[u8]>>(&self, msg: &M, signature: &Self::Signature) -> bool {
+        self.0.public().verify(msg.as_ref(), signature)
     }
 
-    fn pub_key_to_hex(&self) -> Result<String, KeyPairError> {
-        let pub_key: [u8; 32] = self.verification_key.into();
-        Ok(array_bytes::bytes2hex("", pub_key))
+    fn to_raw_vec(&self) -> Vec<u8> {
+        self.as_ref().to_protobuf_encoding().unwrap()
     }
 
-    fn private_key_to_hex(&self) -> Result<String, KeyPairError> {
-        let priv_key = self.signing_key.as_ref();
-        Ok(array_bytes::bytes2hex("", priv_key))
+    fn from_raw_vec(raw: Vec<u8>) -> Result<Self, KeyPairError>
+    where
+        Self: Sized,
+    {
+        let keypair = libp2p::identity::Keypair::from_protobuf_encoding(&raw)
+            .map_err(|e| KeyPairError::Deserialization(e.to_string()))?;
+        Ok(Ed25519Keypair(keypair))
     }
 
-    fn pub_key_from_hex(pub_key: String) -> Result<Self::PublicKey, KeyPairError> {
-        let bytes = array_bytes::hex2bytes(pub_key).map_err(|_| KeyPairError::PublicKey)?;
-        let verification_key =
-            VerificationKey::try_from(&bytes[..]).map_err(|_| KeyPairError::PublicKey)?;
-        Ok(verification_key)
+    fn public_key(&self) -> Self::PublicKey {
+        Ed25519PublicKey(self.0.public())
+    }
+}
+
+impl PublicKey for Ed25519PublicKey {
+    type Signature = Vec<u8>;
+
+    fn to_raw_vec(&self) -> Vec<u8> {
+        self.0.to_protobuf_encoding()
     }
 
-    fn format_hex(&self) -> Result<KeypairHex, KeyPairError> {
-        Ok(KeypairHex::new(
-            self.private_key_to_hex()?,
-            self.pub_key_to_hex()?,
-        ))
+    fn from_raw_vec(raw: Vec<u8>) -> Result<Self, KeyPairError>
+    where
+        Self: Sized,
+    {
+        let public_key = libp2p::identity::PublicKey::from_protobuf_encoding(&raw)
+            .map_err(|e| KeyPairError::Deserialization(e.to_string()))?;
+        Ok(Ed25519PublicKey(public_key))
     }
 
-    fn generate() -> Result<Self, KeyPairError> {
-        let mut rng = rand::rngs::StdRng::from_entropy();
-        let mut seed = [0u8; 32];
-        rng.fill_bytes(&mut seed);
-        let signing_key = SigningKey::try_from(&seed[..]).map_err(|_| KeyPairError::SliceLength)?;
-        let verification_key = VerificationKey::from(&signing_key);
-        Ok(Ed25519KeyPair {
-            signing_key,
-            verification_key,
-        })
+    fn verify<M: AsRef<[u8]>>(&self, msg: &M, signature: &Self::Signature) -> bool {
+        self.0.verify(msg.as_ref(), signature)
+    }
+}
+
+impl ToPeerId for Ed25519Keypair {
+    fn peer_id(&self) -> PeerId {
+        PeerId(self.0.public().to_peer_id())
+    }
+}
+
+impl ToPeerId for Ed25519PublicKey {
+    fn peer_id(&self) -> PeerId {
+        PeerId(self.0.to_peer_id())
     }
 }

@@ -1,94 +1,132 @@
-use std::sync::Arc;
+//! # Ephemera API
+//!
+//! This module contains all the types and functions available as part of the Ephemera public API.
+//! This API is also available over HTTP.
+use std::fmt::Display;
 
+use thiserror::Error;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 
-use crate::api::types::{ApiBlock, ApiKeypair, ApiSignature, ApiSignedMessage};
-use crate::database::EphemeraDatabase;
-use crate::ephemera::EphemeraDatabaseType;
-use crate::utilities::crypto::signer::CryptoApi;
-use crate::utilities::crypto::KeyPairError;
+use crate::api::types::{ApiBlock, ApiEphemeraMessage, ApiSignature};
 
-pub mod app_hook;
+pub mod application;
 pub mod types;
 
-#[derive(Debug, Clone)]
+#[derive(Error, Debug)]
+pub enum ApiError {
+    #[error("{0}")]
+    ApiError(String),
+}
+
+#[derive(Debug)]
 pub(crate) enum ApiCmd {
-    SubmitSignedMessageRequest(ApiSignedMessage),
+    SubmitEphemeraMessage(ApiEphemeraMessage),
+    QueryBlockByHeight(u64, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
+    QueryBlockById(String, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
+    QueryLastBlock(oneshot::Sender<Result<ApiBlock, ApiError>>),
+}
+
+impl Display for ApiCmd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiCmd::SubmitEphemeraMessage(message) => {
+                write!(f, "SubmitEphemeraMessage({message})", )
+            }
+            ApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})", ),
+            ApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})", ),
+            ApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
+        }
+    }
 }
 
 pub(crate) struct ApiListener {
-    pub(crate) signed_messages_rcv: Receiver<ApiCmd>,
+    pub(crate) messages_rcv: Receiver<ApiCmd>,
 }
 
 impl ApiListener {
-    pub(crate) fn new(signed_messages_rcv: Receiver<ApiCmd>) -> Self {
-        Self {
-            signed_messages_rcv,
-        }
+    pub(crate) fn new(messages_rcv: Receiver<ApiCmd>) -> Self {
+        Self { messages_rcv }
     }
 }
 
 #[derive(Clone)]
 pub struct EphemeraExternalApi {
-    pub(crate) database: Arc<Mutex<EphemeraDatabaseType>>,
-    pub(crate) submit_signed_messages_tx: Sender<ApiCmd>,
+    pub(crate) commands_channel: Sender<ApiCmd>,
 }
 
 impl EphemeraExternalApi {
-    pub(crate) fn new(
-        database: Arc<Mutex<EphemeraDatabaseType>>,
-    ) -> (EphemeraExternalApi, ApiListener) {
-        let (submit_signed_messages_tx, signed_messages_rcv) = channel(100);
-
+    pub(crate) fn new() -> (EphemeraExternalApi, ApiListener) {
+        let (commands_channel, signed_messages_rcv) = channel(100);
         let api_listener = ApiListener::new(signed_messages_rcv);
-
-        let api = EphemeraExternalApi {
-            database,
-            submit_signed_messages_tx,
-        };
+        let api = EphemeraExternalApi { commands_channel };
         (api, api_listener)
     }
 
-    pub async fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<ApiBlock>> {
-        let database = self.database.lock().await;
-        let db_block = database
-            .get_block_by_id(block_id)?
-            .map(|block| block.into());
-        Ok(db_block)
+    /// Returns block with given id if it exists
+    pub async fn get_block_by_id(&self, block_id: String) -> Result<Option<ApiBlock>, ApiError> {
+        log::trace!("get_block_by_id({})", block_id);
+        self.send_and_wait_response(|tx| ApiCmd::QueryBlockById(block_id, tx))
+            .await
     }
 
+    /// Returns block with given height if it exists
+    pub async fn get_block_by_height(&self, height: u64) -> Result<Option<ApiBlock>, ApiError> {
+        log::trace!("get_block_by_height({})", height);
+        self.send_and_wait_response(|tx| ApiCmd::QueryBlockByHeight(height, tx))
+            .await
+    }
+
+    /// Returns last block. Which has maximum height and is stored in database
+    pub async fn get_last_block(&self) -> Result<ApiBlock, ApiError> {
+        log::trace!("get_last_block()");
+        self.send_and_wait_response(|tx| ApiCmd::QueryLastBlock(tx))
+            .await
+    }
+
+    //TODO: return with block instead
     pub async fn get_block_signatures(
         &self,
-        block_id: String,
+        _block_id: String,
     ) -> anyhow::Result<Option<Vec<ApiSignature>>> {
-        let database = self.database.lock().await;
-        let signatures = database.get_block_signatures(block_id)?.map(|signatures| {
-            signatures
-                .into_iter()
-                .map(|signature| signature.into())
-                .collect()
-        });
-        Ok(signatures)
+        // log::debug!("get_block_signatures({})", block_id);
+        // let database = self.database.lock().await;
+        // let signatures = database.get_block_signatures(block_id)?.map(|signatures| {
+        //     signatures
+        //         .into_iter()
+        //         .map(|signature| signature.into())
+        //         .collect()
+        // });
+        Ok(None)
     }
 
-    pub async fn submit_signed_message(&self, message: ApiSignedMessage) -> anyhow::Result<()> {
-        let message = ApiCmd::SubmitSignedMessageRequest(message);
-        self.submit_signed_messages_tx.send(message).await?;
-        Ok(())
+    /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers
+    pub async fn send_ephemera_message(&self, message: ApiEphemeraMessage) -> Result<(), ApiError> {
+        log::trace!("send_ephemera_message({})", message);
+        let cmd = ApiCmd::SubmitEphemeraMessage(message);
+        self.commands_channel.send(cmd).await.map_err(|_| {
+            ApiError::ApiError(
+                "Api channel closed. It means that probably Ephemera is crashed".to_string(),
+            )
+        })
     }
 
-    pub fn sign_message(
-        &self,
-        request_id: String,
-        data: String,
-        private_key: String,
-    ) -> Result<ApiSignature, KeyPairError> {
-        let signature = CryptoApi::sign_message(request_id, data, private_key)?;
-        Ok(signature.into())
-    }
-
-    pub fn generate_key_pair(&self) -> Result<ApiKeypair, KeyPairError> {
-        CryptoApi::generate_keypair()
+    async fn send_and_wait_response<F, R>(&self, f: F) -> Result<R, ApiError>
+        where
+            F: FnOnce(oneshot::Sender<Result<R, ApiError>>) -> ApiCmd,
+            R: Send + 'static,
+    {
+        let (tx, rcv) = oneshot::channel();
+        let cmd = f(tx);
+        if let Err(err) = self.commands_channel.send(cmd).await {
+            log::error!("Failed to send command to Ephemera: {:?}", err);
+            return Err(ApiError::ApiError(
+                "Api channel closed. It means that probably Ephemera is crashed".to_string(),
+            ));
+        }
+        rcv.await.map_err(|e| {
+            log::error!("Failed to receive response from Ephemera: {:?}", e);
+            ApiError::ApiError("Failed to receive response from Ephemera".to_string())
+        })?
     }
 }

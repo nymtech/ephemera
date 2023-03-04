@@ -26,6 +26,7 @@ impl WsBlockListener {
             if let Some(item) = ws_stream.next().await {
                 match item {
                     Ok(res) => {
+                        println!("Received new block");
                         let block = serde_json::from_str::<ApiBlock>(&res.to_string()).unwrap();
                         self.data.lock().unwrap().received_blocks.push(block);
                     }

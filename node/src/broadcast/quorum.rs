@@ -1,4 +1,4 @@
-use crate::config::configuration::BroadcastProtocolSettings;
+use crate::config::BroadcastProtocolSettings;
 
 pub trait Quorum {
     fn prepare_threshold(&self, ready: usize) -> bool;

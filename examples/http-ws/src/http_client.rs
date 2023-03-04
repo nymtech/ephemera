@@ -1,9 +1,8 @@
+use ephemera::api::types;
+use reqwest::{IntoUrl, StatusCode, Url};
 use std::sync::{Arc, Mutex};
 
-use reqwest::{IntoUrl, Url};
-
-use ephemera::api::types::{ApiBlock, ApiKeypair, ApiSignedMessage};
-use ephemera::utilities::CryptoApi;
+use ephemera::utilities::{Ed25519Keypair, Encode, Keypair, PublicKey};
 
 use crate::Data;
 
@@ -20,7 +19,7 @@ impl SignedMessageClient {
         }
     }
 
-    pub(crate) async fn send_message(&mut self, msg: ApiSignedMessage) {
+    pub(crate) async fn send_message(&mut self, msg: types::ApiEphemeraMessage) {
         let path = format!("{}{}", self.http, "ephemera/submit_message");
         let client: reqwest::Client = Default::default();
         match client.post(&path).json(&msg).send().await {
@@ -33,12 +32,15 @@ impl SignedMessageClient {
         }
     }
 
-    pub(crate) async fn block_by_id(&self, id: String) -> Option<ApiBlock> {
+    pub(crate) async fn block_by_id(&self, id: String) -> Option<types::ApiBlock> {
         let path = format!("{}{}{}", self.http, "ephemera/block/", id);
         let client: reqwest::Client = Default::default();
         match client.get(&path).send().await {
             Ok(res) => {
-                let block: ApiBlock = res.json().await.unwrap();
+                if res.status() == StatusCode::NOT_FOUND {
+                    return None;
+                }
+                let block: types::ApiBlock = res.json().await.unwrap();
                 Some(block)
             }
             Err(err) => {
@@ -50,13 +52,16 @@ impl SignedMessageClient {
 
     pub(crate) async fn signed_message(
         &self,
-        keypair: ApiKeypair,
+        keypair: Arc<Ed25519Keypair>,
         label: String,
-    ) -> ApiSignedMessage {
-        let id = uuid::Uuid::new_v4().to_string();
-        let signature =
-            CryptoApi::sign_message(id.clone(), "Message".to_string(), keypair.private_key)
-                .unwrap();
-        ApiSignedMessage::new(id, "Message".to_string(), signature.into(), label)
+    ) -> types::ApiEphemeraMessage {
+        let api_raw_message = types::ApiEphemeraRawMessage::new("Message".as_bytes().to_vec());
+
+        let api_raw_message = api_raw_message.encode().unwrap();
+        let signature = keypair.sign(&api_raw_message).unwrap();
+
+        let api_signature = types::ApiSignature::new(signature, keypair.public_key().to_raw_vec());
+
+        types::ApiEphemeraMessage::new(api_raw_message, api_signature, label)
     }
 }

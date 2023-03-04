@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 
 use crate::block::manager::BlockManagerError;
-use crate::block::SignedMessage;
+use crate::block::types::message::EphemeraMessage;
 
-pub(crate) struct MessagePool {
-    pending_messages: HashMap<String, SignedMessage>,
+pub(super) struct MessagePool {
+    pending_messages: HashMap<String, EphemeraMessage>,
 }
 
 impl MessagePool {
-    pub(crate) fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             pending_messages: HashMap::with_capacity(1000),
         }
     }
 
-    pub(crate) fn add_message(&mut self, msg: SignedMessage) -> Result<(), BlockManagerError> {
+    pub(super) fn add_message(&mut self, msg: EphemeraMessage) -> Result<(), BlockManagerError> {
         if self.pending_messages.contains_key(&msg.id) {
             return Err(BlockManagerError::DuplicateMessage(msg.id));
         }
@@ -25,7 +25,7 @@ impl MessagePool {
         Ok(())
     }
 
-    pub(crate) fn remove_messages(&mut self, messages: &Vec<SignedMessage>) {
+    pub(super) fn remove_messages(&mut self, messages: &Vec<EphemeraMessage>) {
         log::trace!("Removing messages from pool: {:?}", messages);
         log::trace!(
             "Mempool size before removing messages {}",
@@ -42,9 +42,9 @@ impl MessagePool {
         );
     }
 
-    /// Returns a `Vec` of all `SignedMessage`s in the message pool.
+    /// Returns a `Vec` of all `EphemeraMessage`s in the message pool.
     /// The message pool is not cleared.
-    pub(crate) fn get_messages(&self) -> Vec<SignedMessage> {
+    pub(super) fn get_messages(&self) -> Vec<EphemeraMessage> {
         self.pending_messages.values().cloned().collect()
     }
 }

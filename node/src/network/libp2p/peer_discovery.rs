@@ -13,7 +13,8 @@ use libp2p::swarm::{
 use libp2p::Multiaddr;
 use tokio::io;
 
-use crate::config::configuration::{Configuration, PeerSetting};
+use crate::config::{Configuration, PeerSetting};
+use crate::utilities::encoding::from_base58;
 
 #[derive(Debug, Clone)]
 pub struct Peer {
@@ -22,8 +23,8 @@ pub struct Peer {
     pub pub_key: String,
 }
 
-impl From<&PeerSetting> for Peer {
-    fn from(setting: &PeerSetting) -> Self {
+impl Peer {
+    pub fn new(setting: &PeerSetting) -> Self {
         let multiaddr = Multiaddr::from_str(setting.address.as_str()).unwrap();
         Self {
             name: setting.name.clone(),
@@ -36,7 +37,7 @@ impl From<&PeerSetting> for Peer {
 impl TryFrom<Peer> for PeerId {
     type Error = anyhow::Error;
     fn try_from(peer: Peer) -> Result<Self, Self::Error> {
-        let bytes = hex::decode(peer.pub_key)?;
+        let bytes = from_base58(peer.pub_key)?;
         let pub_key = PublicKey::from_protobuf_encoding(&bytes[..])?;
         Ok(PeerId::from_public_key(&pub_key))
     }
@@ -66,8 +67,8 @@ pub struct StaticPeerDiscovery {
 impl StaticPeerDiscovery {
     pub fn new(conf: Configuration) -> StaticPeerDiscovery {
         let mut peers: HashMap<PeerId, Peer> = HashMap::new();
-        for peer in conf.libp2p.peers.iter() {
-            let peer: Peer = Peer::from(peer);
+        for setting in conf.libp2p.peers.iter() {
+            let peer: Peer = Peer::new(setting);
             let peer_id: PeerId = peer.clone().try_into().unwrap();
             peers.insert(peer_id, peer);
         }

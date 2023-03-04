@@ -13,6 +13,17 @@ Initiates new cluster of ephemera nodes.
 EOH
 )
 
+RUN_HELP=$(
+  cat <<-EOH
+Runs Ephemera cluster.
+
+  usage:      $0 run [-a] [ephemera|nym-api]
+
+  options:
+    -a        Which application cluster should run
+EOH
+)
+
 STOP_HELP=$(
   cat <<-EOH
 Stops currently running cluster of ephemera nodes.
@@ -24,8 +35,8 @@ EOH
 
 SUBCMD=$1
 
-[[ $SUBCMD == "init" || $SUBCMD == "run" || $SUBCMD == "stop" ]] ||
-  { echo "Please specify a subcommand of \`init\` or \`run\` or \`stop\`" && exit 1; }
+[[ $SUBCMD == "init" || $SUBCMD == "run" || $SUBCMD == "stop" || $SUBCMD == "clean" || $SUBCMD == "delete" ]] ||
+  { echo "Please specify a subcommand of \`init\` or \`run\` or \`stop\` or \`clean\` or \`delete\`" && exit 1; }
 
 shift
 
@@ -50,14 +61,67 @@ shift
   done
 }
 
+[[ $SUBCMD == "delete" ]] && {
+  while getopts :h opt; do
+    case $opt in
+    h)
+      echo "Deletes cluster configuration"
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: $OPTARG" >&2
+      exit 1
+      ;;
+    esac
+  done
+}
 
+[[ $SUBCMD == "clean" ]] && {
+  while getopts :h opt; do
+    case $opt in
+    h)
+      echo "Deletes cluster temporary files(databases and logs)"
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: $OPTARG" >&2
+      exit 1
+      ;;
+    esac
+  done
+}
+
+[[ $SUBCMD == "run" ]] && [[ $# -lt 1 || $# -gt 2 ]] && echo "$RUN_HELP" && exit 1
+
+[[ $SUBCMD == "run" ]] && {
+  while getopts :ha opt; do
+    case $opt in
+    a)
+      APPLICATION="${2}"
+      shift
+      ;;
+    h)
+      echo "$RUN_HELP"
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: $OPTARG" >&2
+      exit 1
+      ;;
+    esac
+  done
+}
+
+EPHEMERA_HOME_DIR=$(eval echo ~"$USER")/.ephemera
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 CLUSTER_DIR="${PROJECT_ROOT}/cluster"
-PIDS_FILE=$CLUSTER_DIR/.pids
+PIDS_FILE="${PROJECT_ROOT}/scripts"/.pids
 EPHEMERA="$PROJECT_ROOT"/target/release/ephemera
-DB_PATH="$CLUSTER_DIR"/db
+NYM_API_EPHEMERA="$PROJECT_ROOT"/target/release/nym_api_ephemera
+REWARD_CONTRACT="$PROJECT_ROOT"/target/release/reward_contract
 
-export RUST_LOG="ephemera=trace"
+export RUST_LOG="nym_api=debug,ephemera=debug,info"
+export RUST_BACKTRACE=1
 
 build() {
   echo "Building ephemera..."
@@ -74,6 +138,15 @@ create_cluster() {
     NETWORK_CLIENT_LISTENER_ADDRESS=/ip4/127.0.0.1/tcp/400"$COUNTER"
     WS_ADDRESS=127.0.0.1:600"$COUNTER"
     HTTP_SERVER_ADDRESS=127.0.0.1:700"$COUNTER"
+
+    NODE_DIR="$EPHEMERA_HOME_DIR"/node"$c"
+    DB_PATH="$NODE_DIR"/db
+
+    mkdir -p "$NODE_DIR"/nym-api/logs
+    mkdir -p "$NODE_DIR"/nym-api/db
+    mkdir -p "$NODE_DIR"/ephemera/logs
+    mkdir -p "$NODE_DIR"/ephemera/db
+
     $EPHEMERA init \
             --node node"$c" \
             --port 300"$c" \
@@ -108,36 +181,96 @@ start_cluster() {
 
   build
 
+  touch "$PIDS_FILE"
+
   echo "Starting $COUNTER nodes"
 
-  mkdir -p "$CLUSTER_DIR"
-  mkdir -p "$CLUSTER_DIR"/logs
-  mkdir -p "$CLUSTER_DIR"/db
-  touch "$PIDS_FILE"
+  if [[ $APPLICATION == "nym-api" ]]; then
+      run_reward_contract
+  fi
+
+  sleep 2
 
   COUNTER=1
   for d in ~/.ephemera/*/ephemera.toml; do
 
-    touch "$DB_PATH"/ephemera"$COUNTER".sqlite
+    if [[ $APPLICATION == "nym-api" ]]; then
+      run_nym_api_ephemera "$d" "$COUNTER" &
+    else
+      run_ephemera "$d" "$COUNTER" &
+    fi
 
-    LOGS_FILE=$CLUSTER_DIR/logs/ephemera$COUNTER.log
-
-    echo "Starting $d"
-    $EPHEMERA run-node --config-file ~/.ephemera/node"${COUNTER}"/ephemera.toml > "$LOGS_FILE" 2>&1 &
-
-    echo "$!" >> "$PIDS_FILE"
     COUNTER=$((COUNTER + 1))
   done
 
-  echo "Started $((COUNTER - 1)) ephemera signatures application instances."
-  echo "Log files are in $CLUSTER_DIR/logs directory."
+  echo "Started $((COUNTER - 1)) $APPLICATION instances."
+  echo "Log files are in $EPHEMERA_HOME_DIR nodes subdirectories."
+}
+
+run_ephemera() {
+  d=$1
+  NR=$2
+
+  NODE_DIR="$EPHEMERA_HOME_DIR"/node"$NR"
+  LOGS_FILE=$NODE_DIR/ephemera/logs/ephemera$NR.log
+
+  echo "Starting $d"
+  $EPHEMERA run-node --config-file ~/.ephemera/node"${NR}"/ephemera.toml > "$LOGS_FILE" 2>&1 &
+
+  echo "$!" >> "$PIDS_FILE"
+}
+
+run_nym_api_ephemera() {
+  d=$1
+  NR=$2
+
+  NODE_DIR="$EPHEMERA_HOME_DIR"/node"$NR"
+
+  EPHEMERA_CONFIG_FILE=$NODE_DIR/ephemera.toml
+  LOGS_FILE=$NODE_DIR/nym-api/logs/nym-api$NR.log
+  METRICS_DB_PATH="$NODE_DIR"/nym-api/db/metrics"${NR}".sqlite
+
+  touch "$LOGS_FILE"
+  touch "$METRICS_DB_PATH"
+
+  echo "Starting $d"
+  $NYM_API_EPHEMERA --ephemera-config "$EPHEMERA_CONFIG_FILE" \
+                    --metrics-db-path "$METRICS_DB_PATH" \
+                    --smart-contract-url 127.0.0.1:6789 \
+                    --nym-api-id "$NR" \
+                    > "$LOGS_FILE" 2>&1 &
+
+  echo "$!" >> "$PIDS_FILE"
+}
+
+run_reward_contract() {
+  REWARD_CONTRACT_DIR="$EPHEMERA_HOME_DIR"/reward_contract
+
+  LOGS_FILE=$REWARD_CONTRACT_DIR/logs/reward_contract.log
+  CONTRACT_DB_PATH="$REWARD_CONTRACT_DIR"/db/contract.sqlite
+  SMART_CONTRACT_URL=127.0.0.1:6789
+
+  mkdir -p "$REWARD_CONTRACT_DIR"/logs
+  mkdir -p "$REWARD_CONTRACT_DIR"/db
+
+  touch "$CONTRACT_DB_PATH"
+  touch "$LOGS_FILE"
+
+  echo "Starting reward contract"
+  $REWARD_CONTRACT --db-path "$CONTRACT_DB_PATH" \
+                   --url "$SMART_CONTRACT_URL" \
+                    > "$LOGS_FILE" 2>&1 &
+
+  echo "$!" >> "$PIDS_FILE"
+
+  echo "Reward contract started"
 }
 
 stop_cluster() {
   if test -f "$PIDS_FILE";
   then
      while read p; do
-       kill -9 "$p" || true
+       kill 15 "$p" || true
      done < "$PIDS_FILE"
      rm "$PIDS_FILE"
      echo "Stopped ephemera cluster"
@@ -146,6 +279,33 @@ stop_cluster() {
   fi
 }
 
+clean() {
+  if test -f "$PIDS_FILE"; then
+    echo "Cluster is running, try stopping it first by executing ./local-cluster stop."
+    exit 1
+  fi
+  echo "Cleaning cluster all directories and files except configuration."
+  for d in ~/.ephemera/*/; do
+    echo "Cleaning $d"
+    rm -rf "$d"/nym-api/logs/*
+    rm -rf "$d"/nym-api/db/*
+    rm -rf "$d"/ephemera/logs/*
+    rm -rf "$d"/ephemera/db/*
+  done
+}
+
+delete(){
+  if test -f "$PIDS_FILE"; then
+    echo "Cluster is running, try stopping it first by executing ./local-cluster stop."
+    exit 1
+  fi
+  echo "Deleting ephemera cluster configurations located at ~/.ephemera"
+  rm -rf ~/.ephemera
+}
+
 [[ $SUBCMD == "init" ]] && create_cluster
 [[ $SUBCMD == "run" ]] && start_cluster
 [[ $SUBCMD == "stop" ]] && stop_cluster
+[[ $SUBCMD == "clean" ]] && clean
+[[ $SUBCMD == "delete" ]] && delete
+

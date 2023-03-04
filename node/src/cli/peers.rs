@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use crate::config::configuration::{Configuration, PeerSetting};
+use crate::config::{Configuration, PeerSetting};
 
 #[derive(Debug, Clone, Parser)]
 pub struct AddPeerCmd {

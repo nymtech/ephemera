@@ -22,7 +22,7 @@ This example connects to an Ephemera node.
 
 ```text
 [block_config]
-leader = false
+producer = false
 ```
 
 From the top-level directory:

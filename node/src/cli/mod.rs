@@ -17,7 +17,6 @@ pub enum Subcommand {
     Init(init::InitCmd),
     AddPeer(peers::AddPeerCmd),
     AddLocalPeers(peers::AddLocalPeersCmd),
-    RunNode(run_node::RunNodeCmd),
-    SignMessage(crypto::SignMessageCmd),
+    RunNode(run_node::RunExternalNodeCmd),
     GenerateKeypair(crypto::GenerateKeypairCmd),
 }

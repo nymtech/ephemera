@@ -1,4 +1,3 @@
-pub mod listener;
+pub mod messages_channel;
 pub mod peer_discovery;
-pub mod sender;
 pub mod swarm;

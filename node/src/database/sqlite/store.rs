@@ -1,8 +1,8 @@
+use crate::block::types::block::Block;
 use anyhow::Result;
 use rusqlite::{params, Connection};
 
-use crate::block::{Block, RawBlock};
-use crate::config::configuration::DbConfig;
+use crate::config::DbConfig;
 use crate::utilities::crypto::Signature;
 
 mod migrations {
@@ -29,15 +29,16 @@ impl DbStore {
         log::debug!("Storing block: {}", block.header);
 
         let id = block.header.id.clone();
-        let block_bytes =
-            serde_json::to_vec::<RawBlock>(block.into()).map_err(|e| anyhow::anyhow!(e))?;
+        let height = block.header.height;
+        let block_bytes = serde_json::to_vec::<Block>(block).map_err(|e| anyhow::anyhow!(e))?;
         let signatures_bytes = serde_json::to_vec(&signatures).map_err(|e| anyhow::anyhow!(e))?;
 
         let tx = self.connection.transaction()?;
         {
-            let mut statement =
-                tx.prepare_cached("INSERT INTO blocks (block_id, block) VALUES (?1, ?2)")?;
-            statement.execute(params![&id, &block_bytes,])?;
+            let mut statement = tx.prepare_cached(
+                "INSERT INTO blocks (block_id, height, block) VALUES (?1, ?2, ?3)",
+            )?;
+            statement.execute(params![&id, &height, &block_bytes,])?;
 
             let mut statement =
                 tx.prepare_cached("INSERT INTO signatures (block_id, signatures) VALUES (?1, ?2)")?;

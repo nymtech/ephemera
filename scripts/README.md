@@ -1,28 +1,27 @@
 # Scripts
 
-## Output
+## Configuration, Output
 
-All output goes to into $PROJECT_ROOT/cluster directory.
-
-* `cluster/db` - database files
-* `cluster/logs` - logs
-* `.pids` - process ids
+All output goes to into $HOME/.ephemera directory.
 
 ## Create new cluster
 
 Creates configuration for new cluster of nodes in `~/.ephemera` directory.
 
-From the top-level directory:
+```bash
+./local-cluster init -n 3
+```
+
+## Start cluster with Ephemera + Simulated Nym Api
 
 ```bash
-./scripts/local-cluster init -n 3
-``` 
+./local-cluster run -a nym-api
+```
 
-## Start cluster
+## Start cluster with plain Ephemera
 
 ```bash
-./scripts/local-cluster run
-tail -f cluster/logs/ephemera1.log
+./local-cluster run -a ephemera
 ```
 
 ## Stop cluster

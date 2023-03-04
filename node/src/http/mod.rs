@@ -1,18 +1,17 @@
 use actix_web::dev::Server;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
-use anyhow::Result;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::EphemeraExternalApi;
-use crate::config::configuration::HttpConfig;
+use crate::config::HttpConfig;
 
 pub(crate) mod query;
 pub(crate) mod submit;
 
 /// Starts the HTTP server.
-pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> Result<Server> {
+pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> anyhow::Result<Server> {
     print_startup_messages(config.clone());
 
     let server = HttpServer::new(move || {
@@ -25,7 +24,6 @@ pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> Result<Serve
     })
     .bind(config.address)?
     .run();
-
     Ok(server)
 }
 
@@ -37,7 +35,7 @@ fn swagger_ui() -> SwaggerUi {
     #[derive(OpenApi)]
     #[openapi(
         paths(query::block_by_id, query::block_signatures, submit::submit_message),
-        components(schemas(types::ApiBlock, types::ApiSignedMessage, types::ApiSignature))
+        components(schemas(types::ApiBlock, types::ApiEphemeraMessage, types::ApiSignature))
     )]
     struct ApiDoc;
     SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-doc/openapi.json", ApiDoc::openapi())

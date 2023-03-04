@@ -97,14 +97,13 @@ ignore = [
 # https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
 [licenses]
 # The lint level for crates which do not have a detectable license
-#unlicensed = "deny"
-unlicensed = "warn"
+unlicensed = "deny"
 # List of explicitly allowed licenses
 # See https://spdx.org/licenses/ for list of possible licenses
 # [possible values: any SPDX 3.11 short identifier (+ optional exception)].
 allow = [
-    #    "MIT",
-    #    "Apache-2.0",
+    #"MIT",
+    #"Apache-2.0",
     #"Apache-2.0 WITH LLVM-exception",
 ]
 # List of explicitly disallowed licenses
@@ -126,7 +125,7 @@ allow-osi-fsf-free = "neither"
 # 1. License isn't in the allow or deny lists
 # 2. License isn't copyleft
 # 3. License isn't OSI/FSF, or allow-osi-fsf-free = "neither"
-default = "warn"
+default = "deny"
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the
 # canonical license text of a valid SPDX license file.
@@ -156,8 +155,8 @@ exceptions = [
 # and the crate will be checked normally, which may produce warnings or errors
 # depending on the rest of your configuration
 #license-files = [
-# Each entry is a crate relative path, and the (opaque) hash of its contents
-#{ path = "LICENSE", hash = 0xbd0eed23 }
+    # Each entry is a crate relative path, and the (opaque) hash of its contents
+    #{ path = "LICENSE", hash = 0xbd0eed23 }
 #]
 
 [licenses.private]

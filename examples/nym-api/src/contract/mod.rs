@@ -1,0 +1,149 @@
+//! # Mixnet contract simulation
+//!
+//! # Overview
+//! Instead of been an actual decentralised contract in blockchain, it's a http server and a database.
+//! Besides that there's not really any difference(also minus fees and accounts).
+//!
+//! It allows to submit rewards.
+//! It also manages epoch.
+
+use std::sync::Arc;
+use std::thread::sleep;
+
+use actix_web::{App, HttpServer};
+
+use actix_web::web::Data;
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
+
+use crate::contract::http::{get_epoch, submit_reward};
+use crate::epoch::{Epoch, EpochInfo};
+use crate::storage::db::{ContractStorageType, Storage};
+
+pub mod http;
+
+mod migrations {
+    use refinery::embed_migrations;
+
+    embed_migrations!("migrations/contract");
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+pub struct MixnodeToReward {
+    pub mix_id: usize,
+    pub performance: u8,
+}
+
+impl MixnodeToReward {
+    pub fn new(mix_id: usize, performance: u8) -> Self {
+        Self {
+            mix_id,
+            performance,
+        }
+    }
+}
+
+pub struct SmartContract {
+    pub storage: Storage<ContractStorageType>,
+    pub epoch: Epoch,
+}
+
+impl SmartContract {
+    pub fn new(storage: Storage<ContractStorageType>, epoch: Epoch) -> Self {
+        Self { storage, epoch }
+    }
+
+    pub async fn start(url: String, db_path: String, epoch_duration_seconds: u64) {
+        log::info!("Starting smart contract");
+
+        let mut storage: Storage<ContractStorageType> =
+            Storage::new(db_path, migrations::migrations::runner());
+
+        let epoch = Self::get_epoch(epoch_duration_seconds, &mut storage);
+        log::info!("Epoch info: {epoch}");
+
+        let smart_contract = SmartContract::new(storage, epoch);
+        let smart_contract = Arc::new(Mutex::new(smart_contract));
+
+        let smart_contract_http = smart_contract.clone();
+        let mut server = HttpServer::new(move || {
+            App::new()
+                .app_data(Data::new(smart_contract_http.clone()))
+                .service(submit_reward)
+                .service(get_epoch)
+        })
+        .bind(url)
+        .unwrap()
+        .run();
+
+        log::info!("Smart contract started!");
+
+        let mut epoch_update = tokio::time::interval(std::time::Duration::from_secs(10));
+        loop {
+            tokio::select! {
+                _ = &mut server => {
+                    log::info!("Smart contract stopped!");
+                }
+                _ = epoch_update.tick() => {
+                    smart_contract.lock().await.update_epoch(epoch_duration_seconds);
+                }
+            }
+        }
+    }
+
+    fn get_epoch(epoch_duration_seconds: u64, storage: &mut Storage<ContractStorageType>) -> Epoch {
+        let epoch = storage.get_epoch().unwrap();
+        match epoch {
+            None => {
+                log::info!("No epoch info found, creating new one");
+                let epoch = EpochInfo::new(0, Utc::now().timestamp(), epoch_duration_seconds);
+                storage.save_epoch(&epoch).unwrap();
+                Epoch::new(epoch)
+            }
+            Some(info) => {
+                log::info!("Found epoch info, starting from it");
+                Epoch::new(info)
+            }
+        }
+    }
+
+    fn update_epoch(&mut self, epoch_duration_seconds: u64) {
+        let epoch_id = self.epoch.current_epoch_numer();
+        let start_time = self.epoch.start_time.timestamp();
+
+        let epoch = EpochInfo::new(epoch_id, start_time, epoch_duration_seconds);
+        self.storage.update_epoch(&epoch).unwrap();
+    }
+
+    pub async fn submit_mix_rewards(
+        &mut self,
+        nym_api_id: &str,
+        rewards: Vec<MixnodeToReward>,
+    ) -> anyhow::Result<()> {
+        let now: DateTime<Utc> = Utc::now();
+        let epoch_id = self.epoch.current_epoch_numer();
+
+        self.storage.contract_submit_mixnode_rewards(
+            epoch_id,
+            now.timestamp(),
+            nym_api_id,
+            rewards,
+        )?;
+        Ok(())
+    }
+
+    pub async fn get_epoch_from_db(&mut self) -> anyhow::Result<EpochInfo> {
+        //Called by HTTP API
+        //First time there's no epoch in database, so we need to wait for it to be
+        //inserted by the contract at startup
+        loop {
+            let epoch = self.storage.get_epoch()?;
+            if epoch.is_none() {
+                sleep(Duration::seconds(1).to_std().unwrap());
+                continue;
+            }
+            return Ok(epoch.unwrap());
+        }
+    }
+}

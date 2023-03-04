@@ -3,9 +3,9 @@ use std::thread;
 
 use clap::Parser;
 
-use ephemera::api::types::{ApiBlock, ApiKeypair, ApiRawMessage, ApiSignedMessage};
+use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
 use ephemera::logging::init_logging;
-use ephemera::utilities::CryptoApi;
+use ephemera::utilities::{Ed25519Keypair, Ed25519PublicKey, Keypair, PublicKey};
 
 use crate::http_client::SignedMessageClient;
 use crate::ws_listener::WsBlockListener;
@@ -33,7 +33,7 @@ struct Args {
 #[derive(Default)]
 struct Data {
     received_blocks: Vec<ApiBlock>,
-    sent_messages: Vec<ApiSignedMessage>,
+    sent_messages: Vec<ApiEphemeraMessage>,
 }
 
 #[tokio::main]
@@ -41,11 +41,6 @@ async fn main() {
     init_logging();
 
     let args = Args::parse();
-
-    let keypair = CryptoApi::generate_keypair().unwrap();
-    println!("Generated new keypair:");
-    println!("Private key: {:?>5}", keypair.private_key);
-    println!("Public key: {:?>5}\n", keypair.public_key);
 
     println!("Connecting to ephemera node on {}\n", args.host);
 
@@ -55,6 +50,7 @@ async fn main() {
     let signed_msg_data = shared_data.clone();
     let signed_msg_args = args.clone();
     tokio::spawn(async move {
+        let keypair = Ed25519Keypair::generate_pair(None);
         send_signed_messages(keypair, signed_msg_data, signed_msg_args).await;
     });
 
@@ -80,7 +76,11 @@ async fn listen_ws_blocks(shared_data: Arc<Mutex<Data>>, args: Args) {
     listener.listen().await;
 }
 
-async fn send_signed_messages(keypair: ApiKeypair, shared_data: Arc<Mutex<Data>>, args: Args) -> ! {
+async fn send_signed_messages(
+    keypair: Ed25519Keypair,
+    shared_data: Arc<Mutex<Data>>,
+    args: Args,
+) -> ! {
     let http_url = format!("http://{}:{}", args.host, args.http_port);
     println!(
         "Sending signed messages every {} ms\n",
@@ -88,10 +88,12 @@ async fn send_signed_messages(keypair: ApiKeypair, shared_data: Arc<Mutex<Data>>
     );
     let mut client = SignedMessageClient::new(http_url, shared_data);
     let mut counter = 0;
+    let keypair = Arc::new(keypair);
     loop {
         let msg = client
             .signed_message(keypair.clone(), format!("Epoch {counter}",))
             .await;
+
         client.send_message(msg).await;
         counter += 1;
         thread::sleep(std::time::Duration::from_millis(args.messages_frequency_ms));
@@ -121,6 +123,7 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
             match client.block_by_id(block.header.id.clone()).await {
                 None => {
                     println!("Block not found: {:?}\n", block.header.id.clone());
+                    continue;
                 }
                 Some(http_block) => {
                     compare_blocks(&block, &http_block);
@@ -131,11 +134,8 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
             println!("Verifying block signature... TODO");
 
             println!("Verifying messages signatures");
-            for message in block.signed_messages {
-                let signature = message.signature.clone();
-                if let Err(err) = CryptoApi::verify::<ApiRawMessage>(&message.into(), &signature) {
-                    println!("Message signature mismatch: {err:?}\n",);
-                }
+            if verify_messages_signatures(block).is_ok() {
+                println!("All messages signatures are valid");
             }
 
             println!();
@@ -144,6 +144,24 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
             args.block_query_frequency_sec,
         ));
     }
+}
+
+fn verify_messages_signatures(block: ApiBlock) -> anyhow::Result<()> {
+    for message in block.messages {
+        let signature = message.signature.clone();
+
+        match Ed25519PublicKey::from_raw_vec(signature.public_key) {
+            Ok(pub_key) => {
+                if !pub_key.verify(&message.data, &signature.signature) {
+                    anyhow::bail!("Signature verification failed");
+                }
+            }
+            Err(err) => {
+                anyhow::bail!("Signature verification failed: {:?}", err);
+            }
+        }
+    }
+    Ok(())
 }
 
 fn compare_blocks(block: &ApiBlock, http_block: &ApiBlock) {
@@ -159,12 +177,9 @@ fn compare_blocks(block: &ApiBlock, http_block: &ApiBlock) {
         println!("Block header match");
     }
 
-    println!(
-        "Comparing block messages, count: {}",
-        block.signed_messages.len()
-    );
-    let ws_block_messages = &block.signed_messages;
-    let http_block_messages = &http_block.signed_messages;
+    println!("Comparing block messages, count: {}", block.messages.len());
+    let ws_block_messages = &block.messages;
+    let http_block_messages = &http_block.messages;
     if ws_block_messages != http_block_messages {
         println!("Block messages mismatch");
         println!("WS: {ws_block_messages:?}");

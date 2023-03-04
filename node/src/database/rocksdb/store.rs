@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use crate::block::types::block::Block;
 use rocksdb::TransactionDB;
 
-use crate::block::{Block, RawBlock};
-use crate::database::rocksdb::{block_id_key, last_block_key, signatures_key};
+use crate::database::rocksdb::{block_height_key, block_id_key, last_block_key, signatures_key};
 use crate::utilities::crypto::Signature;
 
 pub struct DbStore {
@@ -11,24 +11,27 @@ pub struct DbStore {
 }
 
 impl DbStore {
-    pub fn new(db: Arc<TransactionDB>) -> anyhow::Result<DbStore> {
-        Ok(DbStore { database: db })
+    pub fn new(db: Arc<TransactionDB>) -> DbStore {
+        DbStore { database: db }
     }
 
     pub(crate) fn store_block(
-        &mut self,
+        &self,
         block: &Block,
         signatures: Vec<Signature>,
     ) -> anyhow::Result<()> {
         log::debug!("Storing block: {}", block.header);
         let block_id_key = block_id_key(&block.header.id);
         log::trace!("Block id key: {}", block_id_key);
+
         let signatures_key = signatures_key(&block.header.id);
         log::trace!("Block signatures key: {}", signatures_key);
 
+        let height_key = block_height_key(&block.header.height);
+
         let tx = self.database.transaction();
 
-        // Block id UNIQUE constraint check
+        // Check UNIQUE constraints
         let existing_id = tx.get(&block_id_key)?;
         if existing_id.is_some() {
             return Err(anyhow::anyhow!("Block already exists"));
@@ -37,8 +40,11 @@ impl DbStore {
         // Store last block id(without prefix!)
         tx.put(last_block_key(), block.header.id.as_bytes())?;
 
+        // Store block height
+        tx.put(height_key.as_bytes(), block.header.id.as_bytes())?;
+
         // Store block(without signature)
-        let block_bytes = serde_json::to_vec::<RawBlock>(block.into())?;
+        let block_bytes = serde_json::to_vec::<Block>(block)?;
         tx.put(block_id_key.as_bytes(), block_bytes)?;
 
         // Store block signatures

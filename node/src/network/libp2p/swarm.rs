@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
+use libp2p::{identity::Keypair, Multiaddr, noise, PeerId as Libp2pPeerId, Swarm, Transport};
 use libp2p::core::{muxing::StreamMuxerBox, transport::Boxed};
 use libp2p::gossipsub::{
     Gossipsub, GossipsubConfigBuilder, GossipsubEvent, IdentTopic as Topic, MessageAuthenticity,
@@ -11,83 +12,55 @@ use libp2p::gossipsub::{
 };
 use libp2p::mplex::MplexConfig;
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
-use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
+use libp2p::tcp::{Config as TokioConfig, tokio::Transport as TokioTransport};
 use libp2p::yamux::YamuxConfig;
-use libp2p::{identity::Keypair, noise, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
 use tokio::select;
 
-use crate::block::SignedMessage;
+use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
-use crate::config::configuration::Configuration;
-use crate::network::libp2p::listener::{
-    BroadcastReceiverHandle, MessageReceiverHandle, MessagesReceiver, NetworkBroadcastReceiver,
-    NetworkMessages,
+use crate::config::Configuration;
+use crate::network::libp2p::messages_channel::{
+    EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender,
 };
 use crate::network::libp2p::peer_discovery::StaticPeerDiscovery;
-use crate::network::libp2p::sender::{EphemeraMessagesNotifier, EphemeraMessagesReceiver};
-use crate::utilities::crypto::libp2p2_crypto::Libp2pKeypair;
-
-pub(crate) struct NetworkMessage<T> {
-    pub(crate) msg: T,
-}
-
-impl<T> NetworkMessage<T> {
-    pub(crate) fn new(msg: T) -> Self {
-        NetworkMessage { msg }
-    }
-}
+use crate::utilities::crypto::ed25519::Ed25519Keypair;
 
 pub struct SwarmNetwork {
     config: Configuration,
     swarm: Swarm<GroupNetworkBehaviour>,
-    pub(crate) net_message_notifier: MessageReceiverHandle,
-    pub(crate) net_broadcast_notifier: BroadcastReceiverHandle,
-    pub(crate) ephemera_message_receiver: EphemeraMessagesReceiver,
+    from_ephemera_rcv: NetCommunicationReceiver,
+    to_ephemera_tx: NetCommunicationSender,
 }
 
 impl SwarmNetwork {
     pub(crate) fn new(
-        conf: Configuration,
-        keypair: Arc<Libp2pKeypair>,
+        config: Configuration,
+        keypair: Arc<Ed25519Keypair>,
     ) -> (
         SwarmNetwork,
-        EphemeraMessagesNotifier,
-        MessagesReceiver,
-        NetworkBroadcastReceiver,
+        NetCommunicationReceiver,
+        NetCommunicationSender,
     ) {
-        let (
-            net_broadcast_notify_receiver,
-            net_broadcast_notifier,
-            net_message_notify_receiver,
-            net_message_notifier,
-        ) = NetworkMessages::init();
+        let (from_ephemera_tx, from_ephemera_rcv) = EphemeraNetworkCommunication::init();
+        let (to_ephemera_tx, to_ephemera_rcv) = EphemeraNetworkCommunication::init();
 
-        let (ephemera_message_notifier, ephemera_message_receiver) =
-            EphemeraMessagesReceiver::init();
-
-        let swarm = SwarmNetwork::create_swarm(conf.clone(), keypair);
+        let swarm = SwarmNetwork::create_swarm(config.clone(), keypair);
 
         let network = SwarmNetwork {
-            config: conf,
+            config,
             swarm,
-            net_message_notifier,
-            net_broadcast_notifier,
-            ephemera_message_receiver,
+            from_ephemera_rcv,
+            to_ephemera_tx,
         };
 
-        (
-            network,
-            ephemera_message_notifier,
-            net_message_notify_receiver,
-            net_broadcast_notify_receiver,
-        )
+        (network, to_ephemera_rcv, from_ephemera_tx)
     }
     //Message delivery and peer discovery
     fn create_swarm(
         conf: Configuration,
-        keypair: Arc<Libp2pKeypair>,
+        keypair: Arc<Ed25519Keypair>,
     ) -> Swarm<GroupNetworkBehaviour> {
-        let keypair: &Libp2pKeypair = keypair.borrow();
+        let keypair: &Ed25519Keypair = keypair.borrow();
         let local_id = Libp2pPeerId::from(keypair.as_ref().public());
         let transport = create_transport(keypair.as_ref());
         let behaviour = create_behaviour(conf, keypair.as_ref());
@@ -95,30 +68,45 @@ impl SwarmNetwork {
         Swarm::with_tokio_executor(transport, behaviour, local_id)
     }
 
-    pub(crate) async fn start(mut self) {
+    pub(crate) async fn start(mut self) -> anyhow::Result<()> {
         let address = Multiaddr::from_str(self.config.node_config.address.as_str())
             .expect("Invalid multi-address");
-        self.swarm.listen_on(address).unwrap();
+        self.swarm.listen_on(address.clone())?;
+
+        log::info!("Listening on {address:?}");
 
         let consensus_msg_topic = Topic::new(&self.config.libp2p.consensus_msg_topic_name);
-        let proposed_msg_topic = Topic::new(&self.config.libp2p.proposed_msg_topic_name);
+        let ephemera_msg_topic = Topic::new(&self.config.libp2p.proposed_msg_topic_name);
 
         loop {
             select!(
-                // Handle incoming messages from the network
-                swarm_event = self.swarm.select_next_some() => {
-                    self.handle_incoming_messages(
-                        swarm_event,
-                        &consensus_msg_topic,
-                        &proposed_msg_topic).await;
+                swarm_event = self.swarm.next() => {
+                    match swarm_event{
+                        Some(event) => {
+                            if let Err(err) = self.handle_incoming_messages(event, &consensus_msg_topic, &ephemera_msg_topic).await{
+                                log::error!("Error handling swarm event: {:?}", err);
+                            }
+                        }
+                        None => {
+                            anyhow::bail!("Swarm event channel closed")
+                        }
+                    }
                 },
-                // Handle messages from broadcast_protocol
-                Some(cm) = self.ephemera_message_receiver.broadcast_sender_rcv.recv() => {
-                     self.send_protocol_message(cm, &consensus_msg_topic,).await;
+                cm_maybe = self.from_ephemera_rcv.ephemera_message_receiver.recv() => {
+                    if let Some(cm) = cm_maybe {
+                        self.send_ephemera_message(cm, &ephemera_msg_topic,).await;
+                    }
+                    else {
+                        anyhow::bail!("ephemera_message_receiver channel closed")
+                    }
                 }
-                // Handle messages from broadcast_protocol
-                Some(pm) = self.ephemera_message_receiver.message_sender_rcv.recv() => {
-                    self.send_proposed_message(pm, &proposed_msg_topic,).await;
+                pm_maybe = self.from_ephemera_rcv.protocol_msg_receiver.recv() => {
+                    if let Some(pm) = pm_maybe {
+                        self.send_protocol_message(pm, &consensus_msg_topic,).await;
+                    }
+                    else {
+                        anyhow::bail!("protocol_msg_receiver channel closed")
+                    }
                 }
             );
         }
@@ -129,40 +117,24 @@ impl SwarmNetwork {
         &mut self,
         swarm_event: SwarmEvent<GroupBehaviourEvent, E>,
         protocol_msg_topic: &Topic,
-        signed_msg_topic: &Topic,
-    ) {
+        ephemera_msg_topic: &Topic,
+    ) -> anyhow::Result<()> {
         match swarm_event {
             SwarmEvent::Behaviour(b) => match b {
                 GroupBehaviourEvent::Gossipsub(gs) => match gs {
                     GossipsubEvent::Message {
-                        propagation_source,
+                        propagation_source: _,
                         message_id: _,
                         message,
                     } => {
                         if message.topic == (*protocol_msg_topic).clone().into() {
-                            let msg: RbMsg = serde_json::from_slice(&message.data[..]).unwrap();
-                            log::trace!(
-                                "Received protocol message {:?} from {}",
-                                msg,
-                                propagation_source
-                            );
-
-                            let nm = NetworkMessage::new(msg);
-                            if let Err(err) = self.net_broadcast_notifier.send(nm).await {
-                                log::error!(
-                                    "Error sending message to broadcaster channel: {}",
-                                    err
-                                );
-                            }
-                        } else if message.topic == (*signed_msg_topic).clone().into() {
-                            log::trace!("Received signed message from {}", propagation_source);
-
-                            let msg = serde_json::from_slice(&message.data[..]).unwrap();
-                            log::trace!("Received signed message: {:?}", msg);
-
-                            if let Err(err) = self.net_message_notifier.send(msg).await {
-                                log::error!("Error sending message to channel: {}", err);
-                            }
+                            self.to_ephemera_tx
+                                .send_protocol_message_raw(message.data)
+                                .await?;
+                        } else if message.topic == (*ephemera_msg_topic).clone().into() {
+                            self.to_ephemera_tx
+                                .send_ephemera_message_raw(message.data)
+                                .await?;
                         }
                     }
                     _ => {}
@@ -172,31 +144,34 @@ impl SwarmNetwork {
             //Ignore other Swarm events for now
             _ => {}
         }
+        Ok(())
     }
 
     async fn send_protocol_message(&mut self, msg: RbMsg, topic: &Topic) {
         log::trace!("Sending protocol message: {}", msg.id);
-        let vec = serde_json::to_vec(&msg).unwrap();
-        if let Err(err) = self
-            .swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(topic.clone(), vec)
-        {
-            log::error!("Error publishing message: {}", err);
-        }
+        self.send_message(msg, topic).await;
     }
 
-    async fn send_proposed_message(&mut self, msg: SignedMessage, topic: &Topic) {
+    async fn send_ephemera_message(&mut self, msg: EphemeraMessage, topic: &Topic) {
         log::trace!("Sending proposed message: {}", msg.id);
-        let vec = serde_json::to_vec(&msg).unwrap();
-        if let Err(err) = self
-            .swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(topic.clone(), vec)
-        {
-            log::error!("Error publishing message: {}", err);
+        self.send_message(msg, topic).await;
+    }
+
+    async fn send_message<T: serde::Serialize>(&mut self, msg: T, topic: &Topic) {
+        match serde_json::to_vec(&msg) {
+            Ok(vec) => {
+                if let Err(err) = self
+                    .swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .publish(topic.clone(), vec)
+                {
+                    log::error!("Error publishing message: {}", err);
+                }
+            }
+            Err(err) => {
+                log::error!("Error serializing message: {}", err);
+            }
         }
     }
 }
@@ -261,7 +236,7 @@ fn create_gossipsub(local_key: &Keypair) -> Gossipsub {
         MessageAuthenticity::Signed(local_key.clone()),
         gossipsub_config,
     )
-    .expect("Correct configuration")
+        .expect("Correct configuration")
 }
 
 //Configure networking connection stack(Tcp, Noise, Yamux)

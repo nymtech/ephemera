@@ -1,7 +1,7 @@
+use crate::block::types::block::Block;
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
-use crate::block::{Block, RawBlock};
-use crate::config::configuration::DbConfig;
+use crate::config::DbConfig;
 use crate::utilities::crypto::Signature;
 
 pub(crate) struct DbQuery {
@@ -9,17 +9,14 @@ pub(crate) struct DbQuery {
 }
 
 impl DbQuery {
-    pub(crate) fn open(db_conf: DbConfig) -> Self {
-        match Connection::open(db_conf.sqlite_path) {
-            Ok(connection) => Self { connection },
-            Err(err) => {
-                panic!("Error opening database: {err}",);
-            }
-        }
+    pub(crate) fn open(db_conf: DbConfig) -> anyhow::Result<Self> {
+        let connection = Connection::open(db_conf.sqlite_path)?;
+        let query = Self { connection };
+        Ok(query)
     }
 
     pub(crate) fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<Block>> {
-        log::debug!("Getting block by id: {}", block_id);
+        log::trace!("Getting block by id: {}", block_id);
 
         let mut stmt = self
             .connection
@@ -29,16 +26,16 @@ impl DbQuery {
             .optional()?;
 
         if let Some(block) = &block {
-            log::debug!("Found block: {}", block.header);
+            log::trace!("Found block: {}", block.header);
         } else {
-            log::debug!("Block not found: {}", block_id);
+            log::trace!("Block not found: {}", block_id);
         };
 
-        Ok(block.map(|b| b.into()))
+        Ok(block)
     }
 
     pub(crate) fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
-        log::debug!("Getting last block");
+        log::trace!("Getting last block");
 
         let mut stmt = self
             .connection
@@ -47,19 +44,38 @@ impl DbQuery {
         let block = stmt.query_row(params![], Self::map_block()).optional()?;
 
         if let Some(block) = &block {
-            log::debug!("Found last block: {}", block.header);
+            log::trace!("Found last block: {}", block.header);
         } else {
-            log::debug!("Last block not found");
+            log::trace!("Last block not found");
         };
 
-        Ok(block.map(|b| b.into()))
+        Ok(block)
+    }
+
+    pub(crate) fn get_block_by_height(&self, height: u64) -> anyhow::Result<Option<Block>> {
+        log::trace!("Getting block by height: {}", height);
+
+        let mut stmt = self
+            .connection
+            .prepare_cached("SELECT block FROM blocks WHERE height = ?1")?;
+        let block = stmt
+            .query_row(params![height], Self::map_block())
+            .optional()?;
+
+        if let Some(block) = &block {
+            log::trace!("Found block: {}", block.header);
+        } else {
+            log::trace!("Block not found: {}", height);
+        };
+
+        Ok(block)
     }
 
     pub(crate) fn get_block_signatures(
         &self,
         block_id: String,
     ) -> anyhow::Result<Option<Vec<Signature>>> {
-        log::debug!("Getting block signatures by block id {}", block_id);
+        log::trace!("Getting block signatures by block id {}", block_id);
 
         let mut stmt = self
             .connection
@@ -78,18 +94,18 @@ impl DbQuery {
             .optional()?;
 
         if signatures.is_some() {
-            log::debug!("Found block {} signatures", block_id);
+            log::trace!("Found block {} signatures", block_id);
         } else {
-            log::debug!("Signatures not found");
+            log::trace!("Signatures not found");
         };
 
         Ok(signatures)
     }
 
-    fn map_block() -> impl FnOnce(&Row) -> Result<RawBlock, rusqlite::Error> {
+    fn map_block() -> impl FnOnce(&Row) -> Result<Block, rusqlite::Error> {
         |row| {
             let body: Vec<u8> = row.get(0)?;
-            let block = serde_json::from_slice::<RawBlock>(&body).map_err(|e| {
+            let block = serde_json::from_slice::<Block>(&body).map_err(|e| {
                 log::error!("Error deserializing block: {}", e);
                 rusqlite::Error::InvalidQuery {}
             })?;

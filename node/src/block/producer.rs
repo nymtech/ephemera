@@ -1,16 +1,17 @@
 use crate::block::message_pool::MessagePool;
-use crate::block::{Block, BlockHeader, RawBlock, SignedMessage};
-use crate::broadcast::PeerId;
-use crate::utilities;
-use crate::utilities::time::duration_now;
+use crate::block::types::block::{Block, BlockHeader, RawBlock, RawBlockHeader};
+use crate::block::types::message::EphemeraMessage;
+use crate::utilities::crypto::PeerId;
+use crate::utilities::hash::blake2_256;
+use crate::utilities::Encode;
 
-pub(crate) struct BlockProducer {
+pub(super) struct BlockProducer {
     message_pool: MessagePool,
     pub(crate) peer_id: PeerId,
 }
 
 impl BlockProducer {
-    pub(crate) fn new(peer_id: PeerId) -> Self {
+    pub(super) fn new(peer_id: PeerId) -> Self {
         let message_pool = MessagePool::new();
         Self {
             message_pool,
@@ -18,41 +19,39 @@ impl BlockProducer {
         }
     }
 
-    pub(crate) fn produce_block(
+    pub(super) fn produce_block(
         &mut self,
-        last_block: Option<Block>,
-    ) -> anyhow::Result<Option<Block>> {
+        previous_block_header: BlockHeader,
+    ) -> anyhow::Result<Block> {
         let pending_messages = self.message_pool.get_messages();
-        let block = self.new_block(last_block, pending_messages)?;
-        Ok(Some(block))
-    }
+        log::debug!("Adding {:?} messages in new block", pending_messages.len());
+        log::trace!("Pending messages for new block: {:?}", pending_messages);
 
-    pub(crate) fn message_pool_mut(&mut self) -> &mut MessagePool {
-        &mut self.message_pool
+        let block = self.new_block(previous_block_header, pending_messages)?;
+        log::info!("New block: {}", block);
+        Ok(block)
     }
 
     fn new_block(
-        &mut self,
-        last_block: Option<Block>,
-        mut messages: Vec<SignedMessage>,
+        &self,
+        prev_block_header: BlockHeader,
+        mut messages: Vec<EphemeraMessage>,
     ) -> anyhow::Result<Block> {
         messages.sort_by(|a, b| a.id.cmp(&b.id));
 
-        let mut height = 0;
-        if let Some(block) = last_block {
-            height = block.header.height + 1;
-        }
+        let height = prev_block_header.height + 1;
 
-        let id = utilities::generate_ephemera_id();
-        let header = BlockHeader {
-            id,
-            timestamp: duration_now().as_millis(),
-            creator: self.peer_id,
-            height,
-        };
-
+        let header = RawBlockHeader::new(self.peer_id, height);
         let raw_block = RawBlock::new(header, messages);
-        let block = Block::new(raw_block);
+
+        let encoded_block = raw_block.encode()?;
+        let block_hash = blake2_256(&encoded_block);
+
+        let block = Block::new(raw_block, block_hash);
         Ok(block)
+    }
+
+    pub(super) fn message_pool_mut(&mut self) -> &mut MessagePool {
+        &mut self.message_pool
     }
 }

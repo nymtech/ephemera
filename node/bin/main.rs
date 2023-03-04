@@ -21,9 +21,6 @@ async fn main() {
         Subcommand::RunNode(run_node) => {
             run_node.execute().await;
         }
-        Subcommand::SignMessage(sign_msg) => {
-            sign_msg.execute().await;
-        }
         Subcommand::GenerateKeypair(gen_keypair) => {
             gen_keypair.execute().await;
         }

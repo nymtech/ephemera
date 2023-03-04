@@ -24,15 +24,20 @@
 //!
 //! Note that it *requires* a blockchain to be present.
 
+pub use crate::core::builder::EphemeraBuilder;
+pub use crate::core::ephemera::Ephemera;
+
 pub mod api;
 pub(crate) mod block;
 pub(crate) mod broadcast;
 pub mod cli;
 pub mod config;
+mod core;
 mod database;
-pub mod ephemera;
 pub mod http;
 pub mod logging;
 pub mod network;
 pub mod utilities;
 mod websocket;
+
+pub use crate::core::shutdown::ShutdownHandle;

@@ -1,27 +1,31 @@
 use anyhow::Result;
 use futures_util::SinkExt;
+use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
 
 use crate::api::types::ApiBlock;
-use crate::block::Block;
-use crate::config::configuration::WsConfig;
+use crate::block::types::block::Block;
+use crate::config::WsConfig;
 
 pub struct WsConnection {
     socket: WebSocketStream<TcpStream>,
     pending_messages_rx: broadcast::Receiver<Message>,
+    address: SocketAddr,
 }
 
 impl WsConnection {
     pub fn new(
         socket: WebSocketStream<TcpStream>,
         pending_messages_rx: broadcast::Receiver<Message>,
+        address: SocketAddr,
     ) -> WsConnection {
         WsConnection {
             socket,
             pending_messages_rx,
+            address,
         }
     }
 
@@ -31,12 +35,18 @@ impl WsConnection {
             log::trace!("Received message from broadcast channel: {:?}", msg);
             match msg {
                 Ok(msg) => {
-                    if let Err(err) = self.socket.send(msg).await {
-                        log::error!("Error sending message to websocket client: {:?}", err);
-                        break;
+                    log::debug!("Sending message to {}", self.address);
+                    match self.socket.send(msg).await {
+                        Ok(_) => {
+                            log::trace!("Sent message to websocket client");
+                        }
+                        Err(e) => {
+                            log::error!("Error sending message to websocket client: {:?}", e);
+                        }
                     }
                 }
                 Err(e) => {
+                    //TODO:: shutdown?
                     log::error!("Error receiving message from broadcast channel: {:?}", e);
                 }
             }
@@ -57,9 +67,9 @@ impl WsMessageBroadcaster {
     }
 
     pub(crate) fn send_block(&self, block: &Block) -> Result<()> {
+        log::debug!("Sending block {} to websocket clients", block.header.id);
         let json = serde_json::to_string::<ApiBlock>(block.into())?;
         let msg = Message::Text(json);
-        log::debug!("Sending block to websocket clients: {}", block);
         self.pending_messages_tx.send(msg)?;
         Ok(())
     }
@@ -68,22 +78,22 @@ impl WsMessageBroadcaster {
 pub(crate) struct WsManager {
     pub(crate) config: WsConfig,
     pub(crate) pending_messages_tx: broadcast::Sender<Message>,
-    pub(crate) pending_messages_rcv: broadcast::Receiver<Message>,
+    _pending_messages_rcv: broadcast::Receiver<Message>,
 }
 
 impl WsManager {
-    pub(crate) fn new(config: WsConfig) -> Result<(WsManager, WsMessageBroadcaster)> {
-        let (pending_messages_tx, pending_messages_rcv) = broadcast::channel(1000);
+    pub(crate) fn new(config: WsConfig) -> (WsManager, WsMessageBroadcaster) {
+        let (pending_messages_tx, _pending_messages_rcv) = broadcast::channel(1000);
         let ws_message_broadcast = WsMessageBroadcaster::new(pending_messages_tx.clone());
         let manager = WsManager {
             config,
             pending_messages_tx,
-            pending_messages_rcv,
+            _pending_messages_rcv,
         };
-        Ok((manager, ws_message_broadcast))
+        (manager, ws_message_broadcast)
     }
 
-    pub async fn bind(mut self) -> Result<()> {
+    pub async fn bind(self) -> Result<()> {
         let listener = TcpListener::bind(&self.config.ws_address).await?;
         log::info!(
             "Listening for websocket connections on {}",
@@ -96,26 +106,23 @@ impl WsManager {
                     match res {
                         Ok((stream, addr)) => {
                             log::debug!("Accepted websocket connection from: {}", addr);
-                            self.handle_connection(stream,);
+                            self.handle_connection(stream, addr);
                         }
                         Err(err) => {
-                            log::error!("Error accepting websocket connection: {:?}", err);
+                            return Err(err.into());
                         }
                     }
-                }
-                msg = self.pending_messages_rcv.recv() => {
-                        log::trace!("Received message from broadcast channel {msg:?}");
                 }
             }
         }
     }
 
-    pub fn handle_connection(&self, stream: TcpStream) {
+    pub fn handle_connection(&self, stream: TcpStream, addr: SocketAddr) {
         let pending_messages_rx = self.pending_messages_tx.subscribe();
         tokio::spawn(async move {
             match tokio_tungstenite::accept_async(stream).await {
                 Ok(ws_stream) => {
-                    let connection = WsConnection::new(ws_stream, pending_messages_rx);
+                    let connection = WsConnection::new(ws_stream, pending_messages_rx, addr);
                     connection.accept_messages().await;
                 }
                 Err(err) => {
