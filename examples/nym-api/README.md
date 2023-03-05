@@ -3,6 +3,10 @@
 Simulates Nym-Api metrics collection and rewarding. The goal is to try out how to integrate Ephemera with actual
 Nym-Api.
 
+## How to run
+
+See [README.md](../../scripts/README.md) in the root of the repository.
+
 ## How it works and what it does
 
 In this example Ephemera doesn't have the central role but is used as a tool for larger goal.
@@ -107,10 +111,3 @@ Logically we should be able to verify:
     * **--------------------------------END OF DIFFERENCE--------------------------------**
 * Runs a **"smart contract"**(just a http server) which listens for reward distribution requests.
     * It just stores the aggregated metrics in a database for introspection.
-
-
-
-
-## How to run
-
-See [README.md](../../scripts/README.md) in the root of the repository.
