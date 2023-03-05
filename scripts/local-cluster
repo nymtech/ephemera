@@ -217,6 +217,8 @@ run_ephemera() {
   $EPHEMERA run-node --config-file ~/.ephemera/node"${NR}"/ephemera.toml > "$LOGS_FILE" 2>&1 &
 
   echo "$!" >> "$PIDS_FILE"
+
+  echo Log file: "$LOGS_FILE"
 }
 
 run_nym_api_ephemera() {
@@ -240,6 +242,8 @@ run_nym_api_ephemera() {
                     > "$LOGS_FILE" 2>&1 &
 
   echo "$!" >> "$PIDS_FILE"
+
+  echo Log file: "$LOGS_FILE"
 }
 
 run_reward_contract() {
@@ -263,6 +267,7 @@ run_reward_contract() {
   echo "$!" >> "$PIDS_FILE"
 
   echo "Reward contract started"
+  echo Log file: "$LOGS_FILE"
 }
 
 stop_cluster() {
