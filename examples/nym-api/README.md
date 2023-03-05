@@ -3,6 +3,8 @@
 Simulates Nym-Api metrics collection and rewarding. The goal is to try out how to integrate Ephemera with actual
 Nym-Api.
 
+More details in Rust doc: [nym_api_ephemera.rs](src/bin/nym_api_ephemera.rs)
+
 ## How to run
 
 See [README.md](../../scripts/README.md).
