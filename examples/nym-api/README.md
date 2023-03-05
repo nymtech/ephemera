@@ -5,7 +5,7 @@ Nym-Api.
 
 ## How to run
 
-See [README.md](../../scripts/README.md) in the root of the repository.
+See [README.md](../../scripts/README.md).
 
 ## How it works and what it does
 
@@ -43,7 +43,7 @@ Nym-Api waits for its locally created block to be finalized.
 When the local block is finalized, Nym-Api collects its messages. 
 
 Each message in the block is from a different Nym-Api and contains list of rewards calculated 
-by that Nym-Api for that Epoch. Technically it's a matrix. Rows are single Nym-Api results and columns are mixnodes.
+by that Nym-Api for that Epoch. Technically it's a matrix. Rows are single Nym-Api results for Epoch average and columns are mixnodes.
 
 Every Nym-Api then calculates the average(just simple mean for now) of each column. This is the final aggregated rewards for this Nym-Api
 instance(from the block it created). 
@@ -60,9 +60,9 @@ PS! See section below about the difference between current(single) Nym-Api and N
 #### Message signatures
 I suggest that we also sign original reward messages(which eventually go into blocks). It would be useful in 2 cases:
 1. Ephemera can immediately reject(using Nym-Api custom Application trait) any messages which is not signed correctly.
-   2. We can reject messages from unknown network nodes.
-   3. This reduces risk of DOS attack and avoids garbage messages in Nym-Api blocks.
-   3. It helps to avoid replay attacks
+   * We can reject messages from unknown network nodes.
+   * This reduces risk of DOS attack and avoids garbage messages in Nym-Api blocks.
+   * It helps to avoid replay attacks
 4. It is possible to verify that every message is authentic(who sent it)
 
 #### Block signatures
@@ -85,7 +85,7 @@ Logically we should be able to verify:
 * Find best suited average calculation algorithm which takes into account outliers and missing values.
   * It can even give different weights to different Nym-Apis based on their past reliability.
 * Nym-Apis need to find out which one from the cluster was successful in submitting the aggregated rewards to the Smart Contract.
-  * The simplest solution would be to store it in Smart Contract.
+  * The simplest solution would be to store "the winner" id in Smart Contract.
 
 ## Current Nym-Api(simulated)
 
