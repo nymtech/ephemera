@@ -16,10 +16,10 @@ pub(crate) async fn block_by_id(
 
     match api.get_block_by_id(id.into_inner()).await {
         Ok(Some(block)) => HttpResponse::Ok().json(block),
-        Ok(_) => HttpResponse::NotFound().finish(),
+        Ok(_) => HttpResponse::NotFound().json("Block not found"),
         Err(err) => {
             log::error!("Failed to get block by id: {err}",);
-            HttpResponse::InternalServerError().finish()
+            HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
 }
@@ -39,10 +39,10 @@ pub(crate) async fn block_signatures(
 
     match api.get_block_signatures(id.clone()).await {
         Ok(Some(signatures)) => HttpResponse::Ok().json(signatures),
-        Ok(_) => HttpResponse::NotFound().finish(),
+        Ok(_) => HttpResponse::NotFound().json("Signatures not found"),
         Err(err) => {
             log::error!("Failed to get signatures {err}",);
-            HttpResponse::InternalServerError().finish()
+            HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
 }

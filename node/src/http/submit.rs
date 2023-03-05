@@ -18,10 +18,10 @@ pub(crate) async fn submit_message(
     log::debug!("POST /ephemera/submit_message {}", message.id);
 
     match api.send_ephemera_message(message.into_inner()).await {
-        Ok(_) => HttpResponse::Ok().finish(),
+        Ok(_) => HttpResponse::Ok().json("Message submitted"),
         Err(err) => {
             log::error!("Error submitting message: {}", err);
-            HttpResponse::InternalServerError().finish()
+            HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
 }
