@@ -30,7 +30,7 @@ futures-timer = "3.0.2"
 futures-util = "0.3.25"
 bs58 = "0.4.0"
 log = "0.4.17"
-libp2p = { version = "0.50.0", features = ["gossipsub", "identify", "kad", "macros", "mplex", "noise", "request-response", "serde", "tcp", "tokio", "yamux"] }
+libp2p = { version = "0.50.0", features = ["gossipsub", "identify", "macros", "mplex", "noise", "request-response", "serde", "tcp", "tokio", "yamux"] }
 lru = "0.9.0"
 thiserror = "1.0.37"
 tokio = { version = "1", features = ["full"] }

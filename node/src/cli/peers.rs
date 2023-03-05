@@ -61,16 +61,19 @@ impl AddLocalPeersCmd {
         let root_dir = std::fs::read_dir(root_path).unwrap();
 
         let mut configs = HashMap::new();
-        for entry in root_dir {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.is_dir() {
+        root_dir
+            .filter(|entry| {
+                let path = entry.as_ref().unwrap().path();
+                path.is_dir() && path.file_name().unwrap().to_str().unwrap().contains("node")
+            })
+            .for_each(|entry| {
+                let entry = entry.unwrap();
+                let path = entry.path();
                 let node_dir = path.file_name().unwrap().to_str().unwrap();
                 let conf = Configuration::try_load_from_home_dir(node_dir)
                     .unwrap_or_else(|_| panic!("Error loading configuration for node {node_dir}"));
                 configs.insert(String::from(node_dir), conf);
-            }
-        }
+            });
 
         let peer_names = configs
             .keys()

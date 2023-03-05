@@ -13,7 +13,7 @@ This example connects to an Ephemera node.
 ### Create Ephemera cluster (if you don't have one)
 
 ```bash
-./scripts/local-cluster init -n 3
+../../scripts/local-cluster init -n 3
 ```
 
 ### Start the cluster
@@ -28,7 +28,7 @@ producer = false
 From the top-level directory:
 
 ```bash
-./scripts/local-cluster run
+../../scripts/local-cluster run -a ephemera
 ```
 
 ### Run the example
@@ -61,22 +61,8 @@ Options:
   cargo run -- --host 127.0.0.1 --http-port 7001 --ws-port 6001
 ```
 
-### Monitor server logs
-
-```bash
- tail -f cluster/logs/ephemera1.log
-```
-
-```bash
- tail -f cluster/logs/ephemera2.log
-```
-
-```bash
- tail -f cluster/logs/ephemera3.log
-```
-
 ## Stop the cluster
 
 ```bash
-./scripts/local-cluster stop
+../../scripts/local-cluster stop
 ```

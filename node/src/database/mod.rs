@@ -4,6 +4,8 @@
 //! long term as Ephemera data access pattern is very well defined and it doesn't need
 //! the flexibility of SQL(which comes with cost). Also relying here on the experience
 //! of other similar projects.
+//!
+//! Of cource we can also make either of them as optional feature
 
 use crate::block::types::block::Block;
 use crate::config::DbConfig;

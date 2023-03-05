@@ -173,17 +173,16 @@ start_cluster() {
 
   COUNTER=0
   for dir in ~/.ephemera/*/ephemera.toml; do
-      COUNTER=$((COUNTER + 1))
+      if [[ $dir == *"node"* ]]; then
+          COUNTER=$((COUNTER + 1))
+      fi
   done
-  echo $COUNTER
 
   [[ $COUNTER -lt 1 ]] && echo "No ephemera nodes found, try creating a cluster first." && exit 1
 
   build
 
   touch "$PIDS_FILE"
-
-  echo "Starting $COUNTER nodes"
 
   if [[ $APPLICATION == "nym-api" ]]; then
       run_reward_contract
@@ -270,7 +269,7 @@ stop_cluster() {
   if test -f "$PIDS_FILE";
   then
      while read p; do
-       kill 15 "$p" || true
+       kill "$p" || true
      done < "$PIDS_FILE"
      rm "$PIDS_FILE"
      echo "Stopped ephemera cluster"

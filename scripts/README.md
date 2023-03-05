@@ -27,6 +27,18 @@ Creates configuration for new cluster of nodes in `~/.ephemera` directory.
 ## Stop cluster
 
 ```bash
-./scripts/local-cluster stop
+./local-cluster stop
 ```
 
+
+## Clean cluster generated data
+
+```bash
+./local-cluster clean
+```
+
+## Delete cluster configuration and data
+
+```bash
+./local-cluster delete
+```

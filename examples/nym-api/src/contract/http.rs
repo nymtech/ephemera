@@ -35,7 +35,10 @@ pub async fn submit_reward(
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(err) => {
-            log::error!("Error submitting message: {}", err);
+            log::error!(
+                "Failed to submit message, only first Nym-Api succeeds: {}",
+                err
+            );
             HttpResponse::Conflict().json(err.to_string())
         }
     }
