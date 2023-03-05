@@ -118,8 +118,7 @@ impl EphemeraBuilder {
     }
 
     fn start_websocket(&mut self, mut shutdown: Shutdown) -> JoinHandle<()> {
-        let (websocket, ws_message_broadcast) =
-            WsManager::new(self.config.ws_config.clone());
+        let (websocket, ws_message_broadcast) = WsManager::new(self.config.ws_config.clone());
         self.ws_message_broadcast = Some(ws_message_broadcast);
 
         tokio::spawn(async move {

@@ -3,7 +3,7 @@ use tokio::task::JoinHandle;
 
 pub(crate) struct ShutdownManager {
     pub(crate) shutdown_tx: broadcast::Sender<()>,
-    pub(crate) shutdown_rcv: broadcast::Receiver<()>,
+    pub(crate) _shutdown_rcv: broadcast::Receiver<()>,
     pub(crate) external_shutdown: mpsc::UnboundedReceiver<()>,
     handles: Vec<JoinHandle<()>>,
 }
@@ -35,7 +35,7 @@ impl ShutdownManager {
         };
         let manager = Self {
             shutdown_tx,
-            shutdown_rcv,
+            _shutdown_rcv: shutdown_rcv,
             external_shutdown: external_rcv,
             handles: vec![],
         };

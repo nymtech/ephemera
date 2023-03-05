@@ -10,9 +10,8 @@
 use std::sync::Arc;
 use std::thread::sleep;
 
-use actix_web::{App, HttpServer};
-
 use actix_web::web::Data;
+use actix_web::{App, HttpServer};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -124,13 +123,8 @@ impl SmartContract {
         let now: DateTime<Utc> = Utc::now();
         let epoch_id = self.epoch.current_epoch_numer();
 
-        self.storage.contract_submit_mixnode_rewards(
-            epoch_id,
-            now.timestamp(),
-            nym_api_id,
-            rewards,
-        )?;
-        Ok(())
+        self.storage
+            .contract_submit_mixnode_rewards(epoch_id, now.timestamp(), nym_api_id, rewards)
     }
 
     pub async fn get_epoch_from_db(&mut self) -> anyhow::Result<EpochInfo> {

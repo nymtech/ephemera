@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
-use libp2p::{identity::Keypair, Multiaddr, noise, PeerId as Libp2pPeerId, Swarm, Transport};
 use libp2p::core::{muxing::StreamMuxerBox, transport::Boxed};
 use libp2p::gossipsub::{
     Gossipsub, GossipsubConfigBuilder, GossipsubEvent, IdentTopic as Topic, MessageAuthenticity,
@@ -12,8 +11,9 @@ use libp2p::gossipsub::{
 };
 use libp2p::mplex::MplexConfig;
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
-use libp2p::tcp::{Config as TokioConfig, tokio::Transport as TokioTransport};
+use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
 use libp2p::yamux::YamuxConfig;
+use libp2p::{identity::Keypair, noise, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
 use tokio::select;
 
 use crate::block::types::message::EphemeraMessage;
@@ -236,7 +236,7 @@ fn create_gossipsub(local_key: &Keypair) -> Gossipsub {
         MessageAuthenticity::Signed(local_key.clone()),
         gossipsub_config,
     )
-        .expect("Correct configuration")
+    .expect("Correct configuration")
 }
 
 //Configure networking connection stack(Tcp, Noise, Yamux)

@@ -31,10 +31,10 @@ impl Display for ApiCmd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ApiCmd::SubmitEphemeraMessage(message) => {
-                write!(f, "SubmitEphemeraMessage({message})", )
+                write!(f, "SubmitEphemeraMessage({message})",)
             }
-            ApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})", ),
-            ApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})", ),
+            ApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})",),
+            ApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})",),
             ApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
         }
     }
@@ -80,8 +80,7 @@ impl EphemeraExternalApi {
     /// Returns last block. Which has maximum height and is stored in database
     pub async fn get_last_block(&self) -> Result<ApiBlock, ApiError> {
         log::trace!("get_last_block()");
-        self.send_and_wait_response(|tx| ApiCmd::QueryLastBlock(tx))
-            .await
+        self.send_and_wait_response(ApiCmd::QueryLastBlock).await
     }
 
     //TODO: return with block instead
@@ -112,9 +111,9 @@ impl EphemeraExternalApi {
     }
 
     async fn send_and_wait_response<F, R>(&self, f: F) -> Result<R, ApiError>
-        where
-            F: FnOnce(oneshot::Sender<Result<R, ApiError>>) -> ApiCmd,
-            R: Send + 'static,
+    where
+        F: FnOnce(oneshot::Sender<Result<R, ApiError>>) -> ApiCmd,
+        R: Send + 'static,
     {
         let (tx, rcv) = oneshot::channel();
         let cmd = f(tx);
