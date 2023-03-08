@@ -6,7 +6,6 @@ use tokio::task::JoinHandle;
 use crate::api::application::Application;
 use crate::api::{ApiListener, EphemeraExternalApi};
 use crate::block::manager::{BlockManager, BlockManagerBuilder};
-use crate::broadcast::broadcaster::Broadcaster;
 use crate::config::Configuration;
 use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
 use crate::database::CompoundDatabase;
@@ -14,6 +13,7 @@ use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetComm
 use crate::network::libp2p::swarm::SwarmNetwork;
 use crate::utilities::crypto::key_manager::KeyManager;
 
+use crate::broadcast::bracha::broadcaster::Broadcaster;
 use crate::utilities::{Ed25519Keypair, PeerId, ToPeerId};
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
 use crate::{http, Ephemera};
@@ -37,7 +37,7 @@ pub struct EphemeraHandle {
     pub shutdown: ShutdownHandle,
 }
 
-pub struct EphemeraBuilder {
+pub struct EphemeraStarter {
     config: Configuration,
     instance_info: InstanceInfo,
     block_manager_builder: Option<BlockManagerBuilder>,
@@ -51,7 +51,7 @@ pub struct EphemeraBuilder {
     api: EphemeraExternalApi,
 }
 
-impl EphemeraBuilder {
+impl EphemeraStarter {
     //Crate pure data structures, no resource allocation nor threads
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
         let keypair = KeyManager::read_keypair(config.node_config.private_key.clone())?;
@@ -66,7 +66,7 @@ impl EphemeraBuilder {
 
         let (api, api_listener) = EphemeraExternalApi::new();
 
-        let builder = EphemeraBuilder {
+        let builder = EphemeraStarter {
             config,
             instance_info,
             block_manager_builder: Some(block_manager_builder),
@@ -82,9 +82,10 @@ impl EphemeraBuilder {
         Ok(builder)
     }
 
+    //opens database and spawns dependent tasks
     pub async fn init_tasks<A: Application>(self, application: A) -> anyhow::Result<Ephemera<A>> {
-        let builder = self.connect_db().await?;
-        let mut builder = builder.init_block_manager().await?;
+        let starter = self.connect_db().await?;
+        let mut builder = starter.init_block_manager().await?;
 
         let (mut shutdown_manager, shutdown_handle) = ShutdownManager::init();
         builder.start_tasks(&mut shutdown_manager).await?;

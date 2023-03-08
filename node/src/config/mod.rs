@@ -40,7 +40,6 @@ pub struct NodeConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BroadcastProtocolSettings {
-    pub quorum_threshold_size: usize,
     pub cluster_size: usize,
 }
 

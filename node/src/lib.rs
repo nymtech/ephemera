@@ -26,7 +26,7 @@
 
 //TODO: organize imports(visibility, re-exports, etc)
 
-pub use crate::core::builder::EphemeraBuilder;
+pub use crate::core::builder::EphemeraStarter;
 pub use crate::core::ephemera::Ephemera;
 
 pub mod api;

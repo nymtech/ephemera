@@ -48,6 +48,7 @@ impl WsConnection {
                 Err(e) => {
                     //TODO:: shutdown?
                     log::error!("Error receiving message from broadcast channel: {:?}", e);
+                    break;
                 }
             }
         }

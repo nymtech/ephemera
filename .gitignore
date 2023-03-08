@@ -9,3 +9,5 @@
 cluster
 
 *.sqlite
+
+.DS_Store

@@ -56,7 +56,6 @@ impl InitCmd {
                 private_key,
             },
             quorum: BroadcastProtocolSettings {
-                quorum_threshold_size: self.quorum_threshold_count,
                 cluster_size: self.total_nr_of_nodes,
             },
             libp2p: Libp2pSettings {

@@ -32,16 +32,62 @@
 //! - It doesn't verify the other peers authenticity.
 //!   Also this can be a task for an upstream layer(gossip...) which handles networking and peers relationship.
 
-use crate::block::types::block::Block;
-use serde_derive::{Deserialize, Serialize};
+use std::collections::HashSet;
 
+use serde_derive::{Deserialize, Serialize};
+use thiserror::Error;
+
+use crate::block::types::block::Block;
 use crate::utilities;
 use crate::utilities::crypto::{PeerId, Signature};
 use crate::utilities::EphemeraId;
 
-pub(crate) mod broadcaster;
-mod quorum;
+pub(crate) mod basic;
+pub(crate) mod bracha;
 pub(crate) mod signing;
+
+pub(crate) trait Quorum {
+    fn check_threshold(&self, ctx: &ConsensusContext, phase: MessageType) -> bool;
+}
+
+#[derive(Error, Debug)]
+pub enum BroadcastError {
+    #[error("Invalid broadcast message {}", .0)]
+    InvalidBroadcast(String),
+    #[error("{}", .0)]
+    General(#[from] anyhow::Error),
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ConsensusContext {
+    /// Peers that sent prepare message(this peer included)
+    pub(crate) echo: HashSet<PeerId>,
+    /// Peers that sent commit message(this peer included)
+    pub(crate) vote: HashSet<PeerId>,
+    /// Flag indicating if the message has received enough prepare messages
+    pub(crate) echo_threshold: bool,
+    /// Flag indicating if the message has received enough commit messages
+    pub(crate) vote_threshold: bool,
+}
+
+impl ConsensusContext {
+    pub(crate) fn new() -> ConsensusContext {
+        ConsensusContext {
+            echo: HashSet::new(),
+            vote: HashSet::new(),
+            echo_threshold: false,
+            vote_threshold: false,
+        }
+    }
+
+    fn add_echo(&mut self, peer: PeerId) {
+        self.echo.insert(peer);
+    }
+
+    fn add_vote(&mut self, peer: PeerId) {
+        self.vote.insert(peer);
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct RbMsg {
@@ -56,7 +102,7 @@ pub(crate) struct RbMsg {
     ///When the message was created by the sender.
     pub(crate) timestamp: u64,
     ///Current phase of the protocol(Prepare, Commit, Ack)
-    pub(crate) phase: Phase,
+    pub(crate) phase: MessageType,
     ///Signature of the message. The same as block signature.
     pub(crate) signature: Signature,
 }
@@ -69,20 +115,20 @@ impl RbMsg {
             original_sender,
             data_identifier: data.header.id.clone(),
             timestamp: utilities::time::ephemera_now(),
-            phase: Phase::Prepare(data),
+            phase: MessageType::Echo(data),
             signature,
         }
     }
 
     pub(crate) fn get_data(&self) -> Option<&Block> {
         match &self.phase {
-            Phase::Prepare(data) => Some(data),
-            Phase::Commit(data) => Some(data),
-            Phase::Ack => None,
+            MessageType::Echo(data) => Some(data),
+            MessageType::Vote(data) => Some(data),
+            MessageType::Ack => None,
         }
     }
 
-    pub(crate) fn reply(&self, local_id: PeerId, phase: Phase, signature: Signature) -> Self {
+    pub(crate) fn reply(&self, local_id: PeerId, phase: MessageType, signature: Signature) -> Self {
         RbMsg {
             id: self.id.clone(),
             request_id: utilities::generate_ephemera_id(),
@@ -94,28 +140,23 @@ impl RbMsg {
         }
     }
 
-    pub(crate) fn prepare_reply(
-        &self,
-        local_id: PeerId,
-        data: Block,
-        signature: Signature,
-    ) -> Self {
-        self.reply(local_id, Phase::Prepare(data), signature)
+    pub(crate) fn echo_reply(&self, local_id: PeerId, data: Block, signature: Signature) -> Self {
+        self.reply(local_id, MessageType::Echo(data), signature)
     }
 
-    pub(crate) fn commit_reply(&self, local_id: PeerId, data: Block, signature: Signature) -> Self {
-        self.reply(local_id, Phase::Commit(data), signature)
+    pub(crate) fn vote_reply(&self, local_id: PeerId, data: Block, signature: Signature) -> Self {
+        self.reply(local_id, MessageType::Vote(data), signature)
     }
 
     pub(crate) fn ack_reply(&self, local_id: PeerId, signature: Signature) -> Self {
-        self.reply(local_id, Phase::Ack, signature)
+        self.reply(local_id, MessageType::Ack, signature)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub(crate) enum Phase {
-    Prepare(Block),
-    Commit(Block),
+pub(crate) enum MessageType {
+    Echo(Block),
+    Vote(Block),
     Ack,
 }
 

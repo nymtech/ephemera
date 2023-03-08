@@ -1,62 +1,21 @@
-use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use crate::block::types::block::Block;
 use lru::LruCache;
-use thiserror::Error;
 
-use crate::broadcast::broadcaster::BroadcastError::InvalidBroadcast;
-use crate::broadcast::quorum::{BasicQuorum, Quorum};
+use crate::block::types::block::Block;
+use crate::broadcast::bracha::quorum::BrachaQuorum;
 use crate::broadcast::signing::BlockSigner;
-use crate::broadcast::Phase::{Commit, Prepare};
-use crate::broadcast::{Command, PeerId, RbMsg, Status};
+use crate::broadcast::BroadcastError::InvalidBroadcast;
+use crate::broadcast::MessageType::{Echo, Vote};
+use crate::broadcast::{BroadcastError, Command, ConsensusContext, PeerId, Quorum, RbMsg, Status};
 use crate::config::Configuration;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 use crate::utilities::crypto::Signature;
 
-#[derive(Debug, Default, Clone)]
-pub(crate) struct ConsensusContext {
-    /// Peers that sent prepare message(this peer included)
-    pub(crate) prepare: HashSet<PeerId>,
-    /// Peers that sent commit message(this peer included)
-    pub(crate) commit: HashSet<PeerId>,
-    /// Flag indicating if the message has received enough prepare messages
-    pub(crate) prepared: bool,
-    /// Flag indicating if the message has received enough commit messages
-    pub(crate) committed: bool,
-}
-
-impl ConsensusContext {
-    pub(crate) fn new() -> ConsensusContext {
-        ConsensusContext {
-            prepare: HashSet::new(),
-            commit: HashSet::new(),
-            prepared: false,
-            committed: false,
-        }
-    }
-
-    fn add_prepare(&mut self, peer: PeerId) {
-        self.prepare.insert(peer);
-    }
-
-    fn add_commit(&mut self, peer: PeerId) {
-        self.commit.insert(peer);
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum BroadcastError {
-    #[error("Invalid broadcast message {}", .0)]
-    InvalidBroadcast(String),
-    #[error("{}", .0)]
-    General(#[from] anyhow::Error),
-}
-
 pub(crate) struct Broadcaster {
     contexts: LruCache<String, ConsensusContext>,
-    quorum: BasicQuorum,
+    quorum: BrachaQuorum,
     peer_id: PeerId,
     block_signer: BlockSigner,
 }
@@ -77,7 +36,7 @@ impl Broadcaster {
         let block_signer = BlockSigner::new(keypair);
         Broadcaster {
             contexts: LruCache::new(NonZeroUsize::new(1000).unwrap()),
-            quorum: BasicQuorum::new(config.quorum),
+            quorum: BrachaQuorum::new(config.quorum),
             peer_id,
             block_signer,
         }
@@ -102,13 +61,13 @@ impl Broadcaster {
 
         let id = rb_msg.id.clone();
         let result = match rb_msg.phase.clone() {
-            Prepare(_) => {
-                log::trace!("Processing PREPARE {}", rb_msg.id);
-                self.process_prepare(rb_msg).await
+            Echo(_) => {
+                log::trace!("Processing ECHO {}", rb_msg.id);
+                self.process_echo(rb_msg).await
             }
-            Commit(_) => {
-                log::trace!("Processing COMMIT {}", rb_msg.id);
-                self.process_commit(rb_msg).await
+            Vote(_) => {
+                log::trace!("Processing VOTE {}", rb_msg.id);
+                self.process_vote(rb_msg).await
             }
             _ => Err(InvalidBroadcast(format!(
                 "Invalid broadcast message {}",
@@ -119,38 +78,60 @@ impl Broadcaster {
         result
     }
 
-    async fn process_prepare(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
+    // on receiving <v> from leader:
+    // if echo == true:
+    // send <echo, v> to all parties
+    // echo = false
+    //
+    // on receiving <echo, v> from n-f distinct parties:
+    // if vote == true:
+    // send <vote, v> to all parties
+    // vote = false
+    async fn process_echo(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
         let mut ctx = self
             .contexts
             .get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
 
         if self.peer_id != rb_msg.original_sender {
-            ctx.add_prepare(rb_msg.original_sender);
+            ctx.add_echo(rb_msg.original_sender);
         }
 
+        //FIXME:
+        //Protocol signatures processing needs to be tighten up.
+        //What kind of signature goes with each protocol message...
+        //Do we trust underlying networking layer to deal with nodes identity authentication?
         let signature = self.block_signer.sign_block(block.clone())?;
 
-        if !ctx.prepare.contains(&self.peer_id) {
-            ctx.add_prepare(self.peer_id);
+        //if echo = true:
+        if !ctx.echo.contains(&self.peer_id) {
+            //echo = false
+            ctx.add_echo(self.peer_id);
 
+            //send <echo, v> to all parties
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: rb_msg.prepare_reply(self.peer_id, block.clone(), signature),
+                protocol_reply: rb_msg.echo_reply(self.peer_id, block.clone(), signature),
             });
         }
 
-        if self.quorum.prepare_threshold(ctx.prepare.len()) {
+        //on receiving <echo, v> from n-f distinct parties:
+        //if vote == true:
+        if !ctx.vote.contains(&self.peer_id)
+            && self.quorum.check_threshold(ctx, rb_msg.phase.clone())
+        {
             log::trace!("Prepare completed for {}", rb_msg.id);
 
-            ctx.prepared = true;
-            ctx.add_commit(self.peer_id);
+            //vote = false
+            ctx.echo_threshold = true;
+
+            ctx.add_vote(self.peer_id);
 
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: rb_msg.commit_reply(self.peer_id, block.clone(), signature),
+                protocol_reply: rb_msg.vote_reply(self.peer_id, block.clone(), signature),
             });
         }
 
@@ -161,39 +142,50 @@ impl Broadcaster {
         })
     }
 
-    async fn process_commit(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
+    // on receiving <vote, v> from f+1 distinct parties:
+    // if vote == true:
+    // send <vote, v> to all parties
+    // vote = false
+    //
+    // on receiving <vote, v> from n-f distinct parties:
+    // deliver v
+    async fn process_vote(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
         let mut ctx = self
             .contexts
             .get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
 
         if self.peer_id != rb_msg.original_sender {
-            ctx.add_commit(rb_msg.original_sender);
+            ctx.add_vote(rb_msg.original_sender);
         }
 
         let signature = self.block_signer.sign_block(block.clone())?;
 
-        //Because we don't control in which order nodes receive prepare and commit messages
-        //(because current implementation is really basic),
-        //we add commit even if we haven't prepared yet. It still first waits enough prepare messages before it sends its commit message.
-        if !ctx.commit.contains(&self.peer_id) {
-            ctx.add_commit(self.peer_id);
+        //on receiving <vote, v> from f+1 distinct parties:
+        //if vote == true:
+        if !ctx.vote.contains(&self.peer_id)
+            && self.quorum.check_threshold(ctx, rb_msg.phase.clone())
+        {
+            //vote = false
+            ctx.add_vote(self.peer_id);
 
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: rb_msg.commit_reply(self.peer_id, block.clone(), signature),
+                protocol_reply: rb_msg.vote_reply(self.peer_id, block.clone(), signature),
             });
         }
 
-        if ctx.prepared && !ctx.committed && self.quorum.commit_threshold(ctx.commit.len()) {
+        //on receiving <vote, v> from n-f distinct parties:
+        //deliver v
+        if !ctx.vote_threshold && self.quorum.check_threshold(ctx, rb_msg.phase.clone()) {
             log::debug!("Commit complete for {}", rb_msg.id);
-            ctx.committed = true;
+            ctx.vote_threshold = true;
 
             return Ok(ProtocolResponse {
                 status: Status::Committed,
-                command: Command::Broadcast,
-                protocol_reply: rb_msg.commit_reply(self.peer_id, block.clone(), signature),
+                command: Command::Drop,
+                protocol_reply: rb_msg.ack_reply(self.peer_id, signature),
             });
         }
 

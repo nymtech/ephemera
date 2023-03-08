@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 use ephemera::api::EphemeraExternalApi;
 use ephemera::config::Configuration;
 use ephemera::utilities::{Ed25519Keypair, Keypair};
-use ephemera::{EphemeraBuilder, ShutdownHandle};
+use ephemera::{EphemeraStarter, ShutdownHandle};
 use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;
@@ -48,7 +48,7 @@ impl NymApi {
             RewardsEphemeraApplication::new(ephemera_config.clone())?;
 
         //EPHEMERA
-        let ephemera_builder = EphemeraBuilder::new(ephemera_config.clone())?;
+        let ephemera_builder = EphemeraStarter::new(ephemera_config.clone())?;
         let ephemera = ephemera_builder
             .init_tasks(rewards_ephemera_application)
             .await?;

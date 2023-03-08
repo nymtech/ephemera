@@ -9,7 +9,7 @@ use crate::api::ApiError::ApiError;
 use crate::api::{ApiCmd, ApiListener};
 use crate::block::manager::BlockManager;
 use crate::block::types::block::Block;
-use crate::broadcast::broadcaster::Broadcaster;
+use crate::broadcast::bracha::broadcaster::Broadcaster;
 use crate::broadcast::RbMsg;
 
 use crate::core::builder::{EphemeraHandle, InstanceInfo};

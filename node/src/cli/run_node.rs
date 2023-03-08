@@ -7,7 +7,7 @@ use tokio::signal::unix::{signal, SignalKind};
 use crate::api::application::{Application, DefaultApplication};
 use crate::api::types::{ApiBlock, ApiEphemeraMessage, ApiEphemeraRawMessage};
 use crate::config::Configuration;
-use crate::core::builder::EphemeraBuilder;
+use crate::core::builder::EphemeraStarter;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 use crate::utilities::crypto::keypair::Keypair;
 use crate::utilities::encode;
@@ -22,10 +22,10 @@ impl RunExternalNodeCmd {
     pub async fn execute(&self) {
         let conf = match Configuration::try_load(PathBuf::from(self.config_file.as_str())) {
             Ok(conf) => conf,
-            Err(err) => panic!("Error loading configuration file: {err:?}", ),
+            Err(err) => panic!("Error loading configuration file: {err:?}",),
         };
 
-        let ephemera = EphemeraBuilder::new(conf)
+        let ephemera = EphemeraStarter::new(conf)
             .unwrap()
             .init_tasks(DefaultApplication)
             .await
@@ -39,13 +39,13 @@ impl RunExternalNodeCmd {
             let mut stream_int = signal(SignalKind::interrupt()).unwrap();
             let mut stream_term = signal(SignalKind::terminate()).unwrap();
             tokio::select! {
-            _ = stream_int.recv() => {
-                ephemera_shutdown.shutdown();
+                _ = stream_int.recv() => {
+                    ephemera_shutdown.shutdown();
+                }
+                _ = stream_term.recv() => {
+                   ephemera_shutdown.shutdown();
+                }
             }
-            _ = stream_term.recv() => {
-               ephemera_shutdown.shutdown();
-            }
-        }
         };
 
         //Wait shutdown signal

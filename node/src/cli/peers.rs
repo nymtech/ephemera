@@ -92,7 +92,6 @@ impl AddLocalPeersCmd {
                     pub_key: peer_conf.node_config.pub_key.clone(),
                 });
                 conf.quorum.cluster_size = configs.len();
-                conf.quorum.quorum_threshold_size = configs.len();
             }
             configs.insert(peer.to_string(), conf);
         }
