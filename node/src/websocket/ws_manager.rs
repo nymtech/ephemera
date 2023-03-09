@@ -77,6 +77,7 @@ impl WsMessageBroadcaster {
 }
 
 pub(crate) struct WsManager {
+    pub(crate) listener: Option<TcpListener>,
     pub(crate) config: WsConfig,
     pub(crate) pending_messages_tx: broadcast::Sender<Message>,
     _pending_messages_rcv: broadcast::Receiver<Message>,
@@ -87,6 +88,7 @@ impl WsManager {
         let (pending_messages_tx, _pending_messages_rcv) = broadcast::channel(1000);
         let ws_message_broadcast = WsMessageBroadcaster::new(pending_messages_tx.clone());
         let manager = WsManager {
+            listener: None,
             config,
             pending_messages_tx,
             _pending_messages_rcv,
@@ -94,13 +96,18 @@ impl WsManager {
         (manager, ws_message_broadcast)
     }
 
-    pub async fn bind(self) -> Result<()> {
+    pub(crate) async fn listen(&mut self) -> Result<()> {
         let listener = TcpListener::bind(&self.config.ws_address).await?;
         log::info!(
             "Listening for websocket connections on {}",
             self.config.ws_address
         );
+        self.listener = Some(listener);
+        Ok(())
+    }
 
+    pub async fn run(mut self) -> Result<()> {
+        let listener = self.listener.take().expect("Listener not set");
         loop {
             tokio::select! {
                 res = listener.accept() => {

@@ -118,22 +118,30 @@ impl EphemeraStarter {
 
         ////////////////////////// WEBSOCKET /////////////////////////////////////
         log::info!("Starting websocket listener...");
-        let ws_task = self.start_websocket(shutdown_manager.subscribe());
-        shutdown_manager.add_handle(ws_task);
-
+        match self.start_websocket(shutdown_manager.subscribe()).await {
+            Ok(ws_task) => {
+                shutdown_manager.add_handle(ws_task);
+            }
+            Err(err) => {
+                log::error!("Failed to start websocket: {}", err);
+                return Err(err);
+            }
+        }
         Ok(())
     }
 
-    fn start_websocket(&mut self, mut shutdown: Shutdown) -> JoinHandle<()> {
-        let (websocket, ws_message_broadcast) = WsManager::new(self.config.ws_config.clone());
+    async fn start_websocket(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
+        let (mut websocket, ws_message_broadcast) = WsManager::new(self.config.ws_config.clone());
         self.ws_message_broadcast = Some(ws_message_broadcast);
 
-        tokio::spawn(async move {
+        websocket.listen().await?;
+
+        let join_handle = tokio::spawn(async move {
             tokio::select! {
                 _ = shutdown.shutdown_signal_rcv.recv() => {
                     log::info!("Shutting down websocket manager");
                 }
-                ws_stopped = websocket.bind() => {
+                ws_stopped = websocket.run() => {
                     match ws_stopped {
                         Ok(_) => log::info!("Websocket stopped unexpectedly"),
                         Err(e) => log::error!("Websocket stopped with error: {}", e),
@@ -141,7 +149,9 @@ impl EphemeraStarter {
                 }
             }
             log::info!("Websocket task finished");
-        })
+        });
+
+        Ok(join_handle)
     }
 
     fn start_http(&mut self, mut shutdown: Shutdown) -> JoinHandle<()> {
