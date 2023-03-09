@@ -7,5 +7,7 @@ pub fn init_logging() {
             .parse_filters(&directives)
             .format_timestamp_millis()
             .init();
+    } else {
+        println!("Logging disabled");
     }
 }

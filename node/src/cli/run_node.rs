@@ -19,10 +19,10 @@ pub struct RunExternalNodeCmd {
 }
 
 impl RunExternalNodeCmd {
-    pub async fn execute(&self) {
+    pub async fn execute(&self) -> anyhow::Result<()> {
         let conf = match Configuration::try_load(PathBuf::from(self.config_file.as_str())) {
             Ok(conf) => conf,
-            Err(err) => panic!("Error loading configuration file: {err:?}",),
+            Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
         let ephemera = EphemeraStarter::new(conf)
@@ -51,6 +51,7 @@ impl RunExternalNodeCmd {
         //Wait shutdown signal
         shutdown.await;
         ephemera_handle.await.unwrap();
+        Ok(())
     }
 }
 

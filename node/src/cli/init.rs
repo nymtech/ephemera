@@ -67,6 +67,7 @@ impl InitCmd {
             db_config: DbConfig {
                 sqlite_path: self.sqlite_path,
                 rocket_path: self.rocket_path,
+                create_if_not_exists: false,
             },
             ws_config: WsConfig {
                 ws_address: self.ws_address,

@@ -1,6 +1,6 @@
-use crate::block::types::block::Block;
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Row};
 
+use crate::block::types::block::Block;
 use crate::config::DbConfig;
 use crate::utilities::crypto::Signature;
 
@@ -9,8 +9,8 @@ pub(crate) struct DbQuery {
 }
 
 impl DbQuery {
-    pub(crate) fn open(db_conf: DbConfig) -> anyhow::Result<Self> {
-        let connection = Connection::open(db_conf.sqlite_path)?;
+    pub(crate) fn open(db_conf: DbConfig, flags: OpenFlags) -> anyhow::Result<Self> {
+        let connection = Connection::open_with_flags(db_conf.sqlite_path, flags)?;
         let query = Self { connection };
         Ok(query)
     }

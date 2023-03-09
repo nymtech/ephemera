@@ -4,7 +4,7 @@ use ephemera::cli::{Cli, Subcommand};
 use ephemera::logging;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     logging::init_logging();
 
     let cli = Cli::parse();
@@ -19,10 +19,11 @@ async fn main() {
             add_local_peers.execute();
         }
         Subcommand::RunNode(run_node) => {
-            run_node.execute().await;
+            return run_node.execute().await;
         }
         Subcommand::GenerateKeypair(gen_keypair) => {
             gen_keypair.execute().await;
         }
     }
+    Ok(())
 }

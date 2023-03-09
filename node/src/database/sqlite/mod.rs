@@ -1,3 +1,5 @@
+use rusqlite::Connection;
+
 use crate::block::types::block::Block;
 use crate::config::DbConfig;
 use crate::database::sqlite::query::DbQuery;
@@ -8,17 +10,46 @@ use crate::utilities::crypto::Signature;
 pub(crate) mod query;
 pub(crate) mod store;
 
+mod migrations {
+    use refinery::embed_migrations;
+
+    embed_migrations!("migrations");
+}
+
 pub(crate) struct SqliteStorage {
     pub(crate) db_store: DbStore,
     pub(crate) db_query: DbQuery,
 }
 
 impl SqliteStorage {
-    pub fn open(config: DbConfig) -> anyhow::Result<Self> {
-        let db_store = DbStore::open(config.clone())?;
-        let db_query = DbQuery::open(config)?;
+    pub fn open(db_conf: DbConfig) -> anyhow::Result<Self> {
+        let mut flags = rusqlite::OpenFlags::default();
+        if !db_conf.create_if_not_exists {
+            flags.remove(rusqlite::OpenFlags::SQLITE_OPEN_CREATE);
+        }
+
+        let mut connection = Connection::open_with_flags(db_conf.sqlite_path.clone(), flags)?;
+        Self::run_migrations(&mut connection)?;
+
+        log::info!("Starting db backend with path: {}", db_conf.sqlite_path);
+        let db_store = DbStore::open(db_conf.clone(), flags)?;
+        let db_query = DbQuery::open(db_conf, flags)?;
         let storage = Self { db_store, db_query };
         Ok(storage)
+    }
+
+    pub fn run_migrations(connection: &mut Connection) -> anyhow::Result<()> {
+        log::info!("Running database migrations");
+        match migrations::migrations::runner().run(connection) {
+            Ok(ok) => {
+                log::info!("Database migrations completed:{:?} ", ok);
+                Ok(())
+            }
+            Err(err) => {
+                log::error!("Database migrations failed: {}", err);
+                Err(anyhow::anyhow!(err))
+            }
+        }
     }
 }
 

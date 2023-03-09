@@ -1,27 +1,17 @@
 use crate::block::types::block::Block;
 use anyhow::Result;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OpenFlags};
 
 use crate::config::DbConfig;
 use crate::utilities::crypto::Signature;
-
-mod migrations {
-    use refinery::embed_migrations;
-
-    embed_migrations!("migrations");
-}
 
 pub struct DbStore {
     connection: Connection,
 }
 
 impl DbStore {
-    pub fn open(conf: DbConfig) -> Result<DbStore> {
-        log::info!("Starting db backend with path: {}", conf.sqlite_path);
-
-        let mut connection = Connection::open(conf.sqlite_path)?;
-        DbStore::run_migrations(&mut connection)?;
-
+    pub fn open(db_conf: DbConfig, flags: OpenFlags) -> Result<DbStore> {
+        let connection = Connection::open_with_flags(db_conf.sqlite_path, flags)?;
         Ok(DbStore { connection })
     }
 
@@ -48,19 +38,5 @@ impl DbStore {
         tx.commit()?;
 
         Ok(())
-    }
-
-    pub fn run_migrations(connection: &mut Connection) -> Result<()> {
-        log::info!("Running database migrations");
-        match migrations::migrations::runner().run(connection) {
-            Ok(ok) => {
-                log::info!("Database migrations completed:{:?} ", ok);
-                Ok(())
-            }
-            Err(err) => {
-                log::error!("Database migrations failed: {}", err);
-                Err(anyhow::anyhow!(err))
-            }
-        }
     }
 }

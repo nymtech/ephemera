@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rocksdb::TransactionDB;
+use rocksdb::{TransactionDB, TransactionDBOptions};
 
 use crate::block::types::block::Block;
 use crate::config::DbConfig;
@@ -23,16 +23,25 @@ const PREFIX_BLOCK_HEIGHT: &str = "block_height";
 const PREFIX_SIGNATURES: &str = "signatures";
 
 impl RocksDbStorage {
-    pub fn open(config: DbConfig) -> anyhow::Result<Self> {
-        log::info!("Opening RocksDB database at {}", config.rocket_path);
+    pub fn open(db_conf: DbConfig) -> anyhow::Result<Self> {
+        log::info!("Opening RocksDB database at {}", db_conf.rocket_path);
 
-        let db = TransactionDB::open_default(config.rocket_path.clone())?;
+        let mut options = rocksdb::Options::default();
+        if !db_conf.create_if_not_exists {
+            options.create_if_missing(false)
+        }
+
+        let db = TransactionDB::open(
+            &options,
+            &TransactionDBOptions::default(),
+            db_conf.rocket_path.clone(),
+        )?;
         let db = Arc::new(db);
         let db_store = DbStore::new(db.clone());
         let db_query = DbQuery::new(db);
         let storage = Self { db_store, db_query };
 
-        log::info!("Opened RocksDB database at {}", config.rocket_path);
+        log::info!("Opened RocksDB database at {}", db_conf.rocket_path);
         Ok(storage)
     }
 }
