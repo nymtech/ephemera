@@ -27,9 +27,7 @@ impl RocksDbStorage {
         log::info!("Opening RocksDB database at {}", db_conf.rocket_path);
 
         let mut options = rocksdb::Options::default();
-        if !db_conf.create_if_not_exists {
-            options.create_if_missing(false)
-        }
+        options.create_if_missing(db_conf.create_if_not_exists);
 
         let db = TransactionDB::open(
             &options,

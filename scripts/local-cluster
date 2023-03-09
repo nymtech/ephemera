@@ -150,7 +150,6 @@ create_cluster() {
     $EPHEMERA init \
             --node node"$c" \
             --port 300"$c" \
-            --sqlite-path "$DB_PATH"/ephemera"$COUNTER".sqlite \
             --rocket-path "$DB_PATH"/ephemera"$COUNTER".db \
             --ws-address "$WS_ADDRESS" \
             --network-client-listener-address "$NETWORK_CLIENT_LISTENER_ADDRESS" \

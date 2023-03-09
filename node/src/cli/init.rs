@@ -24,8 +24,6 @@ pub struct InitCmd {
     #[clap(short, long, default_value_t = DEFAULT_TOTAL_NR_OF_NODES)]
     pub total_nr_of_nodes: usize,
     #[clap(short, long)]
-    pub sqlite_path: String,
-    #[clap(short, long)]
     pub rocket_path: String,
     #[clap(short, long)]
     pub ws_address: String,
@@ -62,12 +60,11 @@ impl InitCmd {
                 consensus_msg_topic_name: DEFAULT_CONSENSUS_MSG_TOPIC_NAME.to_string(),
                 proposed_msg_topic_name: DEFAULT_PROPOSED_MSG_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
-                peers: Vec::new(),
+                peers: vec![],
             },
             db_config: DbConfig {
-                sqlite_path: self.sqlite_path,
                 rocket_path: self.rocket_path,
-                create_if_not_exists: false,
+                create_if_not_exists: true,
             },
             ws_config: WsConfig {
                 ws_address: self.ws_address,

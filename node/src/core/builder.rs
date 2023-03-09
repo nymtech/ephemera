@@ -8,12 +8,12 @@ use crate::api::{ApiListener, EphemeraExternalApi};
 use crate::block::manager::{BlockManager, BlockManagerBuilder};
 use crate::config::Configuration;
 use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
-use crate::database::CompoundDatabase;
 use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetCommunicationSender};
 use crate::network::libp2p::swarm::SwarmNetwork;
 use crate::utilities::crypto::key_manager::KeyManager;
 
 use crate::broadcast::bracha::broadcaster::Broadcaster;
+use crate::database::rocksdb::RocksDbStorage;
 use crate::utilities::{Ed25519Keypair, PeerId, ToPeerId};
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
 use crate::{http, Ephemera};
@@ -46,7 +46,7 @@ pub struct EphemeraStarter {
     from_network: Option<NetCommunicationReceiver>,
     to_network: Option<NetCommunicationSender>,
     ws_message_broadcast: Option<WsMessageBroadcaster>,
-    storage: Option<CompoundDatabase>,
+    storage: Option<RocksDbStorage>,
     api_listener: ApiListener,
     api: EphemeraExternalApi,
 }
@@ -213,7 +213,7 @@ impl EphemeraStarter {
     //allocate database connection
     async fn connect_db(mut self) -> anyhow::Result<Self> {
         log::info!("Opening database...");
-        let database = CompoundDatabase::open(self.config.db_config.clone())?;
+        let database = RocksDbStorage::open(self.config.db_config.clone())?;
         self.storage = Some(database);
         Ok(self)
     }

@@ -14,7 +14,8 @@ use crate::broadcast::RbMsg;
 
 use crate::core::builder::{EphemeraHandle, InstanceInfo};
 use crate::core::shutdown::ShutdownManager;
-use crate::database::{CompoundDatabase, EphemeraDatabase};
+use crate::database::rocksdb::RocksDbStorage;
+use crate::database::EphemeraDatabase;
 
 use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetCommunicationSender};
 
@@ -37,7 +38,7 @@ pub struct Ephemera<A: Application> {
     pub(crate) to_network: NetCommunicationSender,
 
     /// A component which has mutable access to database.
-    pub(crate) storage: Arc<Mutex<CompoundDatabase>>,
+    pub(crate) storage: Arc<Mutex<RocksDbStorage>>,
 
     /// A component which broadcasts messages to websocket clients.
     pub(crate) ws_message_broadcast: WsMessageBroadcaster,
