@@ -60,6 +60,8 @@ pub enum BroadcastError {
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ConsensusContext {
+    /// Message id
+    pub(crate) id: EphemeraId,
     /// Peers that sent prepare message(this peer included)
     pub(crate) echo: HashSet<PeerId>,
     /// Peers that sent commit message(this peer included)
@@ -71,8 +73,9 @@ pub(crate) struct ConsensusContext {
 }
 
 impl ConsensusContext {
-    pub(crate) fn new() -> ConsensusContext {
+    pub(crate) fn new(id: EphemeraId) -> ConsensusContext {
         ConsensusContext {
+            id,
             echo: HashSet::new(),
             vote: HashSet::new(),
             echo_threshold: false,

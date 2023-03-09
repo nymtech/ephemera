@@ -112,7 +112,7 @@ impl EphemeraStarter {
 
         ////////////////////////// HTTP SERVER /////////////////////////////////////
         log::info!("Starting http server...");
-        match self.start_http(shutdown_manager.subscribe()){
+        match self.start_http(shutdown_manager.subscribe()) {
             Ok(http_task) => {
                 shutdown_manager.add_handle(http_task);
             }

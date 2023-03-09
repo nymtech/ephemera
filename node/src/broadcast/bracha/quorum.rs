@@ -29,9 +29,10 @@ impl Quorum for BrachaQuorum {
             MessageType::Echo(_) => {
                 if ctx.echo.len() >= self.cluster_size - self.max_faulty_nodes {
                     log::debug!(
-                        "Echo threshold reached: {}/{}",
+                        "Echo threshold reached: {}/{} for {}",
                         ctx.echo.len(),
-                        self.cluster_size - self.max_faulty_nodes
+                        self.cluster_size - self.max_faulty_nodes,
+                        ctx.id
                     );
                     true
                 } else {
@@ -42,18 +43,20 @@ impl Quorum for BrachaQuorum {
                 let votes_threshold_to_send_our_vote = ctx.vote.len() > self.max_faulty_nodes;
                 if votes_threshold_to_send_our_vote {
                     log::debug!(
-                        "Vote send threshold reached: {}/{}",
+                        "Vote send threshold reached: {}/{} for {}",
                         ctx.vote.len(),
-                        self.max_faulty_nodes + 1
+                        self.max_faulty_nodes + 1,
+                        ctx.id
                     );
                 }
                 let votes_threshold_to_deliver =
                     ctx.vote.len() >= self.cluster_size - self.max_faulty_nodes;
                 if votes_threshold_to_deliver {
                     log::debug!(
-                        "Deliver threshold reached: {}/{}",
+                        "Deliver threshold reached: {}/{} for {}",
                         ctx.vote.len(),
-                        self.cluster_size - self.max_faulty_nodes
+                        self.cluster_size - self.max_faulty_nodes,
+                        ctx.id
                     );
                 }
                 votes_threshold_to_send_our_vote || votes_threshold_to_deliver

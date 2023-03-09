@@ -22,7 +22,7 @@ impl EpochOperations for RewardManager<V2> {
         let prev_block = self.get_last_block().await?;
         let next_height = prev_block.header.height + 1;
 
-        //Poll next block which should include all messages from the previous block from almost all Nym-Api nodes
+        //Poll next block which should include all messages from the previous epoch from almost all Nym-Api nodes
         let mut counter = 0;
         log::debug!(
             "Waiting for block with height {next_height} maximum {} seconds",

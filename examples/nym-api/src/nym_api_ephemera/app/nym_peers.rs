@@ -8,7 +8,7 @@ use ephemera::utilities::{Ed25519Keypair, Keypair, PeerId, ToPeerId};
 //We don't know where this information comes yet, but it should be something like this
 #[derive(Clone)]
 pub(crate) struct Peer {
-    /// The address of the Nym-API. We may need it to query rewards.
+    /// The address of a Nym-API. We may need it to query rewards.
     /// For example when another API is the first one to submit final rewards to smart contract,
     /// we need to know its API address to query those rewards.
     pub(crate) address: String,
@@ -26,7 +26,7 @@ impl Peer {
 
 /// Information about other Nym-Apis.
 pub(crate) struct NymApiEphemeraPeerInfo {
-    /// Information about the local Nym-API.
+    /// Information about local Nym-API.
     pub(crate) local_peer: Peer,
     /// Information about other Nym-APIs.
     pub(crate) peers: HashMap<PeerId, Peer>,

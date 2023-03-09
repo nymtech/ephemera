@@ -93,15 +93,18 @@ impl<A: Application> Ephemera<A> {
                     log::trace!("New ephemera message from network: {:?}", ephemera_msg);
                     // 1. Ask application to decide if we should accept this message.
                     match self.application.check_tx(ephemera_msg.clone().into()){
-                        Ok(_) => {
-                            log::trace!("Application accepted transaction: {:?}", ephemera_msg);
+                        Ok(true) => {
+                            log::trace!("Application accepted message: {:?}", ephemera_msg);
                             // 2. send to BlockManager
                             if let Err(err) = self.block_manager.new_message(ephemera_msg).await{
                                 log::error!("Error sending signed message to block manager: {:?}", err);
                             }
                         }
+                        Ok(false) => {
+                            log::debug!("Application rejected message: {:?}", ephemera_msg);
+                        }
                         Err(err) => {
-                            log::error!("Application rejected transaction: {:?}", err);
+                            log::error!("Application rejected message: {:?}", err);
                             continue;
                         }
                     }
@@ -266,7 +269,7 @@ impl<A: Application> Ephemera<A> {
             ApiCmd::SubmitEphemeraMessage(sm) => {
                 // 1. Ask application to decide if we should accept this message.
                 match self.application.check_tx(sm.clone()) {
-                    Ok(_) => {
+                    Ok(true) => {
                         // 2. Send to BlockManager to put into memory pool
                         let ephemera_msg: crate::block::types::message::EphemeraMessage = sm.into();
                         match self.block_manager.new_message(ephemera_msg.clone()).await {
@@ -276,6 +279,9 @@ impl<A: Application> Ephemera<A> {
                             }
                             Err(e) => log::error!("Error: {}", e),
                         }
+                    }
+                    Ok(false) => {
+                        log::debug!("Application rejected ephemera message: {:?}", sm);
                     }
                     Err(err) => {
                         log::error!("Application rejected transaction: {:?}", err);

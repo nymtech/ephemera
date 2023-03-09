@@ -89,9 +89,9 @@ impl Broadcaster {
     // vote = false
     async fn process_echo(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
-        let mut ctx = self
-            .contexts
-            .get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
+        let mut ctx = self.contexts.get_or_insert_mut(rb_msg.id.clone(), || {
+            ConsensusContext::new(rb_msg.id.clone())
+        });
 
         if self.peer_id != rb_msg.original_sender {
             ctx.add_echo(rb_msg.original_sender);
@@ -151,9 +151,9 @@ impl Broadcaster {
     // deliver v
     async fn process_vote(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
-        let mut ctx = self
-            .contexts
-            .get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
+        let mut ctx = self.contexts.get_or_insert_mut(rb_msg.id.clone(), || {
+            ConsensusContext::new(rb_msg.id.clone())
+        });
 
         if self.peer_id != rb_msg.original_sender {
             ctx.add_vote(rb_msg.original_sender);

@@ -83,9 +83,9 @@ impl Broadcaster {
 
     async fn process_prepare(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
-        let mut ctx = self
-            .contexts
-            .get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
+        let mut ctx = self.contexts.get_or_insert_mut(rb_msg.id.clone(), || {
+            ConsensusContext::new(rb_msg.id.clone())
+        });
 
         //If we originally sent it then it's already in set
         if self.peer_id != rb_msg.original_sender {
@@ -131,9 +131,9 @@ impl Broadcaster {
 
     async fn process_commit(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
         let block = rb_msg.get_data().expect("Block should be present");
-        let mut ctx = self
-            .contexts
-            .get_or_insert_mut(rb_msg.id.clone(), ConsensusContext::new);
+        let mut ctx = self.contexts.get_or_insert_mut(rb_msg.id.clone(), || {
+            ConsensusContext::new(rb_msg.id.clone())
+        });
 
         if self.peer_id != rb_msg.original_sender {
             ctx.add_vote(rb_msg.original_sender);
