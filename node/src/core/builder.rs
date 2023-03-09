@@ -112,8 +112,15 @@ impl EphemeraStarter {
 
         ////////////////////////// HTTP SERVER /////////////////////////////////////
         log::info!("Starting http server...");
-        let http_task = self.start_http(shutdown_manager.subscribe());
-        shutdown_manager.add_handle(http_task);
+        match self.start_http(shutdown_manager.subscribe()){
+            Ok(http_task) => {
+                shutdown_manager.add_handle(http_task);
+            }
+            Err(err) => {
+                log::error!("Failed to start http server: {}", err);
+                return Err(err);
+            }
+        }
         ////////////////////////////////////////////////////////////////////////
 
         ////////////////////////// WEBSOCKET /////////////////////////////////////
@@ -154,11 +161,10 @@ impl EphemeraStarter {
         Ok(join_handle)
     }
 
-    fn start_http(&mut self, mut shutdown: Shutdown) -> JoinHandle<()> {
-        //TODO: handle unwrap, halt startup
-        let http = http::init(self.config.http_config.clone(), self.api.clone()).unwrap();
+    fn start_http(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
+        let http = http::init(self.config.http_config.clone(), self.api.clone())?;
 
-        tokio::spawn(async move {
+        let join_handle = tokio::spawn(async move {
             let server_handle = http.handle();
 
             tokio::select! {
@@ -175,7 +181,8 @@ impl EphemeraStarter {
                 }
             }
             log::info!("Http task finished");
-        })
+        });
+        Ok(join_handle)
     }
 
     fn start_network(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
