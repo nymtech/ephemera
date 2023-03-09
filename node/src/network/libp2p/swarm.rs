@@ -68,13 +68,16 @@ impl SwarmNetwork {
         Swarm::with_tokio_executor(transport, behaviour, local_id)
     }
 
-    pub(crate) async fn start(mut self) -> anyhow::Result<()> {
+    pub(crate) fn listen(&mut self) -> anyhow::Result<()> {
         let address = Multiaddr::from_str(self.config.node_config.address.as_str())
             .expect("Invalid multi-address");
         self.swarm.listen_on(address.clone())?;
 
         log::info!("Listening on {address:?}");
+        Ok(())
+    }
 
+    pub(crate) async fn start(mut self) -> anyhow::Result<()> {
         let consensus_msg_topic = Topic::new(&self.config.libp2p.consensus_msg_topic_name);
         let ephemera_msg_topic = Topic::new(&self.config.libp2p.proposed_msg_topic_name);
 

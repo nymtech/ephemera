@@ -6,14 +6,13 @@ use tokio::task::JoinHandle;
 use crate::api::application::Application;
 use crate::api::{ApiListener, EphemeraExternalApi};
 use crate::block::manager::{BlockManager, BlockManagerBuilder};
+use crate::broadcast::bracha::broadcaster::Broadcaster;
 use crate::config::Configuration;
 use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
+use crate::database::rocksdb::RocksDbStorage;
 use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetCommunicationSender};
 use crate::network::libp2p::swarm::SwarmNetwork;
 use crate::utilities::crypto::key_manager::KeyManager;
-
-use crate::broadcast::bracha::broadcaster::Broadcaster;
-use crate::database::rocksdb::RocksDbStorage;
 use crate::utilities::{Ed25519Keypair, PeerId, ToPeerId};
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
 use crate::{http, Ephemera};
@@ -100,8 +99,15 @@ impl EphemeraStarter {
     async fn start_tasks(&mut self, shutdown_manager: &mut ShutdownManager) -> anyhow::Result<()> {
         ////////////////////////// NETWORK /////////////////////////////////////
         log::info!("Starting network...");
-        let nw_task = self.start_network(shutdown_manager.subscribe());
-        shutdown_manager.add_handle(nw_task);
+        match self.start_network(shutdown_manager.subscribe()) {
+            Ok(nw_task) => {
+                shutdown_manager.add_handle(nw_task);
+            }
+            Err(err) => {
+                log::error!("Failed to start network: {}", err);
+                return Err(err);
+            }
+        }
         ////////////////////////////////////////////////////////////////////////
 
         ////////////////////////// HTTP SERVER /////////////////////////////////////
@@ -162,13 +168,14 @@ impl EphemeraStarter {
         })
     }
 
-    fn start_network(&mut self, mut shutdown: Shutdown) -> JoinHandle<()> {
-        let (network, from_network, to_network) =
+    fn start_network(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
+        let (mut network, from_network, to_network) =
             SwarmNetwork::new(self.config.clone(), self.instance_info.keypair.clone());
         self.from_network = Some(from_network);
         self.to_network = Some(to_network);
 
-        tokio::spawn(async move {
+        network.listen()?;
+        let join_handle = tokio::spawn(async move {
             tokio::select! {
                 _ = shutdown.shutdown_signal_rcv.recv() => {
                     log::info!("Shutting down network");
@@ -176,12 +183,13 @@ impl EphemeraStarter {
                 nw_stopped = network.start() => {
                     match nw_stopped {
                         Ok(_) => log::info!("Network stopped unexpectedly"),
-                        Err(e) => log::error!("Network stopped with error: {}", e),
+                        Err(e) => log::error!("Network stopped with error: {e}",),
                     }
                 }
             }
             log::info!("Network task finished");
-        })
+        });
+        Ok(join_handle)
     }
 
     fn ephemera<A: Application>(
