@@ -20,7 +20,7 @@ pub struct ApiEphemeraMessage {
     pub id: String,
     /// The timestamp of the message.
     pub timestamp: u64,
-    /// The label of the message. It can be used to identify the type of the message for example.
+    /// The label of the message. It can be used to identify the type of a message for example.
     pub label: String,
     /// The data of the message. It is application specific.
     pub data: Vec<u8>,

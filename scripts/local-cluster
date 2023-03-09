@@ -134,10 +134,15 @@ create_cluster() {
   echo "Creating configuration for ${NR_OF_NODES} nodes..."
 
   COUNTER=1
+  WS_PORT=6000
+  EPHEMERA_PORT=3000
+  HTTP_SERVER_PORT=7000
+  NETWORK_PORT=4000
   for ((c = 1; c <= NR_OF_NODES; c++)); do
-    NETWORK_CLIENT_LISTENER_ADDRESS=/ip4/127.0.0.1/tcp/400"$COUNTER"
-    WS_ADDRESS=127.0.0.1:600"$COUNTER"
-    HTTP_SERVER_ADDRESS=127.0.0.1:700"$COUNTER"
+
+    NETWORK_CLIENT_LISTENER_ADDRESS=/ip4/127.0.0.1/tcp/$NETWORK_PORT
+    WS_ADDRESS=127.0.0.1:$WS_PORT
+    HTTP_SERVER_ADDRESS=127.0.0.1:$HTTP_SERVER_PORT
 
     NODE_DIR="$EPHEMERA_HOME_DIR"/node"$c"
     DB_PATH="$NODE_DIR"/db
@@ -149,13 +154,17 @@ create_cluster() {
 
     $EPHEMERA init \
             --node node"$c" \
-            --port 300"$c" \
+            --port $EPHEMERA_PORT \
             --rocket-path "$DB_PATH"/ephemera"$COUNTER".db \
             --ws-address "$WS_ADDRESS" \
             --network-client-listener-address "$NETWORK_CLIENT_LISTENER_ADDRESS" \
             --http-server-address "$HTTP_SERVER_ADDRESS"
 
     COUNTER=$((COUNTER + 1))
+    WS_PORT=$((WS_PORT + 1))
+    HTTP_SERVER_PORT=$((HTTP_SERVER_PORT + 1))
+    EPHEMERA_PORT=$((EPHEMERA_PORT + 1))
+    NETWORK_PORT=$((NETWORK_PORT + 1))
   done
   $EPHEMERA add-local-peers --ephemera-root-dir ~/.ephemera
 
