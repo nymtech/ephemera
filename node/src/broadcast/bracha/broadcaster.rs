@@ -9,7 +9,7 @@ use crate::broadcast::signing::BlockSigner;
 use crate::broadcast::BroadcastError::InvalidBroadcast;
 use crate::broadcast::MessageType::{Echo, Vote};
 use crate::broadcast::{BroadcastError, Command, ConsensusContext, PeerId, Quorum, RbMsg, Status};
-use crate::config::Configuration;
+use crate::config::BroadcastConfig;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 use crate::utilities::crypto::Signature;
 
@@ -29,14 +29,14 @@ pub(crate) struct ProtocolResponse {
 
 impl Broadcaster {
     pub fn new(
-        config: Configuration,
+        config: BroadcastConfig,
         peer_id: PeerId,
         keypair: Arc<Ed25519Keypair>,
     ) -> Broadcaster {
         let block_signer = BlockSigner::new(keypair);
         Broadcaster {
             contexts: LruCache::new(NonZeroUsize::new(1000).unwrap()),
-            quorum: BrachaQuorum::new(config.quorum),
+            quorum: BrachaQuorum::new(config),
             peer_id,
             block_signer,
         }

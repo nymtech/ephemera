@@ -1,8 +1,8 @@
 use clap::Parser;
 
 use crate::config::{
-    BlockConfig, BroadcastProtocolSettings, Configuration, DbConfig, HttpConfig, Libp2pSettings,
-    NodeConfig, WsConfig, DEFAULT_CONSENSUS_MSG_TOPIC_NAME, DEFAULT_HEARTBEAT_INTERVAL_SEC,
+    BlockConfig, BroadcastConfig, Configuration, DbConfig, HttpConfig, Libp2pConfig, NodeConfig,
+    WsConfig, DEFAULT_CONSENSUS_MSG_TOPIC_NAME, DEFAULT_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT, DEFAULT_PROPOSED_MSG_TOPIC_NAME,
     DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOTAL_NR_OF_NODES,
 };
@@ -48,31 +48,31 @@ impl InitCmd {
         let private_key = to_base58(keypair.to_raw_vec());
 
         let configuration = Configuration {
-            node_config: NodeConfig {
+            node: NodeConfig {
                 address: format!("{}{}", self.address, self.port),
                 pub_key,
                 private_key,
             },
-            quorum: BroadcastProtocolSettings {
+            broadcast: BroadcastConfig {
                 cluster_size: self.total_nr_of_nodes,
             },
-            libp2p: Libp2pSettings {
+            libp2p: Libp2pConfig {
                 consensus_msg_topic_name: DEFAULT_CONSENSUS_MSG_TOPIC_NAME.to_string(),
                 proposed_msg_topic_name: DEFAULT_PROPOSED_MSG_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
                 peers: vec![],
             },
-            db_config: DbConfig {
+            storage: DbConfig {
                 rocket_path: self.rocket_path,
                 create_if_not_exists: true,
             },
-            ws_config: WsConfig {
+            websocket: WsConfig {
                 ws_address: self.ws_address,
             },
-            http_config: HttpConfig {
+            http: HttpConfig {
                 address: self.http_server_address,
             },
-            block_config: BlockConfig {
+            block: BlockConfig {
                 block_producer: self.block_producer,
                 block_creation_interval_sec: self.block_creation_interval_sec,
             },

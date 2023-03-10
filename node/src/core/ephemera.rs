@@ -12,7 +12,7 @@ use crate::block::types::block::Block;
 use crate::broadcast::bracha::broadcaster::Broadcaster;
 use crate::broadcast::RbMsg;
 
-use crate::core::builder::{EphemeraHandle, InstanceInfo};
+use crate::core::builder::{EphemeraHandle, NodeInfo};
 use crate::core::shutdown::ShutdownManager;
 use crate::database::rocksdb::RocksDbStorage;
 use crate::database::EphemeraDatabase;
@@ -22,7 +22,7 @@ use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetComm
 use crate::websocket::ws_manager::WsMessageBroadcaster;
 
 pub struct Ephemera<A: Application> {
-    pub(crate) instance_info: InstanceInfo,
+    pub(crate) node_info: NodeInfo,
 
     /// Block manager responsibility includes:
     /// - Block production and signing
@@ -46,6 +46,7 @@ pub struct Ephemera<A: Application> {
     /// A component which listens API requests.
     pub(crate) api_listener: ApiListener,
 
+    /// An implementation of Application trait. Provides callbacks to broadcast.
     pub(crate) application: Arc<A>,
 
     pub(crate) ephemera_handle: EphemeraHandle,
@@ -215,7 +216,7 @@ impl<A: Application> Ephemera<A> {
 
                     match block {
                         Some(block) => {
-                            if block.header.creator == self.instance_info.peer_id {
+                            if block.header.creator == self.node_info.peer_id {
                                 //DB
                                 let signatures = self
                                     .broadcaster

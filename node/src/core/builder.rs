@@ -17,12 +17,13 @@ use crate::utilities::{Ed25519Keypair, PeerId, ToPeerId};
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
 use crate::{http, Ephemera};
 
-pub(crate) struct InstanceInfo {
+#[derive(Clone)]
+pub(crate) struct NodeInfo {
     pub(crate) peer_id: PeerId,
     pub(crate) keypair: Arc<Ed25519Keypair>,
 }
 
-impl InstanceInfo {
+impl NodeInfo {
     pub(crate) fn new(peer_id: PeerId, keypair: Arc<Ed25519Keypair>) -> Self {
         Self { peer_id, keypair }
     }
@@ -38,7 +39,7 @@ pub struct EphemeraHandle {
 
 pub struct EphemeraStarter {
     config: Configuration,
-    instance_info: InstanceInfo,
+    instance_info: NodeInfo,
     block_manager_builder: Option<BlockManagerBuilder>,
     block_manager: Option<BlockManager>,
     broadcaster: Broadcaster,
@@ -53,15 +54,15 @@ pub struct EphemeraStarter {
 impl EphemeraStarter {
     //Crate pure data structures, no resource allocation nor threads
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
-        let keypair = KeyManager::read_keypair(config.node_config.private_key.clone())?;
+        let keypair = KeyManager::read_keypair(config.node.private_key.clone())?;
         let peer_id = keypair.peer_id();
         log::info!("Local node id: {}", peer_id);
 
-        let instance_info = InstanceInfo::new(peer_id, keypair.clone());
+        let instance_info = NodeInfo::new(peer_id, keypair.clone());
 
-        let broadcaster = Broadcaster::new(config.clone(), peer_id, keypair);
+        let broadcaster = Broadcaster::new(config.broadcast.clone(), peer_id, keypair);
 
-        let block_manager_builder = BlockManagerBuilder::new(config.block_config.clone(), peer_id);
+        let block_manager_builder = BlockManagerBuilder::new(config.block.clone(), peer_id);
 
         let (api, api_listener) = EphemeraExternalApi::new();
 
@@ -138,7 +139,7 @@ impl EphemeraStarter {
     }
 
     async fn start_websocket(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
-        let (mut websocket, ws_message_broadcast) = WsManager::new(self.config.ws_config.clone());
+        let (mut websocket, ws_message_broadcast) = WsManager::new(self.config.websocket.clone());
         self.ws_message_broadcast = Some(ws_message_broadcast);
 
         websocket.listen().await?;
@@ -162,7 +163,7 @@ impl EphemeraStarter {
     }
 
     fn start_http(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
-        let http = http::init(self.config.http_config.clone(), self.api.clone())?;
+        let http = http::init(self.config.http.clone(), self.api.clone())?;
 
         let join_handle = tokio::spawn(async move {
             let server_handle = http.handle();
@@ -186,8 +187,12 @@ impl EphemeraStarter {
     }
 
     fn start_network(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
-        let (mut network, from_network, to_network) =
-            SwarmNetwork::new(self.config.clone(), self.instance_info.keypair.clone());
+        let (mut network, from_network, to_network) = SwarmNetwork::new(
+            self.config.libp2p.clone(),
+            self.config.node.clone(),
+            self.instance_info.clone(),
+        );
+
         self.from_network = Some(from_network);
         self.to_network = Some(to_network);
 
@@ -221,7 +226,7 @@ impl EphemeraStarter {
         };
         //TODO: builder pattern needs make sure that all unwraps are safe here
         Ephemera {
-            instance_info: self.instance_info,
+            node_info: self.instance_info,
             block_manager: self.block_manager.unwrap(),
             broadcaster: self.broadcaster,
             from_network: self.from_network.unwrap(),
@@ -238,7 +243,7 @@ impl EphemeraStarter {
     //allocate database connection
     async fn connect_db(mut self) -> anyhow::Result<Self> {
         log::info!("Opening database...");
-        let database = RocksDbStorage::open(self.config.db_config.clone())?;
+        let database = RocksDbStorage::open(self.config.storage.clone())?;
         self.storage = Some(database);
         Ok(self)
     }

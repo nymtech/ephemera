@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,12 +12,13 @@ use libp2p::mplex::MplexConfig;
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
 use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
 use libp2p::yamux::YamuxConfig;
-use libp2p::{identity::Keypair, noise, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
+use libp2p::{noise, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
 use tokio::select;
 
 use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
-use crate::config::Configuration;
+use crate::config::{Libp2pConfig, NodeConfig};
+use crate::core::builder::NodeInfo;
 use crate::network::libp2p::messages_channel::{
     EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender,
 };
@@ -26,7 +26,8 @@ use crate::network::libp2p::peer_discovery::StaticPeerDiscovery;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 
 pub struct SwarmNetwork {
-    config: Configuration,
+    libp2p_conf: Libp2pConfig,
+    node_conf: NodeConfig,
     swarm: Swarm<GroupNetworkBehaviour>,
     from_ephemera_rcv: NetCommunicationReceiver,
     to_ephemera_tx: NetCommunicationSender,
@@ -34,8 +35,9 @@ pub struct SwarmNetwork {
 
 impl SwarmNetwork {
     pub(crate) fn new(
-        config: Configuration,
-        keypair: Arc<Ed25519Keypair>,
+        libp2p_conf: Libp2pConfig,
+        node_conf: NodeConfig,
+        node_info: NodeInfo,
     ) -> (
         SwarmNetwork,
         NetCommunicationReceiver,
@@ -44,10 +46,16 @@ impl SwarmNetwork {
         let (from_ephemera_tx, from_ephemera_rcv) = EphemeraNetworkCommunication::init();
         let (to_ephemera_tx, to_ephemera_rcv) = EphemeraNetworkCommunication::init();
 
-        let swarm = SwarmNetwork::create_swarm(config.clone(), keypair);
+        let local_key = node_info.keypair.clone();
+        let peer_id = node_info.peer_id.0;
+
+        let transport = create_transport(local_key.clone());
+        let behaviour = create_behaviour(&libp2p_conf, local_key);
+        let swarm = Swarm::with_tokio_executor(transport, behaviour, peer_id);
 
         let network = SwarmNetwork {
-            config,
+            libp2p_conf,
+            node_conf,
             swarm,
             from_ephemera_rcv,
             to_ephemera_tx,
@@ -55,22 +63,10 @@ impl SwarmNetwork {
 
         (network, to_ephemera_rcv, from_ephemera_tx)
     }
-    //Message delivery and peer discovery
-    fn create_swarm(
-        conf: Configuration,
-        keypair: Arc<Ed25519Keypair>,
-    ) -> Swarm<GroupNetworkBehaviour> {
-        let keypair: &Ed25519Keypair = keypair.borrow();
-        let local_id = Libp2pPeerId::from(keypair.as_ref().public());
-        let transport = create_transport(keypair.as_ref());
-        let behaviour = create_behaviour(conf, keypair.as_ref());
-
-        Swarm::with_tokio_executor(transport, behaviour, local_id)
-    }
 
     pub(crate) fn listen(&mut self) -> anyhow::Result<()> {
-        let address = Multiaddr::from_str(self.config.node_config.address.as_str())
-            .expect("Invalid multi-address");
+        let address =
+            Multiaddr::from_str(self.node_conf.address.as_str()).expect("Invalid multi-address");
         self.swarm.listen_on(address.clone())?;
 
         log::info!("Listening on {address:?}");
@@ -78,8 +74,8 @@ impl SwarmNetwork {
     }
 
     pub(crate) async fn start(mut self) -> anyhow::Result<()> {
-        let consensus_msg_topic = Topic::new(&self.config.libp2p.consensus_msg_topic_name);
-        let ephemera_msg_topic = Topic::new(&self.config.libp2p.proposed_msg_topic_name);
+        let consensus_msg_topic = Topic::new(&self.libp2p_conf.consensus_msg_topic_name);
+        let ephemera_msg_topic = Topic::new(&self.libp2p_conf.proposed_msg_topic_name);
 
         loop {
             select!(
@@ -207,15 +203,18 @@ impl From<()> for GroupBehaviourEvent {
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
 //Peer discovery takes care of locating peers
-fn create_behaviour(conf: Configuration, local_key: &Keypair) -> GroupNetworkBehaviour {
-    let consensus_topic = Topic::new(&conf.libp2p.consensus_msg_topic_name);
-    let proposed_topic = Topic::new(&conf.libp2p.proposed_msg_topic_name);
+fn create_behaviour(
+    libp2p_conf: &Libp2pConfig,
+    keypair: Arc<Ed25519Keypair>,
+) -> GroupNetworkBehaviour {
+    let consensus_topic = Topic::new(&libp2p_conf.consensus_msg_topic_name);
+    let proposed_topic = Topic::new(&libp2p_conf.proposed_msg_topic_name);
 
-    let mut gossipsub = create_gossipsub(local_key);
+    let mut gossipsub = create_gossipsub(keypair);
     gossipsub.subscribe(&consensus_topic).unwrap();
     gossipsub.subscribe(&proposed_topic).unwrap();
 
-    let peer_discovery = StaticPeerDiscovery::new(conf);
+    let peer_discovery = StaticPeerDiscovery::new(libp2p_conf);
     for peer in peer_discovery.peer_ids() {
         log::debug!("Adding peer: {}", peer);
         gossipsub.add_explicit_peer(&peer);
@@ -228,7 +227,7 @@ fn create_behaviour(conf: Configuration, local_key: &Keypair) -> GroupNetworkBeh
 }
 
 //Configure networking messaging stack(Gossipsub)
-fn create_gossipsub(local_key: &Keypair) -> Gossipsub {
+fn create_gossipsub(local_key: Arc<Ed25519Keypair>) -> Gossipsub {
     let gossipsub_config = GossipsubConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(5))
         .validation_mode(ValidationMode::Strict)
@@ -236,7 +235,7 @@ fn create_gossipsub(local_key: &Keypair) -> Gossipsub {
         .expect("Valid config");
 
     Gossipsub::new(
-        MessageAuthenticity::Signed(local_key.clone()),
+        MessageAuthenticity::Signed(local_key.0.clone()),
         gossipsub_config,
     )
     .expect("Correct configuration")
@@ -246,10 +245,10 @@ fn create_gossipsub(local_key: &Keypair) -> Gossipsub {
 //Tcp protocol for networking
 //Noise protocol for encryption
 //Yamux protocol for multiplexing
-fn create_transport(local_key: &Keypair) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
+fn create_transport(local_key: Arc<Ed25519Keypair>) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
     let transport = TokioTransport::new(TokioConfig::default().nodelay(true));
     let noise_keypair = noise::Keypair::<noise::X25519Spec>::new()
-        .into_authentic(local_key)
+        .into_authentic(&local_key.0.clone())
         .unwrap();
     let xx_config = noise::NoiseConfig::xx(noise_keypair);
     transport

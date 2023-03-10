@@ -1,5 +1,5 @@
 use crate::broadcast::{ConsensusContext, MessageType, Quorum};
-use crate::config::BroadcastProtocolSettings;
+use crate::config::BroadcastConfig;
 
 #[derive(Debug, Clone)]
 pub struct BasicQuorum {
@@ -8,7 +8,7 @@ pub struct BasicQuorum {
 }
 
 impl BasicQuorum {
-    pub fn new(settings: BroadcastProtocolSettings) -> Self {
+    pub fn new(settings: BroadcastConfig) -> Self {
         BasicQuorum {
             size: settings.cluster_size,
             threshold: settings.cluster_size,

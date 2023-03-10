@@ -21,13 +21,13 @@ pub const DEFAULT_TOTAL_NR_OF_NODES: usize = 1;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Configuration {
-    pub node_config: NodeConfig,
-    pub quorum: BroadcastProtocolSettings,
-    pub libp2p: Libp2pSettings,
-    pub db_config: DbConfig,
-    pub ws_config: WsConfig,
-    pub http_config: HttpConfig,
-    pub block_config: BlockConfig,
+    pub node: NodeConfig,
+    pub broadcast: BroadcastConfig,
+    pub libp2p: Libp2pConfig,
+    pub storage: DbConfig,
+    pub websocket: WsConfig,
+    pub http: HttpConfig,
+    pub block: BlockConfig,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -39,12 +39,12 @@ pub struct NodeConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct BroadcastProtocolSettings {
+pub struct BroadcastConfig {
     pub cluster_size: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct Libp2pSettings {
+pub struct Libp2pConfig {
     pub consensus_msg_topic_name: String,
     pub proposed_msg_topic_name: String,
     pub heartbeat_interval_sec: u64,

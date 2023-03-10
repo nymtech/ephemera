@@ -13,7 +13,7 @@ use libp2p::swarm::{
 use libp2p::Multiaddr;
 use tokio::io;
 
-use crate::config::{Configuration, PeerSetting};
+use crate::config::{Libp2pConfig, PeerSetting};
 use crate::utilities::encoding::from_base58;
 
 #[derive(Debug, Clone)]
@@ -65,9 +65,9 @@ pub struct StaticPeerDiscovery {
 }
 
 impl StaticPeerDiscovery {
-    pub fn new(conf: Configuration) -> StaticPeerDiscovery {
+    pub fn new(conf: &Libp2pConfig) -> StaticPeerDiscovery {
         let mut peers: HashMap<PeerId, Peer> = HashMap::new();
-        for setting in conf.libp2p.peers.iter() {
+        for setting in conf.peers.iter() {
             let peer: Peer = Peer::new(setting);
             let peer_id: PeerId = peer.clone().try_into().unwrap();
             peers.insert(peer_id, peer);

@@ -1,5 +1,5 @@
 use crate::broadcast::{ConsensusContext, MessageType, Quorum};
-use crate::config::BroadcastProtocolSettings;
+use crate::config::BroadcastConfig;
 
 pub(crate) struct BrachaQuorum {
     pub(crate) cluster_size: usize,
@@ -9,7 +9,7 @@ pub(crate) struct BrachaQuorum {
 const MAX_FAULTY_RATIO: f64 = 1.0 / 3.0;
 
 impl BrachaQuorum {
-    pub fn new(settings: BroadcastProtocolSettings) -> Self {
+    pub fn new(settings: BroadcastConfig) -> Self {
         let max_faulty_nodes = (settings.cluster_size as f64 * MAX_FAULTY_RATIO).ceil() as usize;
         log::info!(
             "Bracha quorum: cluster_size: {}, max_faulty_nodes: {}",

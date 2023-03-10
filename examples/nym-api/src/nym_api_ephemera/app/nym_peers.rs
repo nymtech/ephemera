@@ -49,7 +49,7 @@ impl NymApiEphemeraPeerInfo {
     pub(crate) fn from_ephemera_dev_cluster_conf(
         conf: &Configuration,
     ) -> anyhow::Result<NymApiEphemeraPeerInfo> {
-        let node_info = conf.node_config.clone();
+        let node_info = conf.node.clone();
 
         let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
         let keypair = Ed25519Keypair::from_raw_vec(keypair).unwrap();
@@ -79,7 +79,7 @@ impl NymApiEphemeraPeerInfo {
                 let conf = Configuration::try_load_from_home_dir(node_name)
                     .unwrap_or_else(|_| panic!("Error loading configuration for node {node_name}"));
 
-                let node_info = conf.node_config;
+                let node_info = conf.node;
 
                 let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
                 let keypair = Ed25519Keypair::from_raw_vec(keypair).unwrap();
