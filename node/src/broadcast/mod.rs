@@ -150,10 +150,6 @@ impl RbMsg {
     pub(crate) fn vote_reply(&self, local_id: PeerId, data: Block, signature: Signature) -> Self {
         self.reply(local_id, MessageType::Vote(data), signature)
     }
-
-    pub(crate) fn ack_reply(&self, local_id: PeerId, signature: Signature) -> Self {
-        self.reply(local_id, MessageType::Ack, signature)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

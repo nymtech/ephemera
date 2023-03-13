@@ -9,16 +9,13 @@ use crate::api::ApiError::ApiError;
 use crate::api::{ApiCmd, ApiListener};
 use crate::block::manager::BlockManager;
 use crate::block::types::block::Block;
-use crate::broadcast::bracha::broadcaster::Broadcaster;
+use crate::broadcast::bracha::broadcaster::{Broadcaster, ProtocolResponse};
 use crate::broadcast::RbMsg;
-
 use crate::core::builder::{EphemeraHandle, NodeInfo};
 use crate::core::shutdown::ShutdownManager;
 use crate::database::rocksdb::RocksDbStorage;
 use crate::database::EphemeraDatabase;
-
 use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetCommunicationSender};
-
 use crate::websocket::ws_manager::WsMessageBroadcaster;
 
 pub struct Ephemera<A: Application> {
@@ -157,15 +154,20 @@ impl<A: Application> Ephemera<A> {
 
         //1. send to local RB
         match self.broadcaster.new_broadcast(new_block).await {
-            Ok(rb_result) => {
+            Ok(ProtocolResponse {
+                status: _,
+                command,
+                protocol_reply: Some(rp),
+            }) => {
                 use crate::broadcast::Command;
-                if rb_result.command == Command::Broadcast {
-                    log::trace!("Broadcasting new block: {:?}", rb_result.protocol_reply);
+                if command == Command::Broadcast {
+                    log::trace!("Broadcasting new block: {:?}", rp);
                     //2. send to network
-                    self.to_network
-                        .send_protocol_message(rb_result.protocol_reply)
-                        .await?;
+                    self.to_network.send_protocol_message(rp).await?;
                 }
+            }
+            Ok(_) => {
+                log::error!("Unexpected broadcast")
             }
             Err(err) => {
                 log::error!("Error sending new block to broadcaster: {err:?}",);
@@ -175,6 +177,7 @@ impl<A: Application> Ephemera<A> {
     }
 
     async fn process_block_from_network(&mut self, msg: RbMsg) -> anyhow::Result<()> {
+        log::trace!("Protocol response: {:?}", msg);
         //Item: PREPARE DOESN'T NEED TO SEND US FULL BLOCK IF IT'S OUR OWN BLOCK.
         //To improve performance, the other nodes technically don't need to send us block back if we created it.
         //But for now it's fine.
@@ -193,26 +196,21 @@ impl<A: Application> Ephemera<A> {
 
         //Send to local RB protocol
         match self.broadcaster.handle(msg).await {
-            Ok(response) => {
-                log::trace!("Protocol response: {:?}", response);
-
+            Ok(ProtocolResponse {
+                status,
+                command,
+                protocol_reply: Some(rp),
+            }) => {
                 use crate::broadcast::{Command, Status};
                 //Send protocol response to network
-                if response.command == Command::Broadcast {
-                    log::trace!(
-                        "Broadcasting block to network: {:?}",
-                        response.protocol_reply
-                    );
-                    self.to_network
-                        .send_protocol_message(response.protocol_reply.clone())
-                        .await?
+                if command == Command::Broadcast {
+                    log::trace!("Broadcasting block to network: {:?}", rp);
+                    self.to_network.send_protocol_message(rp.clone()).await?
                 }
 
                 //If committed, store in DB, send to WS
-                if response.status == Status::Committed {
-                    let block = self
-                        .block_manager
-                        .get_block_by_id(&response.protocol_reply.data_identifier);
+                if status == Status::Committed {
+                    let block = self.block_manager.get_block_by_id(&rp.data_identifier);
 
                     match block {
                         Some(block) => {
@@ -252,12 +250,14 @@ impl<A: Application> Ephemera<A> {
                                 }
                             }
                         }
-                        None => log::error!(
-                            "Block not found in BlockManager: {:?}",
-                            response.protocol_reply.data_identifier
-                        ),
+                        None => {
+                            log::error!("Block not found in BlockManager: {:?}", rp.data_identifier)
+                        }
                     }
                 }
+            }
+            Ok(_) => {
+                log::error!("Dropping the broadcast message")
             }
             Err(e) => log::error!("Error: {}", e),
         }

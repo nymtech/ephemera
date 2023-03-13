@@ -26,7 +26,7 @@ pub(crate) struct Broadcaster {
 pub(crate) struct ProtocolResponse {
     pub(crate) status: Status,
     pub(crate) command: Command,
-    pub(crate) protocol_reply: RbMsg,
+    pub(crate) protocol_reply: Option<RbMsg>,
 }
 
 #[allow(dead_code)]
@@ -105,7 +105,7 @@ impl Broadcaster {
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: rb_msg.echo_reply(self.peer_id, block.clone(), signature),
+                protocol_reply: Some(rb_msg.echo_reply(self.peer_id, block.clone(), signature)),
             });
         }
 
@@ -118,14 +118,14 @@ impl Broadcaster {
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: rb_msg.vote_reply(self.peer_id, block.clone(), signature),
+                protocol_reply: Some(rb_msg.vote_reply(self.peer_id, block.clone(), signature)),
             });
         }
 
         Ok(ProtocolResponse {
             status: Status::Pending,
             command: Command::Drop,
-            protocol_reply: rb_msg.ack_reply(self.peer_id, signature),
+            protocol_reply: None,
         })
     }
 
@@ -150,7 +150,7 @@ impl Broadcaster {
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: rb_msg.vote_reply(self.peer_id, block.clone(), signature),
+                protocol_reply: Some(rb_msg.vote_reply(self.peer_id, block.clone(), signature)),
             });
         }
 
@@ -164,14 +164,14 @@ impl Broadcaster {
             return Ok(ProtocolResponse {
                 status: Status::Committed,
                 command: Command::Broadcast,
-                protocol_reply: rb_msg.vote_reply(self.peer_id, block.clone(), signature),
+                protocol_reply: None,
             });
         }
 
         Ok(ProtocolResponse {
             status: Status::Pending,
             command: Command::Drop,
-            protocol_reply: rb_msg.ack_reply(self.peer_id, signature),
+            protocol_reply: None,
         })
     }
 
