@@ -4,15 +4,12 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use libp2p::core::{muxing::StreamMuxerBox, transport::Boxed};
-use libp2p::gossipsub::{
-    Gossipsub, GossipsubConfigBuilder, GossipsubEvent, IdentTopic as Topic, MessageAuthenticity,
-    ValidationMode,
-};
+use libp2p::gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode};
 use libp2p::mplex::MplexConfig;
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
 use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
 use libp2p::yamux::YamuxConfig;
-use libp2p::{noise, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
+use libp2p::{gossipsub, noise, rendezvous, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
 use tokio::select;
 
 use crate::block::types::message::EphemeraMessage;
@@ -121,7 +118,7 @@ impl SwarmNetwork {
         match swarm_event {
             SwarmEvent::Behaviour(b) => match b {
                 GroupBehaviourEvent::Gossipsub(gs) => match gs {
-                    GossipsubEvent::Message {
+                    gossipsub::Event::Message {
                         propagation_source: _,
                         message_id: _,
                         message,
@@ -137,6 +134,14 @@ impl SwarmNetwork {
                         }
                     }
                     _ => {}
+                },
+                GroupBehaviourEvent::Rendezvous(event) => match event {
+                    rendezvous::server::Event::DiscoverServed { .. } => {}
+                    rendezvous::server::Event::DiscoverNotServed { .. } => {}
+                    rendezvous::server::Event::PeerRegistered { .. } => {}
+                    rendezvous::server::Event::PeerNotRegistered { .. } => {}
+                    rendezvous::server::Event::PeerUnregistered { .. } => {}
+                    rendezvous::server::Event::RegistrationExpired(_) => {}
                 },
                 _ => {}
             },
@@ -177,19 +182,21 @@ impl SwarmNetwork {
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
-pub struct GroupNetworkBehaviour {
-    pub gossipsub: Gossipsub,
-    pub peer_discovery: StaticPeerDiscovery,
+pub(crate) struct GroupNetworkBehaviour {
+    pub(crate) gossipsub: gossipsub::Behaviour,
+    pub(crate) peer_discovery: StaticPeerDiscovery,
+    pub(crate) rendezvous: rendezvous::server::Behaviour,
 }
 
 #[allow(clippy::large_enum_variant)]
 pub enum GroupBehaviourEvent {
-    Gossipsub(GossipsubEvent),
+    Gossipsub(gossipsub::Event),
     StaticPeerDiscovery(()),
+    Rendezvous(rendezvous::server::Event),
 }
 
-impl From<GossipsubEvent> for GroupBehaviourEvent {
-    fn from(event: GossipsubEvent) -> Self {
+impl From<gossipsub::Event> for GroupBehaviourEvent {
+    fn from(event: gossipsub::Event) -> Self {
         GroupBehaviourEvent::Gossipsub(event)
     }
 }
@@ -197,6 +204,12 @@ impl From<GossipsubEvent> for GroupBehaviourEvent {
 impl From<()> for GroupBehaviourEvent {
     fn from(event: ()) -> Self {
         GroupBehaviourEvent::StaticPeerDiscovery(event)
+    }
+}
+
+impl From<rendezvous::server::Event> for GroupBehaviourEvent {
+    fn from(event: rendezvous::server::Event) -> Self {
+        GroupBehaviourEvent::Rendezvous(event)
     }
 }
 
@@ -220,25 +233,32 @@ fn create_behaviour(
         gossipsub.add_explicit_peer(&peer);
     }
 
+    let rendezvous = create_rendezvous();
+
     GroupNetworkBehaviour {
         gossipsub,
         peer_discovery,
+        rendezvous,
     }
 }
 
 //Configure networking messaging stack(Gossipsub)
-fn create_gossipsub(local_key: Arc<Ed25519Keypair>) -> Gossipsub {
-    let gossipsub_config = GossipsubConfigBuilder::default()
+fn create_gossipsub(local_key: Arc<Ed25519Keypair>) -> gossipsub::Behaviour {
+    let gossipsub_config = gossipsub::ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(5))
         .validation_mode(ValidationMode::Strict)
         .build()
         .expect("Valid config");
 
-    Gossipsub::new(
+    gossipsub::Behaviour::new(
         MessageAuthenticity::Signed(local_key.0.clone()),
         gossipsub_config,
     )
     .expect("Correct configuration")
+}
+
+fn create_rendezvous() -> rendezvous::server::Behaviour {
+    rendezvous::server::Behaviour::new(rendezvous::server::Config::default())
 }
 
 //Configure networking connection stack(Tcp, Noise, Yamux)

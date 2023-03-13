@@ -28,6 +28,7 @@
 
 pub use crate::core::builder::EphemeraStarter;
 pub use crate::core::ephemera::Ephemera;
+pub use crate::core::shutdown::ShutdownHandle;
 
 pub mod api;
 pub(crate) mod block;
@@ -35,11 +36,9 @@ pub(crate) mod broadcast;
 pub mod cli;
 pub mod config;
 mod core;
-mod database;
 pub mod http;
 pub mod logging;
 pub mod network;
+mod storage;
 pub mod utilities;
 mod websocket;
-
-pub use crate::core::shutdown::ShutdownHandle;

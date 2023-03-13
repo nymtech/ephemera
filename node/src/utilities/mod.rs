@@ -8,6 +8,7 @@ pub use crypto::PublicKey;
 pub use crypto::ToPeerId;
 pub use encoding::encode;
 
+pub use crate::utilities::encoding::from_base58;
 pub use crate::utilities::encoding::from_hex;
 pub use crate::utilities::encoding::to_hex;
 pub use crate::utilities::encoding::{decode, Encode};

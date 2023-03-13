@@ -6,9 +6,8 @@ use lru::LruCache;
 use crate::block::types::block::Block;
 use crate::broadcast::bracha::quorum::BrachaQuorum;
 use crate::broadcast::signing::BlockSigner;
-use crate::broadcast::BroadcastError::InvalidBroadcast;
 use crate::broadcast::MessageType::{Echo, Vote};
-use crate::broadcast::{BroadcastError, Command, ConsensusContext, PeerId, Quorum, RbMsg, Status};
+use crate::broadcast::{Command, ConsensusContext, PeerId, Quorum, RbMsg, Status};
 use crate::config::BroadcastConfig;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 use crate::utilities::crypto::Signature;
@@ -42,21 +41,16 @@ impl Broadcaster {
         }
     }
 
-    pub(crate) async fn new_broadcast(
-        &mut self,
-        block: Block,
-    ) -> Result<ProtocolResponse, BroadcastError> {
+    pub(crate) async fn new_broadcast(&mut self, block: Block) -> anyhow::Result<ProtocolResponse> {
         log::debug!("Starting protocol for new block {}", block);
         let signature = self.block_signer.sign_block(block.clone())?;
         let rb_msg = RbMsg::new(block, self.peer_id, signature);
+        log::debug!("New broadcast message: {:?}", rb_msg.id);
         self.handle(rb_msg).await
     }
 
-    pub(crate) async fn handle(
-        &mut self,
-        rb_msg: RbMsg,
-    ) -> Result<ProtocolResponse, BroadcastError> {
-        let block = rb_msg.get_data().expect("Block should be present");
+    pub(crate) async fn handle(&mut self, rb_msg: RbMsg) -> anyhow::Result<ProtocolResponse> {
+        let block = rb_msg.get_block();
         self.block_signer.verify_block(block, &rb_msg.signature)?;
 
         let id = rb_msg.id.clone();
@@ -69,10 +63,6 @@ impl Broadcaster {
                 log::trace!("Processing VOTE {}", rb_msg.id);
                 self.process_vote(rb_msg).await
             }
-            _ => Err(InvalidBroadcast(format!(
-                "Invalid broadcast message {}",
-                rb_msg.id
-            ))),
         };
         log::trace!("Context after new broadcast: {:?}", self.contexts.get(&id));
         result
@@ -87,8 +77,8 @@ impl Broadcaster {
     // if vote == true:
     // send <vote, v> to all parties
     // vote = false
-    async fn process_echo(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
-        let block = rb_msg.get_data().expect("Block should be present");
+    async fn process_echo(&mut self, rb_msg: RbMsg) -> anyhow::Result<ProtocolResponse> {
+        let block = rb_msg.get_block();
         let mut ctx = self.contexts.get_or_insert_mut(rb_msg.id.clone(), || {
             ConsensusContext::new(rb_msg.id.clone())
         });
@@ -149,8 +139,8 @@ impl Broadcaster {
     //
     // on receiving <vote, v> from n-f distinct parties:
     // deliver v
-    async fn process_vote(&mut self, rb_msg: RbMsg) -> Result<ProtocolResponse, BroadcastError> {
-        let block = rb_msg.get_data().expect("Block should be present");
+    async fn process_vote(&mut self, rb_msg: RbMsg) -> anyhow::Result<ProtocolResponse> {
+        let block = rb_msg.get_block();
         let mut ctx = self.contexts.get_or_insert_mut(rb_msg.id.clone(), || {
             ConsensusContext::new(rb_msg.id.clone())
         });

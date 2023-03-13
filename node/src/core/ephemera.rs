@@ -13,9 +13,9 @@ use crate::broadcast::bracha::broadcaster::{Broadcaster, ProtocolResponse};
 use crate::broadcast::RbMsg;
 use crate::core::builder::{EphemeraHandle, NodeInfo};
 use crate::core::shutdown::ShutdownManager;
-use crate::database::rocksdb::RocksDbStorage;
-use crate::database::EphemeraDatabase;
 use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetCommunicationSender};
+use crate::storage::rocksdb::RocksDbStorage;
+use crate::storage::EphemeraDatabase;
 use crate::websocket::ws_manager::WsMessageBroadcaster;
 
 pub struct Ephemera<A: Application> {
@@ -88,18 +88,20 @@ impl<A: Application> Ephemera<A> {
 
                 //PROCESSING EPHEMERA MESSAGES(TRANSACTIONS) FROM NETWORK
                 Some(ephemera_msg) = self.from_network.ephemera_message_receiver.recv() => {
-                    log::trace!("New ephemera message from network: {:?}", ephemera_msg);
                     // 1. Ask application to decide if we should accept this message.
-                    match self.application.check_tx(ephemera_msg.clone().into()){
+                    let msd_id = ephemera_msg.id.clone();
+                    let api_msg = ephemera_msg.clone().into();
+                    log::debug!("New ephemera message from network: {}", msd_id);
+                    match self.application.check_tx(api_msg){
                         Ok(true) => {
-                            log::trace!("Application accepted message: {:?}", ephemera_msg);
+                            log::debug!("Application accepted message: {}", msd_id);
                             // 2. send to BlockManager
                             if let Err(err) = self.block_manager.new_message(ephemera_msg).await{
                                 log::error!("Error sending signed message to block manager: {:?}", err);
                             }
                         }
                         Ok(false) => {
-                            log::debug!("Application rejected message: {:?}", ephemera_msg);
+                            log::debug!("Application rejected message: {:?}", msd_id);
                         }
                         Err(err) => {
                             log::error!("Application rejected message: {:?}", err);
@@ -142,7 +144,7 @@ impl<A: Application> Ephemera<A> {
         match self.application.accept_block(&new_block.clone().into()) {
             Ok(accept) => {
                 if !accept {
-                    log::debug!("Application rejected new block: {:?}", new_block);
+                    log::debug!("Application rejected new block: {}", new_block.header.id);
                     return Ok(());
                 }
             }
@@ -177,7 +179,13 @@ impl<A: Application> Ephemera<A> {
     }
 
     async fn process_block_from_network(&mut self, msg: RbMsg) -> anyhow::Result<()> {
-        log::trace!("Protocol response: {:?}", msg);
+        let msg_id = msg.id.clone();
+        let block_id = msg.data_identifier.clone();
+        log::trace!(
+            "Processing message {}[block {}] from network",
+            msg_id,
+            block_id
+        );
         //Item: PREPARE DOESN'T NEED TO SEND US FULL BLOCK IF IT'S OUR OWN BLOCK.
         //To improve performance, the other nodes technically don't need to send us block back if we created it.
         //But for now it's fine.
@@ -185,79 +193,79 @@ impl<A: Application> Ephemera<A> {
         //Item: WE COULD POTENTIALLY VERIFY THAT PUBLIC KEY OF SENDER IS IN ALLOW LIST.
         //Verify that block is signed correctly.
         //We don't verify if sender's public keys in allow list(assume such a thing for security could exist)
-        if let Some(block) = msg.get_data() {
-            if let Err(err) = self.block_manager.on_block(block) {
-                log::error!("Error processing block: {:?}", err);
-            }
+        let block = msg.get_block();
+        if let Err(err) = self.block_manager.on_block(block) {
+            log::error!("Error processing block: {:?}", err);
         }
 
         //Item: WE COULD POTENTIALLY CLEAR OUR MEMORY POOL OF TRANSACTIONS THAT ARE ALREADY INCLUDED IN A "FOREIGN" BLOCK.
         //Which also means abandoning the the creation our own block which includes some of those transactions.
 
         //Send to local RB protocol
+        use crate::broadcast::{Command, Status};
         match self.broadcaster.handle(msg).await {
             Ok(ProtocolResponse {
-                status,
-                command,
+                status: _,
+                command: Command::Broadcast,
                 protocol_reply: Some(rp),
             }) => {
-                use crate::broadcast::{Command, Status};
                 //Send protocol response to network
-                if command == Command::Broadcast {
-                    log::trace!("Broadcasting block to network: {:?}", rp);
-                    self.to_network.send_protocol_message(rp.clone()).await?
-                }
-
+                log::trace!("Broadcasting block to network: {:?}", rp);
+                self.to_network.send_protocol_message(rp.clone()).await?
+            }
+            Ok(ProtocolResponse {
+                status: Status::Committed,
+                command: _,
+                protocol_reply: None,
+            }) => {
                 //If committed, store in DB, send to WS
-                if status == Status::Committed {
-                    let block = self.block_manager.get_block_by_id(&rp.data_identifier);
+                let block = self.block_manager.get_block_by_id(&block_id);
 
-                    match block {
-                        Some(block) => {
-                            if block.header.creator == self.node_info.peer_id {
-                                //DB
-                                let signatures = self
-                                    .broadcaster
-                                    .get_block_signatures(&block.header.id)
-                                    .expect("Error getting block signatures");
+                match block {
+                    Some(block) => {
+                        if block.header.creator == self.node_info.peer_id {
+                            //DB
+                            let signatures = self
+                                .broadcaster
+                                .get_block_signatures(&block.header.id)
+                                .expect("Error getting block signatures");
 
-                                self.storage
-                                    .lock()
-                                    .await
-                                    .store_block(&block, signatures)
-                                    .expect("Error storing block");
+                            self.storage
+                                .lock()
+                                .await
+                                .store_block(&block, signatures)
+                                .expect("Error storing block");
 
-                                //Application(ABCI)
-                                if let Err(err) =
-                                    self.application.deliver_block(Into::into(block.clone()))
-                                {
-                                    log::error!("Error delivering block to ABCI: {:?}", err);
-                                }
+                            //Application(ABCI)
+                            if let Err(err) =
+                                self.application.deliver_block(Into::into(block.clone()))
+                            {
+                                log::error!("Error delivering block to ABCI: {:?}", err);
+                            }
 
-                                //BlockManager
-                                if let Err(err) =
-                                    self.block_manager.on_block_committed(&block.header.id)
-                                {
-                                    log::error!(
-                                        "Error notifying BlockManager about block commit: {:?}",
-                                        err
-                                    );
-                                }
+                            //BlockManager
+                            if let Err(err) =
+                                self.block_manager.on_block_committed(&block.header.id)
+                            {
+                                log::error!(
+                                    "Error notifying BlockManager about block commit: {:?}",
+                                    err
+                                );
+                            }
 
-                                //WS
-                                if let Err(err) = self.ws_message_broadcast.send_block(&block) {
-                                    log::error!("Error sending block to WS: {:?}", err);
-                                }
+                            //WS
+                            if let Err(err) = self.ws_message_broadcast.send_block(&block) {
+                                log::error!("Error sending block to WS: {:?}", err);
                             }
                         }
-                        None => {
-                            log::error!("Block not found in BlockManager: {:?}", rp.data_identifier)
-                        }
+                    }
+                    None => {
+                        log::error!("Block not found in BlockManager: {:?}", block_id)
                     }
                 }
             }
             Ok(_) => {
-                log::error!("Dropping the broadcast message")
+                log::trace!("Dropping ack the broadcast message")
             }
             Err(e) => log::error!("Error: {}", e),
         }

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use crate::block::types::block::Block;
+use crate::storage::rocksdb::{block_height_key, block_id_key, last_block_key, signatures_key};
 use rocksdb::TransactionDB;
 
-use crate::database::rocksdb::{block_height_key, block_id_key, last_block_key, signatures_key};
 use crate::utilities::crypto::Signature;
 
 pub struct DbQuery {

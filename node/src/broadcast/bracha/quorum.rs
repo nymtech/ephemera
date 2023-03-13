@@ -61,10 +61,6 @@ impl Quorum for BrachaQuorum {
                 }
                 votes_threshold_to_send_our_vote || votes_threshold_to_deliver
             }
-            _ => {
-                //FIXME: Ack doesn't make sense
-                false
-            }
         }
     }
 }

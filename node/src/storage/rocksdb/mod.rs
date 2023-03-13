@@ -4,9 +4,9 @@ use rocksdb::{TransactionDB, TransactionDBOptions};
 
 use crate::block::types::block::Block;
 use crate::config::DbConfig;
-use crate::database::rocksdb::query::DbQuery;
-use crate::database::rocksdb::store::DbStore;
-use crate::database::EphemeraDatabase;
+use crate::storage::rocksdb::query::DbQuery;
+use crate::storage::rocksdb::store::DbStore;
+use crate::storage::EphemeraDatabase;
 use crate::utilities::crypto::Signature;
 
 pub(crate) mod query;

@@ -5,12 +5,13 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::task::{Context, Poll};
 
-use libp2p::core::{PeerId, PublicKey};
 use libp2p::multiaddr::Protocol;
 use libp2p::swarm::{
-    dummy::ConnectionHandler, NetworkBehaviour, NetworkBehaviourAction, PollParameters,
+    dummy::ConnectionHandler, ConnectionId, FromSwarm, NetworkBehaviour, NetworkBehaviourAction,
+    PollParameters, THandlerInEvent, THandlerOutEvent,
 };
 use libp2p::Multiaddr;
+use libp2p_identity::{PeerId, PublicKey};
 use tokio::io;
 
 use crate::config::{Libp2pConfig, PeerSetting};
@@ -98,11 +99,24 @@ impl NetworkBehaviour for StaticPeerDiscovery {
             .unwrap_or_default()
     }
 
+    fn on_swarm_event(&mut self, _event: FromSwarm<Self::ConnectionHandler>) {
+        log::debug!("StaticPeerDiscovery: on_swarm_event");
+    }
+
+    fn on_connection_handler_event(
+        &mut self,
+        _peer_id: PeerId,
+        _connection_id: ConnectionId,
+        _event: THandlerOutEvent<Self>,
+    ) {
+        log::debug!("StaticPeerDiscovery: on_connection_handler_event");
+    }
+
     fn poll(
         &mut self,
         _cx: &mut Context<'_>,
         _params: &mut impl PollParameters,
-    ) -> Poll<NetworkBehaviourAction<Self::OutEvent, Self::ConnectionHandler>> {
+    ) -> Poll<NetworkBehaviourAction<Self::OutEvent, THandlerInEvent<Self>>> {
         Poll::Pending
     }
 }

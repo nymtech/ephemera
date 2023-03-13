@@ -14,8 +14,8 @@ use crate::block::producer::BlockProducer;
 use crate::block::types::block::Block;
 use crate::block::types::message::EphemeraMessage;
 use crate::config::BlockConfig;
-use crate::database::rocksdb::RocksDbStorage;
-use crate::database::EphemeraDatabase;
+use crate::storage::rocksdb::RocksDbStorage;
+use crate::storage::EphemeraDatabase;
 use crate::utilities::crypto::PeerId;
 use crate::utilities::EphemeraId;
 

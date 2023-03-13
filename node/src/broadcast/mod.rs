@@ -35,27 +35,17 @@
 use std::collections::HashSet;
 
 use serde_derive::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::block::types::block::Block;
 use crate::utilities;
 use crate::utilities::crypto::{PeerId, Signature};
 use crate::utilities::EphemeraId;
 
-pub(crate) mod basic;
 pub(crate) mod bracha;
 pub(crate) mod signing;
 
 pub(crate) trait Quorum {
     fn check_threshold(&self, ctx: &ConsensusContext, phase: MessageType) -> bool;
-}
-
-#[derive(Error, Debug)]
-pub enum BroadcastError {
-    #[error("Invalid broadcast message {}", .0)]
-    InvalidBroadcast(String),
-    #[error("{}", .0)]
-    General(#[from] anyhow::Error),
 }
 
 #[derive(Debug, Default, Clone)]
@@ -104,30 +94,28 @@ pub(crate) struct RbMsg {
     pub(crate) data_identifier: EphemeraId,
     ///When the message was created by the sender.
     pub(crate) timestamp: u64,
-    ///Current phase of the protocol(Prepare, Commit, Ack)
+    ///Current phase of the protocol(Echo, Vote)
     pub(crate) phase: MessageType,
     ///Signature of the message. The same as block signature.
     pub(crate) signature: Signature,
 }
 
 impl RbMsg {
-    pub(crate) fn new(data: Block, original_sender: PeerId, signature: Signature) -> RbMsg {
+    pub(crate) fn new(block: Block, original_sender: PeerId, signature: Signature) -> RbMsg {
         RbMsg {
             id: utilities::generate_ephemera_id(),
             request_id: utilities::generate_ephemera_id(),
             original_sender,
-            data_identifier: data.header.id.clone(),
+            data_identifier: block.header.id.clone(),
             timestamp: utilities::time::ephemera_now(),
-            phase: MessageType::Echo(data),
+            phase: MessageType::Echo(block),
             signature,
         }
     }
 
-    pub(crate) fn get_data(&self) -> Option<&Block> {
+    pub(crate) fn get_block(&self) -> &Block {
         match &self.phase {
-            MessageType::Echo(data) => Some(data),
-            MessageType::Vote(data) => Some(data),
-            MessageType::Ack => None,
+            MessageType::Echo(block) | MessageType::Vote(block) => block,
         }
     }
 
@@ -156,7 +144,6 @@ impl RbMsg {
 pub(crate) enum MessageType {
     Echo(Block),
     Vote(Block),
-    Ack,
 }
 
 #[derive(Debug, PartialEq)]

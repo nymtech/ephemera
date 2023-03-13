@@ -166,6 +166,7 @@ where
         rewards: Vec<MixnodeToReward>,
     ) -> anyhow::Result<()> {
         let ephemera_msg = self.create_ephemera_message(rewards)?;
+        log::debug!("Sending rewards to ephemera: {:?}", ephemera_msg.id);
 
         let access = self
             .ephemera_access

@@ -18,10 +18,11 @@ impl MessagePool {
         if self.pending_messages.contains_key(&msg.id) {
             return Err(BlockManagerError::DuplicateMessage(msg.id));
         }
-        log::trace!("Adding message to pool: {:?}", msg);
+        let msg_id = msg.id.clone();
+        log::debug!("Adding message to pool: {}", msg_id);
         self.pending_messages.insert(msg.id.clone(), msg);
 
-        log::trace!("Message pool size: {:?}", self.pending_messages.len());
+        log::debug!("Message pool size: {:?}", self.pending_messages.len());
         Ok(())
     }
 

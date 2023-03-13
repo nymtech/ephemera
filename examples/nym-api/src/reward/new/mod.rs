@@ -24,7 +24,7 @@ impl EpochOperations for RewardManager<V2> {
 
         //Poll next block which should include all messages from the previous epoch from almost all Nym-Api nodes
         let mut counter = 0;
-        log::debug!(
+        log::info!(
             "Waiting for block with height {next_height} maximum {} seconds",
             self.args.block_polling_max_attempts * self.args.block_polling_interval_seconds
         );
