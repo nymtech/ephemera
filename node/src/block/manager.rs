@@ -17,7 +17,7 @@ use crate::config::BlockConfig;
 use crate::storage::rocksdb::RocksDbStorage;
 use crate::storage::EphemeraDatabase;
 use crate::utilities::crypto::PeerId;
-use crate::utilities::EphemeraId;
+use crate::utilities::id::EphemeraId;
 
 #[derive(Error, Debug)]
 pub(crate) enum BlockManagerError {

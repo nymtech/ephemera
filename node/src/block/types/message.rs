@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::utilities;
 use crate::utilities::crypto::Signature;
-use crate::utilities::EphemeraId;
+use crate::utilities::id::EphemeraId;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct EphemeraMessage {
@@ -36,6 +36,7 @@ impl EphemeraMessage {
 }
 
 /// Raw message represents all the data what will be signed.
+//TODO decide how exactly use EphemeraRawMessage internally/externally
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct EphemeraRawMessage {
     /// It's up to the application to decide if the messages with same data can be

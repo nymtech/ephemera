@@ -12,7 +12,8 @@ use crate::block::types::message::{EphemeraMessage, EphemeraRawMessage};
 use crate::utilities;
 use crate::utilities::crypto::{PeerId, Signature};
 use crate::utilities::encoding::Encode;
-use crate::utilities::{generate_ephemera_id, EphemeraId};
+use crate::utilities::id::generate_ephemera_id;
+use crate::utilities::id::EphemeraId;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiEphemeraMessage {

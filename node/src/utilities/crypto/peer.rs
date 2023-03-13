@@ -8,6 +8,12 @@ pub(crate) type PeerIdType = Libp2pPeerId;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct PeerId(pub(crate) PeerIdType);
 
+impl PeerId {
+    pub fn random() -> Self {
+        Self(PeerIdType::random())
+    }
+}
+
 impl From<PeerId> for libp2p_identity::PeerId {
     fn from(peer_id: PeerId) -> Self {
         peer_id.0

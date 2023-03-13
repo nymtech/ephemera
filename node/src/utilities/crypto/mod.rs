@@ -34,7 +34,8 @@ pub enum KeyPairError {
     Deserialization(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
+//TODO: think about Default
+#[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize, Default)]
 pub struct Signature {
     pub(crate) signature: Vec<u8>,
     pub(crate) public_key: Vec<u8>,

@@ -39,7 +39,8 @@ use serde_derive::{Deserialize, Serialize};
 use crate::block::types::block::Block;
 use crate::utilities;
 use crate::utilities::crypto::{PeerId, Signature};
-use crate::utilities::EphemeraId;
+use crate::utilities::id;
+use crate::utilities::id::EphemeraId;
 
 pub(crate) mod bracha;
 pub(crate) mod signing;
@@ -103,8 +104,8 @@ pub(crate) struct RbMsg {
 impl RbMsg {
     pub(crate) fn new(block: Block, original_sender: PeerId, signature: Signature) -> RbMsg {
         RbMsg {
-            id: utilities::generate_ephemera_id(),
-            request_id: utilities::generate_ephemera_id(),
+            id: id::generate_ephemera_id(),
+            request_id: id::generate_ephemera_id(),
             original_sender,
             data_identifier: block.header.id.clone(),
             timestamp: utilities::time::ephemera_now(),
@@ -122,7 +123,7 @@ impl RbMsg {
     pub(crate) fn reply(&self, local_id: PeerId, phase: MessageType, signature: Signature) -> Self {
         RbMsg {
             id: self.id.clone(),
-            request_id: utilities::generate_ephemera_id(),
+            request_id: id::generate_ephemera_id(),
             original_sender: local_id,
             data_identifier: self.data_identifier.clone(),
             timestamp: utilities::time::ephemera_now(),

@@ -2,8 +2,7 @@ use crate::block::message_pool::MessagePool;
 use crate::block::types::block::{Block, BlockHeader, RawBlock, RawBlockHeader};
 use crate::block::types::message::EphemeraMessage;
 use crate::utilities::crypto::PeerId;
-use crate::utilities::hash::blake2_256;
-use crate::utilities::Encode;
+use crate::utilities::merkle::Merkle;
 
 pub(super) struct BlockProducer {
     message_pool: MessagePool,
@@ -44,9 +43,7 @@ impl BlockProducer {
         let header = RawBlockHeader::new(self.peer_id, height);
         let raw_block = RawBlock::new(header, messages);
 
-        let encoded_block = raw_block.encode()?;
-        let block_hash = blake2_256(&encoded_block);
-
+        let block_hash = Merkle::calculate_root_hash(&raw_block)?;
         let block = Block::new(raw_block, block_hash);
         Ok(block)
     }
