@@ -10,9 +10,9 @@ use crate::utilities::hash::blake2_256;
 
 pub(crate) struct Merkle;
 
-//FIXME  - not a very useful Merkle tree implementation
 impl Merkle {
-    /// Calculate the root hash of a block.
+    /// Calculate the Merkle hash of a block.
+    ///
     /// If block has no messages, the root hash is the hash of the block header.
     ///
     /// If block has messages, the root hash is the hash of the block header and the hashes of the messages
@@ -64,6 +64,7 @@ impl Merkle {
         Ok(root_hash)
     }
 
+    //FIXME  - not a very useful Merkle verification implementation
     /// Verify that a message is in a block.
     ///
     /// The message is verified by checking that the message index is correct and that the root hash of the block

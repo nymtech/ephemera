@@ -25,6 +25,10 @@ pub(crate) enum ApiCmd {
     QueryBlockByHeight(u64, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
     QueryBlockById(String, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
     QueryLastBlock(oneshot::Sender<Result<ApiBlock, ApiError>>),
+    QueryBlockSignatures(
+        String,
+        oneshot::Sender<Result<Option<Vec<ApiSignature>>, ApiError>>,
+    ),
 }
 
 impl Display for ApiCmd {
@@ -36,6 +40,7 @@ impl Display for ApiCmd {
             ApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})",),
             ApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})",),
             ApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
+            ApiCmd::QueryBlockSignatures(id, _) => write!(f, "QueryBlockSignatures{id}"),
         }
     }
 }
@@ -83,20 +88,14 @@ impl EphemeraExternalApi {
         self.send_and_wait_response(ApiCmd::QueryLastBlock).await
     }
 
-    //TODO: return with block instead
+    /// Returns signatures for given block id
     pub async fn get_block_signatures(
         &self,
-        _block_id: String,
-    ) -> anyhow::Result<Option<Vec<ApiSignature>>> {
-        // log::debug!("get_block_signatures({})", block_id);
-        // let database = self.database.lock().await;
-        // let signatures = database.get_block_signatures(block_id)?.map(|signatures| {
-        //     signatures
-        //         .into_iter()
-        //         .map(|signature| signature.into())
-        //         .collect()
-        // });
-        Ok(None)
+        block_id: String,
+    ) -> Result<Option<Vec<ApiSignature>>, ApiError> {
+        log::trace!("get_block_by_height({block_id})",);
+        self.send_and_wait_response(|tx| ApiCmd::QueryBlockSignatures(block_id, tx))
+            .await
     }
 
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers

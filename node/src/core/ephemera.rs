@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use tokio::sync::Mutex;
 
 use crate::api::application::Application;
-use crate::api::types::ApiBlock;
+use crate::api::types::{ApiBlock, ApiSignature};
 use crate::api::ApiError::ApiError;
 use crate::api::{ApiCmd, ApiListener};
 use crate::block::manager::BlockManager;
@@ -341,8 +341,10 @@ impl<A: Application> Ephemera<A> {
             ApiCmd::QueryLastBlock(reply) => {
                 match self.storage.lock().await.get_last_block() {
                     Ok(Some(block)) => {
+                        let api_block: ApiBlock = block.into();
+                        log::info!("Sending last block to api: {:?}", api_block);
                         reply
-                            .send(Ok(block.into()))
+                            .send(Ok(api_block))
                             .expect("Error sending block to api");
                     }
                     Ok(None) => {
@@ -354,6 +356,27 @@ impl<A: Application> Ephemera<A> {
                     }
                     Err(err) => {
                         let api_error = ApiError(format!("Error getting last block: {err:?}",));
+                        reply
+                            .send(Err(api_error))
+                            .expect("Error sending error to api");
+                    }
+                };
+            }
+            ApiCmd::QueryBlockSignatures(block_id, reply) => {
+                match self.storage.lock().await.get_block_signatures(block_id) {
+                    Ok(signatures) => {
+                        let signatures = signatures.map(|s| {
+                            s.into_iter()
+                                .map(|s| s.into())
+                                .collect::<Vec<ApiSignature>>()
+                        });
+                        reply
+                            .send(Ok(signatures))
+                            .expect("Error sending block signatures to api");
+                    }
+                    Err(err) => {
+                        let api_error =
+                            ApiError(format!("Error getting block signatures: {err:?}"));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");

@@ -19,6 +19,8 @@ pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> anyhow::Resu
             .app_data(Data::new(api.clone()))
             .service(query::block_by_id)
             .service(query::block_signatures)
+            .service(query::block_by_height)
+            .service(query::last_block)
             .service(submit::submit_message)
             .service(swagger_ui())
     })
@@ -34,7 +36,13 @@ fn swagger_ui() -> SwaggerUi {
     use crate::api::types;
     #[derive(OpenApi)]
     #[openapi(
-        paths(query::block_by_id, query::block_signatures, submit::submit_message),
+        paths(
+            query::block_by_id,
+            query::block_signatures,
+            query::block_by_height,
+            query::last_block,
+            submit::submit_message
+        ),
         components(schemas(types::ApiBlock, types::ApiEphemeraMessage, types::ApiSignature))
     )]
     struct ApiDoc;

@@ -37,7 +37,8 @@ impl DbStore {
             return Err(anyhow::anyhow!("Block already exists"));
         }
 
-        // Store last block id(without prefix!)
+        //Store last block id(without prefix!)
+        //May want to check that height is incremented by 1
         tx.put(last_block_key(), block.header.id.as_bytes())?;
 
         // Store block height
