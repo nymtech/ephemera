@@ -29,8 +29,10 @@ pub struct Ephemera<A: Application> {
     /// Broadcaster is making sure that blocks are deterministically agreed by all nodes.
     pub(crate) broadcaster: Broadcaster,
 
+    /// A component which receives messages from network.
     pub(crate) from_network: NetCommunicationReceiver,
 
+    /// A component which sends messages to network.
     pub(crate) to_network: NetCommunicationSender,
 
     /// A component which has mutable access to database.
@@ -45,8 +47,10 @@ pub struct Ephemera<A: Application> {
     /// An implementation of Application trait. Provides callbacks to broadcast.
     pub(crate) application: Arc<A>,
 
+    ///Interface to external Rust code
     pub(crate) ephemera_handle: EphemeraHandle,
 
+    //It is inside option so that it can taken out
     pub(crate) shutdown_manager: Option<ShutdownManager>,
 }
 

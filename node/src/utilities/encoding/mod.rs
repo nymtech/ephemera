@@ -1,6 +1,17 @@
 use serde::Serialize;
 
-//TODO: JSON is fine for now
+/// Simple trait for encoding
+pub trait Encode {
+    fn encode(&self) -> anyhow::Result<Vec<u8>>;
+}
+
+/// Simple trait for decoding
+pub trait Decode {
+    fn decode(bytes: &[u8]) -> anyhow::Result<Self>
+    where
+        Self: Sized;
+}
+
 pub fn encode<M: Serialize>(message: M) -> anyhow::Result<Vec<u8>> {
     serde_json::to_vec(&message).map_err(|e| anyhow::anyhow!(e))
 }
@@ -25,14 +36,4 @@ pub fn from_base58<T: AsRef<[u8]>>(data: T) -> anyhow::Result<Vec<u8>> {
     bs58::decode(data.as_ref())
         .into_vec()
         .map_err(|_| anyhow::anyhow!("Invalid base58 string"))
-}
-
-pub trait Encode {
-    fn encode(&self) -> anyhow::Result<Vec<u8>>;
-}
-
-pub trait Decode {
-    fn decode(bytes: &[u8]) -> anyhow::Result<Self>
-    where
-        Self: Sized;
 }

@@ -136,11 +136,31 @@ impl SwarmNetwork {
                     _ => {}
                 },
                 GroupBehaviourEvent::Rendezvous(event) => match event {
-                    rendezvous::server::Event::DiscoverServed { .. } => {}
-                    rendezvous::server::Event::DiscoverNotServed { .. } => {}
-                    rendezvous::server::Event::PeerRegistered { .. } => {}
-                    rendezvous::server::Event::PeerNotRegistered { .. } => {}
-                    rendezvous::server::Event::PeerUnregistered { .. } => {}
+                    rendezvous::server::Event::DiscoverServed {
+                        enquirer: _,
+                        registrations,
+                    } => {
+                        log::info!("DiscoverServed: {:?}", registrations);
+                    }
+                    rendezvous::server::Event::DiscoverNotServed { enquirer: _, error } => {
+                        log::info!("DiscoverNotServed: {:?}", error);
+                    }
+                    rendezvous::server::Event::PeerRegistered {
+                        peer: _,
+                        registration,
+                    } => {
+                        log::info!("PeerRegistered: {:?}", registration);
+                    }
+                    rendezvous::server::Event::PeerNotRegistered {
+                        peer: _,
+                        namespace: _,
+                        error,
+                    } => {
+                        log::info!("PeerNotRegistered: {:?}", error);
+                    }
+                    rendezvous::server::Event::PeerUnregistered { peer: _, namespace } => {
+                        log::info!("PeerUnregistered: {:?}", namespace);
+                    }
                     rendezvous::server::Event::RegistrationExpired(_) => {}
                 },
                 _ => {}

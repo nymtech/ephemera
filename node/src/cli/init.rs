@@ -15,25 +15,25 @@ use crate::utilities::Keypair;
 pub struct InitCmd {
     #[arg(long, default_value = "default")]
     pub node: String,
-    #[clap(short, long, default_value = DEFAULT_LISTEN_ADDRESS)]
+    #[clap(long, default_value = DEFAULT_LISTEN_ADDRESS)]
     pub address: String,
-    #[clap(short, long, default_value = DEFAULT_LISTEN_PORT)]
+    #[clap(long, default_value = DEFAULT_LISTEN_PORT)]
     pub port: u16,
-    #[clap(short, long, default_value_t = DEFAULT_QUORUM_THRESHOLD_COUNT)]
+    #[clap(long, default_value_t = DEFAULT_QUORUM_THRESHOLD_COUNT)]
     pub quorum_threshold_count: usize,
-    #[clap(short, long, default_value_t = DEFAULT_TOTAL_NR_OF_NODES)]
+    #[clap(long, default_value_t = DEFAULT_TOTAL_NR_OF_NODES)]
     pub total_nr_of_nodes: usize,
-    #[clap(short, long)]
+    #[clap(long)]
     pub rocket_path: String,
-    #[clap(short, long)]
+    #[clap(long)]
     pub ws_address: String,
-    #[clap(short, long)]
+    #[clap(long)]
     pub network_client_listener_address: String,
-    #[clap(short, long)]
+    #[clap(long)]
     pub http_server_address: String,
-    #[clap(short, long, default_value_t = true)]
+    #[clap(long, default_value_t = true)]
     pub block_producer: bool,
-    #[clap(short, long, default_value_t = 15)]
+    #[clap(long, default_value_t = 15)]
     pub block_creation_interval_sec: u64,
 }
 
@@ -73,8 +73,8 @@ impl InitCmd {
                 address: self.http_server_address,
             },
             block: BlockConfig {
-                block_producer: self.block_producer,
-                block_creation_interval_sec: self.block_creation_interval_sec,
+                producer: self.block_producer,
+                creation_interval_sec: self.block_creation_interval_sec,
             },
         };
         if let Err(err) = configuration.try_create(&self.node) {

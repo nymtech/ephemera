@@ -1,5 +1,6 @@
 use clap::Parser;
 
+pub mod config;
 mod crypto;
 pub mod init;
 pub mod peers;
@@ -19,4 +20,5 @@ pub enum Subcommand {
     AddLocalPeers(peers::AddLocalPeersCmd),
     RunNode(run_node::RunExternalNodeCmd),
     GenerateKeypair(crypto::GenerateKeypairCmd),
+    UpdateConfig(config::UpdateConfigCmd),
 }

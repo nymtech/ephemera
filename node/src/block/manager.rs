@@ -34,9 +34,7 @@ pub(crate) struct BlockManagerBuilder {
 impl BlockManagerBuilder {
     pub(crate) fn new(config: BlockConfig, peer_id: PeerId) -> Self {
         let block_producer = BlockProducer::new(peer_id);
-        let delay = Delay::new(time::Duration::from_secs(
-            config.block_creation_interval_sec,
-        ));
+        let delay = Delay::new(time::Duration::from_secs(config.creation_interval_sec));
         Self {
             config,
             block_producer,
@@ -157,7 +155,7 @@ impl Stream for BlockManager {
         //Optionally it is possible to turn off block production and let the node behave just as voter.
         //For example for testing purposes.
         //If this should become common then we should consider using a different approach.
-        if !self.config.block_producer {
+        if !self.config.producer {
             return Pending;
         }
 
@@ -178,7 +176,7 @@ impl Stream for BlockManager {
                     }
                 };
 
-                let interval = self.config.block_creation_interval_sec;
+                let interval = self.config.creation_interval_sec;
                 self.delay.reset(time::Duration::from_secs(interval));
                 result
             }

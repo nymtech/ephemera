@@ -24,6 +24,9 @@ async fn main() -> anyhow::Result<()> {
         Subcommand::GenerateKeypair(gen_keypair) => {
             gen_keypair.execute().await;
         }
+        Subcommand::UpdateConfig(update_config) => {
+            update_config.execute().await;
+        }
     }
     Ok(())
 }

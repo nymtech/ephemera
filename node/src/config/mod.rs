@@ -81,10 +81,10 @@ pub struct BlockConfig {
     /// By default every node is block producer.
     /// But it may be useful for some applications to have only one.
     /// We may later also introduce a mechanism and algorithm to elect block producers.
-    pub block_producer: bool,
+    pub producer: bool,
     /// Interval in seconds between block creation
     /// Blocks are "proposed" at this interval.
-    pub block_creation_interval_sec: u64,
+    pub creation_interval_sec: u64,
 }
 
 #[derive(Debug, Error)]
@@ -105,9 +105,9 @@ const EPHEMERA_CONFIG_FILE: &str = "ephemera.toml";
 type Result<T> = std::result::Result<T, ConfigurationError>;
 
 impl Configuration {
-    pub fn try_load(file: PathBuf) -> Result<Configuration> {
+    pub fn try_load(path: PathBuf) -> Result<Configuration> {
         let config = config::Config::builder()
-            .add_source(config::File::from(file))
+            .add_source(config::File::from(path))
             .build()
             .map_err(|e| ConfigurationError::Other(e.to_string()))?;
 
@@ -165,6 +165,10 @@ impl Configuration {
         Ok(())
     }
 
+    pub fn ephemera_config_file(node_name: &str) -> Result<PathBuf> {
+        Ok(Self::ephemera_node_dir(node_name)?.join(EPHEMERA_CONFIG_FILE))
+    }
+
     fn ephemera_dir() -> Result<PathBuf> {
         dirs::home_dir()
             .map(|home| home.join(EPHEMERA_DIR_NAME))
@@ -175,10 +179,6 @@ impl Configuration {
 
     fn ephemera_node_dir(node_name: &str) -> Result<PathBuf> {
         Ok(Self::ephemera_dir()?.join(node_name))
-    }
-
-    pub fn ephemera_config_file(node_name: &str) -> Result<PathBuf> {
-        Ok(Self::ephemera_node_dir(node_name)?.join(EPHEMERA_CONFIG_FILE))
     }
 
     fn write(&self, file_path: PathBuf) -> Result<()> {

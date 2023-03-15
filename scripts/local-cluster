@@ -33,10 +33,30 @@ Stops currently running cluster of ephemera nodes.
 EOH
 )
 
+UPDATE_CONFIG_HELP=$(
+  cat <<-EOH
+Updates cluster nodes ephemera.toml configuration.
+PS! Properties are typed, so you need to provide correct type of value.
+
+  usage:      $0 -n all -k my.nested.property -v myvalue
+
+  options:
+      -n        Node id or "all" to update all nodes
+      -k        Which property to update
+      -v        New value for the property
+EOH
+)
+
 SUBCMD=$1
 
-[[ $SUBCMD == "init" || $SUBCMD == "run" || $SUBCMD == "stop" || $SUBCMD == "clean" || $SUBCMD == "delete" ]] ||
-  { echo "Please specify a subcommand of \`init\` or \`run\` or \`stop\` or \`clean\` or \`delete\`" && exit 1; }
+[[ $SUBCMD == "init" \
+|| $SUBCMD == "run" \
+|| $SUBCMD == "stop" \
+|| $SUBCMD == "clean" \
+|| $SUBCMD == "delete" \
+|| $SUBCMD == "update_config" ]] \
+|| \
+{ echo "Please specify a subcommand of \`init\` or \`run\` or \`stop\` or \`clean\` or \`delete\` or \`update_config\`" && exit 1; }
 
 shift
 
@@ -51,6 +71,21 @@ shift
       ;;
     h)
       echo "$CLUSTER_HELP"
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: $OPTARG" >&2
+      exit 1
+      ;;
+    esac
+  done
+}
+
+[[ $SUBCMD == "stop" ]] && {
+  while getopts :h opt; do
+    case $opt in
+    h)
+      echo "$STOP_HELP"
       exit 0
       ;;
     \?)
@@ -81,6 +116,35 @@ shift
     case $opt in
     h)
       echo "Deletes cluster temporary files(databases and logs)"
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: $OPTARG" >&2
+      exit 1
+      ;;
+    esac
+  done
+}
+echo $#
+[[ $SUBCMD == "update_config" ]] && [[ $# != 6 ]] && echo "$UPDATE_CONFIG_HELP" && exit 1
+
+[[ $SUBCMD == "update_config" ]] && {
+  while getopts :nkvh opt; do
+    case $opt in
+    k)
+      PROPERTY_KEY="${3}"
+      shift
+      ;;
+    v)
+      PROPERTY_VALUE="${4}"
+      shift
+      ;;
+    n)
+      NODE_ID="${2}"
+      shift
+      ;;
+    h)
+      echo "$UPDATE_CONFIG_HELP"
       exit 0
       ;;
     \?)
@@ -121,6 +185,7 @@ NYM_API_EPHEMERA="$PROJECT_ROOT"/target/release/nym_api_ephemera
 REWARD_CONTRACT="$PROJECT_ROOT"/target/release/reward_contract
 
 export RUST_LOG="nym_api=debug,ephemera=debug,info"
+#export RUST_LOG="libp2p=trace"
 export RUST_BACKTRACE=1
 
 build() {
@@ -315,9 +380,25 @@ delete(){
   rm -rf ~/.ephemera
 }
 
+update_config() {
+  build
+  echo "Updating configuration files"
+  if [[ "$NODE_ID" = "all" ]]; then
+    for d in ~/.ephemera/*/ephemera.toml; do
+      echo "Updating $d"
+      $EPHEMERA update-config --config-path "$d" --property "$PROPERTY_KEY" --value "$PROPERTY_VALUE"
+    done
+  else
+      EPHEMERA_CONFIG_FILE=~/.ephemera/$NODE_ID/ephemera.toml
+      echo "Updating $EPHEMERA_CONFIG_FILE"
+      $EPHEMERA update-config --config-path "$EPHEMERA_CONFIG_FILE" --property "$PROPERTY_KEY" --value "$PROPERTY_VALUE"
+  fi
+}
+
 [[ $SUBCMD == "init" ]] && create_cluster
 [[ $SUBCMD == "run" ]] && start_cluster
 [[ $SUBCMD == "stop" ]] && stop_cluster
 [[ $SUBCMD == "clean" ]] && clean
 [[ $SUBCMD == "delete" ]] && delete
+[[ $SUBCMD == "update_config" ]] && update_config
 
