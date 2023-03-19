@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::block::types::block::Block;
 use crate::storage::rocksdb::{block_height_key, block_id_key, last_block_key, signatures_key};
-use rocksdb::TransactionDB;
+use rocksdb::{TransactionDB, WriteBatchWithTransaction};
 
 use crate::utilities::crypto::Signature;
 
@@ -35,8 +35,7 @@ impl DbStore {
             return Err(anyhow::anyhow!("Block already exists"));
         }
 
-        let tx = self.connection.transaction();
-        let mut batch = tx.get_writebatch();
+        let mut batch = WriteBatchWithTransaction::<true>::default();
 
         //Store last block id(without prefix!)
         //May want to check that height is incremented by 1
@@ -53,6 +52,7 @@ impl DbStore {
         let signatures_bytes = serde_json::to_vec(&signatures)?;
         batch.put(signatures_key.as_bytes(), signatures_bytes);
 
-        tx.commit().map_err(|e| anyhow::anyhow!(e))
+        self.connection.write(batch)?;
+        Ok(())
     }
 }

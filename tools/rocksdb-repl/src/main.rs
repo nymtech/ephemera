@@ -13,6 +13,12 @@ fn main() {
 
     let db = rocksdb::DB::open_default(db_path).unwrap();
 
+    println!("Available prefixes for get command:");
+    println!("  - block_id:");
+    println!("  - block_height:");
+    println!("  - signatures:");
+    println!("  - last_block");
+
     let mut repl = Repl::builder()
         .add(
             "get",

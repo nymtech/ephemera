@@ -16,16 +16,37 @@ Finalized blocks are sent to websocket subscribers
 
 Finalized blocks are also stored in database
 
-Currently, it runs two versions of databases:
-
-* RocksDB
-* SQLite
-
-It seems better to use RocksDB in the end...
+It uses RocksDB.
 
 ### How to run
 
 [README](../scripts/README.md)
+
+### Ephemera CLI
+
+#### Usage
+
+```bash
+../target/release/ephemera --help
+```
+
+#### Init
+
+```bash
+../target/release/ephemera init --help
+```
+
+#### Run
+
+```bash
+../target/release/ephemera run-node --help
+```
+
+### Update config
+
+```bash
+../target/release/ephemera update-config --help
+```
 
 ### Examples
 

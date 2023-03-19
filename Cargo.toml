@@ -3,7 +3,6 @@
 members = [
     "node",
     "tools/rocksdb-repl",
-    "tools/rendezvous-client",
     "examples/http-ws",
     "examples/nym-api",
 ]

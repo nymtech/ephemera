@@ -1,25 +1,31 @@
+use std::iter;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::StreamExt;
+use async_trait::async_trait;
+use futures::AsyncWriteExt;
+use futures::{AsyncRead, AsyncWrite, StreamExt};
+use futures_util::AsyncReadExt;
 use libp2p::core::{muxing::StreamMuxerBox, transport::Boxed};
 use libp2p::gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode};
-use libp2p::mplex::MplexConfig;
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
 use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
 use libp2p::yamux::YamuxConfig;
-use libp2p::{gossipsub, noise, rendezvous, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport};
+use libp2p::{
+    gossipsub, noise, request_response, Multiaddr, PeerId as Libp2pPeerId, Swarm, Transport,
+};
+use serde::{Deserialize, Serialize};
 use tokio::select;
 
 use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
 use crate::config::{Libp2pConfig, NodeConfig};
 use crate::core::builder::NodeInfo;
+use crate::network::libp2p::discovery::r#static::StaticPeerDiscovery;
 use crate::network::libp2p::messages_channel::{
     EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender,
 };
-use crate::network::libp2p::peer_discovery::StaticPeerDiscovery;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 
 pub struct SwarmNetwork {
@@ -98,7 +104,7 @@ impl SwarmNetwork {
                 }
                 pm_maybe = self.from_ephemera_rcv.protocol_msg_receiver.recv() => {
                     if let Some(pm) = pm_maybe {
-                        self.send_protocol_message(pm, &consensus_msg_topic,).await;
+                        self.send_protocol_message(pm).await;
                     }
                     else {
                         anyhow::bail!("protocol_msg_receiver channel closed")
@@ -135,34 +141,51 @@ impl SwarmNetwork {
                     }
                     _ => {}
                 },
-                GroupBehaviourEvent::Rendezvous(event) => match event {
-                    rendezvous::server::Event::DiscoverServed {
-                        enquirer: _,
-                        registrations,
-                    } => {
-                        log::info!("DiscoverServed: {:?}", registrations);
+                GroupBehaviourEvent::RequestResponse(request_response) => {
+                    match request_response {
+                        request_response::Event::Message { peer, message } => match message {
+                            request_response::Message::Request {
+                                request_id: _,
+                                request,
+                                channel,
+                            } => {
+                                let rb_id = request.id.clone();
+                                self.to_ephemera_tx.send_protocol_message(request).await?;
+                                if let Err(err) = self
+                                    .swarm
+                                    .behaviour_mut()
+                                    .request_response
+                                    .send_response(channel, RbMsgResponse::new(rb_id))
+                                {
+                                    log::error!("Error sending response: {:?}", err);
+                                }
+                            }
+                            request_response::Message::Response {
+                                request_id,
+                                response,
+                            } => {
+                                log::trace!("Received response {response:?} from peer: {peer:?}, request_id: {request_id:?}",);
+                            }
+                        },
+                        request_response::Event::OutboundFailure {
+                            peer,
+                            request_id,
+                            error,
+                        } => {
+                            log::error!("Outbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",);
+                        }
+                        request_response::Event::InboundFailure {
+                            peer,
+                            request_id,
+                            error,
+                        } => {
+                            log::error!("Inbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",);
+                        }
+                        request_response::Event::ResponseSent { peer, request_id } => {
+                            log::trace!("Response sent to peer: {peer:?}, {request_id:?}",);
+                        }
                     }
-                    rendezvous::server::Event::DiscoverNotServed { enquirer: _, error } => {
-                        log::info!("DiscoverNotServed: {:?}", error);
-                    }
-                    rendezvous::server::Event::PeerRegistered {
-                        peer: _,
-                        registration,
-                    } => {
-                        log::info!("PeerRegistered: {:?}", registration);
-                    }
-                    rendezvous::server::Event::PeerNotRegistered {
-                        peer: _,
-                        namespace: _,
-                        error,
-                    } => {
-                        log::info!("PeerNotRegistered: {:?}", error);
-                    }
-                    rendezvous::server::Event::PeerUnregistered { peer: _, namespace } => {
-                        log::info!("PeerUnregistered: {:?}", namespace);
-                    }
-                    rendezvous::server::Event::RegistrationExpired(_) => {}
-                },
+                }
                 _ => {}
             },
             //Ignore other Swarm events for now
@@ -171,13 +194,19 @@ impl SwarmNetwork {
         Ok(())
     }
 
-    async fn send_protocol_message(&mut self, msg: RbMsg, topic: &Topic) {
-        log::trace!("Sending protocol message: {}", msg.id);
-        self.send_message(msg, topic).await;
+    async fn send_protocol_message(&mut self, msg: RbMsg) {
+        log::debug!("Sending Block message: {}", msg.id);
+        for peer in self.swarm.behaviour_mut().peer_discovery.peer_ids() {
+            log::trace!("Sending Block message to peer: {:?}", peer);
+            self.swarm
+                .behaviour_mut()
+                .request_response
+                .send_request(&peer, msg.clone());
+        }
     }
 
     async fn send_ephemera_message(&mut self, msg: EphemeraMessage, topic: &Topic) {
-        log::trace!("Sending proposed message: {}", msg.id);
+        log::debug!("Sending Ephemera message: {}", msg.id);
         self.send_message(msg, topic).await;
     }
 
@@ -202,17 +231,17 @@ impl SwarmNetwork {
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
-pub(crate) struct GroupNetworkBehaviour {
-    pub(crate) gossipsub: gossipsub::Behaviour,
-    pub(crate) peer_discovery: StaticPeerDiscovery,
-    pub(crate) rendezvous: rendezvous::server::Behaviour,
+struct GroupNetworkBehaviour {
+    gossipsub: gossipsub::Behaviour,
+    peer_discovery: StaticPeerDiscovery,
+    request_response: request_response::Behaviour<RbMsgMessagesCodec>,
 }
 
 #[allow(clippy::large_enum_variant)]
-pub enum GroupBehaviourEvent {
+enum GroupBehaviourEvent {
     Gossipsub(gossipsub::Event),
+    RequestResponse(request_response::Event<RbMsg, RbMsgResponse>),
     StaticPeerDiscovery(()),
-    Rendezvous(rendezvous::server::Event),
 }
 
 impl From<gossipsub::Event> for GroupBehaviourEvent {
@@ -227,9 +256,9 @@ impl From<()> for GroupBehaviourEvent {
     }
 }
 
-impl From<rendezvous::server::Event> for GroupBehaviourEvent {
-    fn from(event: rendezvous::server::Event) -> Self {
-        GroupBehaviourEvent::Rendezvous(event)
+impl From<request_response::Event<RbMsg, RbMsgResponse>> for GroupBehaviourEvent {
+    fn from(event: request_response::Event<RbMsg, RbMsgResponse>) -> Self {
+        GroupBehaviourEvent::RequestResponse(event)
     }
 }
 
@@ -253,12 +282,12 @@ fn create_behaviour(
         gossipsub.add_explicit_peer(&peer);
     }
 
-    let rendezvous = create_rendezvous();
+    let request_response = create_request_response();
 
     GroupNetworkBehaviour {
         gossipsub,
         peer_discovery,
-        rendezvous,
+        request_response,
     }
 }
 
@@ -277,8 +306,12 @@ fn create_gossipsub(local_key: Arc<Ed25519Keypair>) -> gossipsub::Behaviour {
     .expect("Correct configuration")
 }
 
-fn create_rendezvous() -> rendezvous::server::Behaviour {
-    rendezvous::server::Behaviour::new(rendezvous::server::Config::default())
+fn create_request_response() -> request_response::Behaviour<RbMsgMessagesCodec> {
+    request_response::Behaviour::new(
+        RbMsgMessagesCodec,
+        iter::once((RbMsgProtocol, request_response::ProtocolSupport::Full)),
+        Default::default(),
+    )
 }
 
 //Configure networking connection stack(Tcp, Noise, Yamux)
@@ -294,10 +327,171 @@ fn create_transport(local_key: Arc<Ed25519Keypair>) -> Boxed<(Libp2pPeerId, Stre
     transport
         .upgrade(libp2p::core::upgrade::Version::V1)
         .authenticate(xx_config.into_authenticated())
-        .multiplex(libp2p::core::upgrade::SelectUpgrade::new(
-            YamuxConfig::default(),
-            MplexConfig::default(),
-        ))
+        .multiplex(YamuxConfig::default())
         .timeout(Duration::from_secs(20))
         .boxed()
+}
+
+#[derive(Clone)]
+struct RbMsgMessagesCodec;
+
+impl RbMsgMessagesCodec {
+    async fn write_length_prefixed<D: AsRef<[u8]>, I: AsyncWrite + Unpin>(
+        io: &mut I,
+        data: D,
+    ) -> Result<(), std::io::Error> {
+        Self::write_varint(io, data.as_ref().len() as u32).await?;
+        io.write_all(data.as_ref()).await?;
+        io.flush().await?;
+
+        Ok(())
+    }
+
+    async fn write_varint<I: AsyncWrite + Unpin>(
+        io: &mut I,
+        len: u32,
+    ) -> Result<(), std::io::Error> {
+        let mut len_data = unsigned_varint::encode::u32_buffer();
+        let encoded_len = unsigned_varint::encode::u32(len, &mut len_data).len();
+        io.write_all(&len_data[..encoded_len]).await?;
+
+        Ok(())
+    }
+
+    async fn read_varint<T: AsyncRead + Unpin>(io: &mut T) -> Result<u32, std::io::Error> {
+        let mut buffer = unsigned_varint::encode::u32_buffer();
+        let mut buffer_len = 0;
+
+        loop {
+            //read 1 byte at time because we don't know how it compacted 32 bit integer
+            io.read_exact(&mut buffer[buffer_len..buffer_len + 1])
+                .await?;
+            buffer_len += 1;
+            match unsigned_varint::decode::u32(&buffer[..buffer_len]) {
+                Ok((len, _)) => {
+                    log::trace!("Read varint: {}", len);
+                    return Ok(len);
+                }
+                Err(unsigned_varint::decode::Error::Overflow) => {
+                    log::error!("Invalid varint received");
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid varint",
+                    ));
+                }
+                Err(unsigned_varint::decode::Error::Insufficient) => {
+                    continue;
+                }
+                Err(_) => {
+                    log::error!("Varint decoding error: #[non_exhaustive]");
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid varint",
+                    ));
+                }
+            }
+        }
+    }
+
+    async fn read_length_prefixed<T: AsyncRead + Unpin>(
+        io: &mut T,
+        max_size: u32,
+    ) -> Result<Vec<u8>, std::io::Error> {
+        let len = Self::read_varint(io).await?;
+        if len > max_size {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Message too large",
+            ));
+        }
+
+        let mut buf = vec![0; len as usize];
+        io.read_exact(&mut buf).await?;
+        Ok(buf)
+    }
+}
+
+#[derive(Clone)]
+struct RbMsgProtocol;
+
+impl request_response::ProtocolName for RbMsgProtocol {
+    fn protocol_name(&self) -> &[u8] {
+        "/ephemera-rbmsg/1".as_bytes()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RbMsgResponse {
+    id: String,
+}
+
+impl RbMsgResponse {
+    fn new(id: String) -> Self {
+        Self { id }
+    }
+}
+
+#[async_trait]
+impl request_response::Codec for RbMsgMessagesCodec {
+    type Protocol = RbMsgProtocol;
+    type Request = RbMsg;
+    type Response = RbMsgResponse;
+
+    async fn read_request<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+    ) -> Result<Self::Request, std::io::Error>
+    where
+        T: AsyncRead + Unpin + Send,
+    {
+        let data = Self::read_length_prefixed(io, 1024 * 1024).await?;
+        let msg = serde_json::from_slice(&data)?;
+        log::trace!("Received request {:?}", msg);
+        Ok(msg)
+    }
+
+    async fn read_response<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+    ) -> std::io::Result<Self::Response>
+    where
+        T: AsyncRead + Unpin + Send,
+    {
+        let response = Self::read_length_prefixed(io, 1024 * 1024).await?;
+        let response = serde_json::from_slice(&response)?;
+        log::trace!("Received response {:?}", response);
+        Ok(response)
+    }
+
+    async fn write_request<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+        req: Self::Request,
+    ) -> Result<(), std::io::Error>
+    where
+        T: AsyncWrite + Unpin + Send,
+    {
+        log::trace!("Writing request {:?}", req);
+        let data = serde_json::to_vec(&req).unwrap();
+        Self::write_length_prefixed(io, data).await?;
+        Ok(())
+    }
+
+    async fn write_response<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+        response: Self::Response,
+    ) -> std::io::Result<()>
+    where
+        T: AsyncWrite + Unpin + Send,
+    {
+        log::trace!("Writing response {:?}", response);
+        let response = serde_json::to_vec(&response).unwrap();
+        Self::write_length_prefixed(io, response).await?;
+        Ok(())
+    }
 }

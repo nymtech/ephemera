@@ -71,7 +71,7 @@ impl NetCommunicationSender {
     }
 
     pub async fn send_protocol_message(&mut self, msg: RbMsg) -> anyhow::Result<()> {
-        log::trace!("Sending protocol message: {:?}", msg);
+        log::trace!("Received protocol message: {:?}", msg);
         self.broadcast_sender_tx
             .send(msg)
             .await
