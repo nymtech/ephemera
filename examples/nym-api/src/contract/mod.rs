@@ -13,12 +13,15 @@ use std::thread::sleep;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
 use chrono::{DateTime, Duration, Utc};
+use ephemera::config::Configuration;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::contract::http::{get_epoch, submit_reward};
+use crate::contract::http::{get_epoch, get_nym_apis, submit_reward};
 use crate::epoch::{Epoch, EpochInfo};
+use crate::peers::NymApiEphemeraPeerInfo;
 use crate::storage::db::{ContractStorageType, Storage};
+use crate::ContractArgs;
 
 pub mod http;
 
@@ -44,25 +47,36 @@ impl MixnodeToReward {
 }
 
 pub struct SmartContract {
-    pub storage: Storage<ContractStorageType>,
-    pub epoch: Epoch,
+    pub(crate) storage: Storage<ContractStorageType>,
+    pub(crate) epoch: Epoch,
+    pub(crate) peer_info: NymApiEphemeraPeerInfo,
 }
 
 impl SmartContract {
-    pub fn new(storage: Storage<ContractStorageType>, epoch: Epoch) -> Self {
-        Self { storage, epoch }
+    pub fn new(
+        storage: Storage<ContractStorageType>,
+        epoch: Epoch,
+        ephemera_config: Configuration,
+    ) -> Self {
+        let peer_info =
+            NymApiEphemeraPeerInfo::from_ephemera_dev_cluster_conf(&ephemera_config).unwrap();
+        Self {
+            storage,
+            epoch,
+            peer_info,
+        }
     }
 
-    pub async fn start(url: String, db_path: String, epoch_duration_seconds: u64) {
+    pub async fn start(args: ContractArgs, ephemera_config: Configuration) {
         log::info!("Starting smart contract");
 
         let mut storage: Storage<ContractStorageType> =
-            Storage::new(db_path, migrations::migrations::runner());
+            Storage::new(args.db_path, migrations::migrations::runner());
 
-        let epoch = Self::get_epoch(epoch_duration_seconds, &mut storage);
+        let epoch = Self::get_epoch(args.epoch_duration_seconds, &mut storage);
         log::info!("Epoch info: {epoch}");
 
-        let smart_contract = SmartContract::new(storage, epoch);
+        let smart_contract = SmartContract::new(storage, epoch, ephemera_config);
         let smart_contract = Arc::new(Mutex::new(smart_contract));
 
         let smart_contract_http = smart_contract.clone();
@@ -71,21 +85,22 @@ impl SmartContract {
                 .app_data(Data::new(smart_contract_http.clone()))
                 .service(submit_reward)
                 .service(get_epoch)
+                .service(get_nym_apis)
         })
-        .bind(url)
+        .bind(args.url)
         .unwrap()
         .run();
 
         log::info!("Smart contract started!");
 
-        let mut epoch_update = tokio::time::interval(std::time::Duration::from_secs(10));
+        let mut epoch_save_interval = tokio::time::interval(std::time::Duration::from_secs(10));
         loop {
             tokio::select! {
                 _ = &mut server => {
                     log::info!("Smart contract stopped!");
                 }
-                _ = epoch_update.tick() => {
-                    smart_contract.lock().await.update_epoch(epoch_duration_seconds);
+                _ = epoch_save_interval.tick() => {
+                    smart_contract.lock().await.update_epoch(args.epoch_duration_seconds);
                 }
             }
         }

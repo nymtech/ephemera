@@ -7,14 +7,11 @@ use thiserror::Error;
 pub(crate) mod ed25519;
 pub mod key_manager;
 pub(crate) mod keypair;
-mod peer;
 
 pub use ed25519::Ed25519Keypair;
 pub use ed25519::Ed25519PublicKey;
 pub use keypair::Keypair;
 pub use keypair::PublicKey;
-pub use peer::PeerId;
-pub use peer::ToPeerId;
 
 #[derive(Error, Debug)]
 pub enum KeyPairError {

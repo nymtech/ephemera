@@ -13,12 +13,14 @@ use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;
 use crate::nym_api_ephemera::app::application::RewardsEphemeraApplication;
+use crate::nym_api_ephemera::peer_discovery::HttpPeerDiscovery;
 use crate::reward::new::aggregator::RewardsAggregator;
 use crate::reward::{EphemeraAccess, RewardManager, V2};
 use crate::storage::db::{MetricsStorageType, Storage};
 use crate::{metrics, Args};
 
 mod app;
+mod peer_discovery;
 
 mod migrations {
     use refinery::embed_migrations;
@@ -46,12 +48,13 @@ impl NymApi {
         //APPLICATION(ABCI) for Ephemera
         let rewards_ephemera_application =
             RewardsEphemeraApplication::new(ephemera_config.clone())?;
+        let peer_discovery = HttpPeerDiscovery::new(args.smart_contract_url.clone());
 
         //EPHEMERA
         let ephemera_builder = EphemeraStarter::new(ephemera_config.clone())?;
-        let ephemera = ephemera_builder
-            .init_tasks(rewards_ephemera_application)
-            .await?;
+        let ephemera_builder = ephemera_builder.with_application(rewards_ephemera_application);
+        let ephemera_builder = ephemera_builder.with_peer_discovery(peer_discovery);
+        let ephemera = ephemera_builder.init_tasks().await?;
 
         let mut ephemera_handle = ephemera.handle();
 

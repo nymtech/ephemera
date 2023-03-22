@@ -15,6 +15,7 @@
 //! Average is then sent to the smart contract.
 
 use clap::Parser;
+use ephemera::config::Configuration;
 use tokio::signal::unix::{signal, SignalKind};
 
 use nym_api::contract::SmartContract;
@@ -30,11 +31,8 @@ async fn main() {
 
     let nh = tokio::spawn(NymApi::run(args.clone()));
 
-    let sh = tokio::spawn(SmartContract::start(
-        contract_args.url,
-        contract_args.db_path,
-        args.epoch_duration_seconds,
-    ));
+    let ephemera_config = Configuration::try_load(args.ephemera_config.clone().into()).unwrap();
+    let sh = tokio::spawn(SmartContract::start(contract_args, ephemera_config));
 
     let mut stream_int = signal(SignalKind::interrupt()).unwrap();
     let mut stream_term = signal(SignalKind::terminate()).unwrap();

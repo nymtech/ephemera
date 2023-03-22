@@ -1,10 +1,11 @@
 use ephemera::api::application::Application;
 use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
 use ephemera::config::Configuration;
-use ephemera::utilities::{decode, Ed25519PublicKey, PublicKey, ToPeerId};
+use ephemera::network::ToPeerId;
+use ephemera::utilities::{decode, Ed25519PublicKey, PublicKey};
 
 use crate::contract::MixnodeToReward;
-use crate::nym_api_ephemera::app::nym_peers::NymApiEphemeraPeerInfo;
+use crate::peers::NymApiEphemeraPeerInfo;
 
 pub(crate) struct RewardsEphemeraApplicationConfig {
     /// Percentage of messages relative to total number of peers

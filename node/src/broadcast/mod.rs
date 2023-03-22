@@ -37,8 +37,9 @@ use std::collections::HashSet;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::block::types::block::Block;
+use crate::network::PeerId;
 use crate::utilities;
-use crate::utilities::crypto::{PeerId, Signature};
+use crate::utilities::crypto::Signature;
 use crate::utilities::id;
 use crate::utilities::id::EphemeraId;
 

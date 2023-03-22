@@ -1,10 +1,12 @@
-use crate::utilities::crypto::peer::PeerId;
+use crate::network::{PeerId, ToPeerId};
 use crate::utilities::crypto::{KeyPairError, PublicKey};
-use crate::utilities::{Keypair, ToPeerId};
+use crate::utilities::Keypair;
 
 // Careful with DEBUG, DISPLAY!!!
 // Internally uses libp2p for now
 pub struct Ed25519Keypair(pub libp2p::identity::Keypair);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Ed25519PublicKey(pub libp2p::identity::PublicKey);
 
 impl Ed25519Keypair {
@@ -53,8 +55,6 @@ impl Keypair for Ed25519Keypair {
 }
 
 impl PublicKey for Ed25519PublicKey {
-    type Signature = Vec<u8>;
-
     fn to_raw_vec(&self) -> Vec<u8> {
         self.0.to_protobuf_encoding()
     }
@@ -68,7 +68,7 @@ impl PublicKey for Ed25519PublicKey {
         Ok(Ed25519PublicKey(public_key))
     }
 
-    fn verify<M: AsRef<[u8]>>(&self, msg: &M, signature: &Self::Signature) -> bool {
+    fn verify<M: AsRef<[u8]>>(&self, msg: &M, signature: &[u8]) -> bool {
         self.0.verify(msg.as_ref(), signature)
     }
 }

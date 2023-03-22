@@ -97,7 +97,8 @@ impl Merkle {
 mod tests {
     use crate::block::types::block::RawBlockHeader;
     use crate::block::types::message::{EphemeraMessage, EphemeraRawMessage};
-    use crate::utilities::crypto::{PeerId, Signature};
+    use crate::network::PeerId;
+    use crate::utilities::crypto::Signature;
     use crate::utilities::id::generate_ephemera_id;
 
     use super::*;

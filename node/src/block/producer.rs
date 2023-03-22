@@ -1,7 +1,7 @@
 use crate::block::message_pool::MessagePool;
 use crate::block::types::block::{Block, BlockHeader, RawBlock, RawBlockHeader};
 use crate::block::types::message::EphemeraMessage;
-use crate::utilities::crypto::PeerId;
+use crate::network::PeerId;
 use crate::utilities::merkle::Merkle;
 
 pub(super) struct BlockProducer {

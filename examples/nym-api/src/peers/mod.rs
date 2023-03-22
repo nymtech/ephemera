@@ -3,26 +3,8 @@ use std::collections::HashMap;
 use anyhow::anyhow;
 
 use ephemera::config::Configuration;
-use ephemera::utilities::{Ed25519Keypair, Keypair, PeerId, ToPeerId};
-
-//We don't know where this information comes yet, but it should be something like this
-#[derive(Clone)]
-pub(crate) struct Peer {
-    /// The address of a Nym-API. We may need it to query rewards.
-    /// For example when another API is the first one to submit final rewards to smart contract,
-    /// we need to know its API address to query those rewards.
-    pub(crate) address: String,
-    /// The peer id of the Nym-API.
-    /// When using libp2p PeerId concept, then PeerId is cryptographically secure identifier because it's derived from
-    /// the public key of the node.
-    pub(crate) peer_id: PeerId,
-}
-
-impl Peer {
-    pub(crate) fn new(address: String, peer_id: PeerId) -> Self {
-        Self { address, peer_id }
-    }
-}
+use ephemera::network::{Peer, PeerId, ToPeerId};
+use ephemera::utilities::{Ed25519Keypair, Keypair};
 
 /// Information about other Nym-Apis.
 pub(crate) struct NymApiEphemeraPeerInfo {
@@ -86,7 +68,12 @@ impl NymApiEphemeraPeerInfo {
 
                 let peer_id = keypair.peer_id();
 
-                let peer = Peer::new(node_info.address, peer_id);
+                let peer = Peer::new(
+                    peer_id.to_string(),
+                    node_info.address.parse().unwrap(),
+                    keypair.public_key(),
+                    peer_id,
+                );
 
                 peers.insert(peer_id, peer);
 

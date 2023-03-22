@@ -4,11 +4,11 @@ use std::hash::{Hash, Hasher};
 use serde::{Deserialize, Serialize};
 
 use crate::block::types::message::EphemeraMessage;
+use crate::network::PeerId;
 use crate::utilities;
 use crate::utilities::encoding::{Decode, Encode};
 use crate::utilities::id::{generate_ephemera_id, EphemeraId};
 use crate::utilities::time::ephemera_now;
-use crate::utilities::PeerId;
 
 pub type BlockHash = [u8; 32];
 

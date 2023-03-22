@@ -22,27 +22,31 @@ use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
 use crate::config::{Libp2pConfig, NodeConfig};
 use crate::core::builder::NodeInfo;
-use crate::network::libp2p::discovery::r#static::StaticPeerDiscovery;
+
+use crate::network::libp2p::discovery::rendezvous;
+use crate::network::libp2p::discovery::rendezvous::RendezvousBehaviour;
 use crate::network::libp2p::messages_channel::{
     EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender,
 };
+use crate::network::PeerDiscovery;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 
-pub struct SwarmNetwork {
+pub struct SwarmNetwork<P: PeerDiscovery + 'static> {
     libp2p_conf: Libp2pConfig,
     node_conf: NodeConfig,
-    swarm: Swarm<GroupNetworkBehaviour>,
+    swarm: Swarm<GroupNetworkBehaviour<P>>,
     from_ephemera_rcv: NetCommunicationReceiver,
     to_ephemera_tx: NetCommunicationSender,
 }
 
-impl SwarmNetwork {
+impl<P: PeerDiscovery> SwarmNetwork<P> {
     pub(crate) fn new(
         libp2p_conf: Libp2pConfig,
         node_conf: NodeConfig,
         node_info: NodeInfo,
+        peer_discovery: P,
     ) -> (
-        SwarmNetwork,
+        SwarmNetwork<P>,
         NetCommunicationReceiver,
         NetCommunicationSender,
     ) {
@@ -53,7 +57,7 @@ impl SwarmNetwork {
         let peer_id = node_info.peer_id.0;
 
         let transport = create_transport(local_key.clone());
-        let behaviour = create_behaviour(&libp2p_conf, local_key);
+        let behaviour = create_behaviour(&libp2p_conf, local_key, peer_discovery);
         let swarm = Swarm::with_tokio_executor(transport, behaviour, peer_id);
 
         let network = SwarmNetwork {
@@ -77,15 +81,23 @@ impl SwarmNetwork {
     }
 
     pub(crate) async fn start(mut self) -> anyhow::Result<()> {
-        let consensus_msg_topic = Topic::new(&self.libp2p_conf.consensus_msg_topic_name);
-        let ephemera_msg_topic = Topic::new(&self.libp2p_conf.proposed_msg_topic_name);
+        let ephemera_msg_topic = Topic::new(&self.libp2p_conf.ephemera_msg_topic_name);
+
+        // Spawn rendezvous behaviour outside of swarm event loop.
+        // It would look better if it were integrated into libp2p architecture.
+        // Maybe some good ideas will come up in the future.
+        self.swarm
+            .behaviour_mut()
+            .rendezvous_behaviour
+            .spawn()
+            .await;
 
         loop {
             select!(
                 swarm_event = self.swarm.next() => {
                     match swarm_event{
                         Some(event) => {
-                            if let Err(err) = self.handle_incoming_messages(event, &consensus_msg_topic, &ephemera_msg_topic).await{
+                            if let Err(err) = self.handle_incoming_messages(event, &ephemera_msg_topic).await{
                                 log::error!("Error handling swarm event: {:?}", err);
                             }
                         }
@@ -118,7 +130,6 @@ impl SwarmNetwork {
     async fn handle_incoming_messages<E>(
         &mut self,
         swarm_event: SwarmEvent<GroupBehaviourEvent, E>,
-        protocol_msg_topic: &Topic,
         ephemera_msg_topic: &Topic,
     ) -> anyhow::Result<()> {
         match swarm_event {
@@ -129,11 +140,7 @@ impl SwarmNetwork {
                         message_id: _,
                         message,
                     } => {
-                        if message.topic == (*protocol_msg_topic).clone().into() {
-                            self.to_ephemera_tx
-                                .send_protocol_message_raw(message.data)
-                                .await?;
-                        } else if message.topic == (*ephemera_msg_topic).clone().into() {
+                        if message.topic == (*ephemera_msg_topic).clone().into() {
                             self.to_ephemera_tx
                                 .send_ephemera_message_raw(message.data)
                                 .await?;
@@ -145,10 +152,11 @@ impl SwarmNetwork {
                     match request_response {
                         request_response::Event::Message { peer, message } => match message {
                             request_response::Message::Request {
-                                request_id: _,
+                                request_id,
                                 request,
                                 channel,
                             } => {
+                                log::debug!("Received request {request_id:?} from peer: {peer:?}",);
                                 let rb_id = request.id.clone();
                                 self.to_ephemera_tx.send_protocol_message(request).await?;
                                 if let Err(err) = self
@@ -164,7 +172,7 @@ impl SwarmNetwork {
                                 request_id,
                                 response,
                             } => {
-                                log::trace!("Received response {response:?} from peer: {peer:?}, request_id: {request_id:?}",);
+                                log::debug!("Received response {response:?} from peer: {peer:?}, request_id: {request_id:?}",);
                             }
                         },
                         request_response::Event::OutboundFailure {
@@ -182,11 +190,26 @@ impl SwarmNetwork {
                             log::error!("Inbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",);
                         }
                         request_response::Event::ResponseSent { peer, request_id } => {
-                            log::trace!("Response sent to peer: {peer:?}, {request_id:?}",);
+                            log::debug!("Response sent to peer: {peer:?}, {request_id:?}",);
                         }
                     }
                 }
-                _ => {}
+
+                GroupBehaviourEvent::StaticPeerDiscovery(_) => {}
+                GroupBehaviourEvent::Rendezvous(event) => match event {
+                    rendezvous::Event::PeersUpdated => {
+                        log::info!(
+                            "Peers updated: {:?}",
+                            self.swarm.behaviour_mut().rendezvous_behaviour.peer_ids()
+                        );
+                        for peer_id in self.swarm.behaviour_mut().rendezvous_behaviour.peer_ids() {
+                            self.swarm
+                                .behaviour_mut()
+                                .gossipsub
+                                .add_explicit_peer(peer_id.inner());
+                        }
+                    }
+                },
             },
             //Ignore other Swarm events for now
             _ => {}
@@ -196,12 +219,12 @@ impl SwarmNetwork {
 
     async fn send_protocol_message(&mut self, msg: RbMsg) {
         log::debug!("Sending Block message: {}", msg.id);
-        for peer in self.swarm.behaviour_mut().peer_discovery.peer_ids() {
+        for peer in self.swarm.behaviour().rendezvous_behaviour.peer_ids() {
             log::trace!("Sending Block message to peer: {:?}", peer);
             self.swarm
                 .behaviour_mut()
                 .request_response
-                .send_request(&peer, msg.clone());
+                .send_request(&peer.into(), msg.clone());
         }
     }
 
@@ -231,9 +254,9 @@ impl SwarmNetwork {
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
-struct GroupNetworkBehaviour {
+struct GroupNetworkBehaviour<P: PeerDiscovery> {
+    rendezvous_behaviour: RendezvousBehaviour<P>,
     gossipsub: gossipsub::Behaviour,
-    peer_discovery: StaticPeerDiscovery,
     request_response: request_response::Behaviour<RbMsgMessagesCodec>,
 }
 
@@ -242,6 +265,7 @@ enum GroupBehaviourEvent {
     Gossipsub(gossipsub::Event),
     RequestResponse(request_response::Event<RbMsg, RbMsgResponse>),
     StaticPeerDiscovery(()),
+    Rendezvous(rendezvous::Event),
 }
 
 impl From<gossipsub::Event> for GroupBehaviourEvent {
@@ -262,36 +286,36 @@ impl From<request_response::Event<RbMsg, RbMsgResponse>> for GroupBehaviourEvent
     }
 }
 
+impl From<rendezvous::Event> for GroupBehaviourEvent {
+    fn from(event: rendezvous::Event) -> Self {
+        GroupBehaviourEvent::Rendezvous(event)
+    }
+}
+
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
 //Peer discovery takes care of locating peers
-fn create_behaviour(
+fn create_behaviour<P: PeerDiscovery + 'static>(
     libp2p_conf: &Libp2pConfig,
     keypair: Arc<Ed25519Keypair>,
-) -> GroupNetworkBehaviour {
-    let consensus_topic = Topic::new(&libp2p_conf.consensus_msg_topic_name);
-    let proposed_topic = Topic::new(&libp2p_conf.proposed_msg_topic_name);
+    peer_discovery: P,
+) -> GroupNetworkBehaviour<P> {
+    let ephemera_msg_topic = Topic::new(&libp2p_conf.ephemera_msg_topic_name);
 
     let mut gossipsub = create_gossipsub(keypair);
-    gossipsub.subscribe(&consensus_topic).unwrap();
-    gossipsub.subscribe(&proposed_topic).unwrap();
-
-    let peer_discovery = StaticPeerDiscovery::new(libp2p_conf);
-    for peer in peer_discovery.peer_ids() {
-        log::debug!("Adding peer: {}", peer);
-        gossipsub.add_explicit_peer(&peer);
-    }
+    gossipsub.subscribe(&ephemera_msg_topic).unwrap();
 
     let request_response = create_request_response();
+    let rendezvous_behaviour = create_http_peer_discovery(peer_discovery);
 
     GroupNetworkBehaviour {
+        rendezvous_behaviour,
         gossipsub,
-        peer_discovery,
         request_response,
     }
 }
 
-//Configure networking messaging stack(Gossipsub)
+// Configure networking messaging stack(Gossipsub)
 fn create_gossipsub(local_key: Arc<Ed25519Keypair>) -> gossipsub::Behaviour {
     let gossipsub_config = gossipsub::ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(5))
@@ -307,11 +331,18 @@ fn create_gossipsub(local_key: Arc<Ed25519Keypair>) -> gossipsub::Behaviour {
 }
 
 fn create_request_response() -> request_response::Behaviour<RbMsgMessagesCodec> {
+    let config = Default::default();
     request_response::Behaviour::new(
         RbMsgMessagesCodec,
         iter::once((RbMsgProtocol, request_response::ProtocolSupport::Full)),
-        Default::default(),
+        config,
     )
+}
+
+fn create_http_peer_discovery<P: PeerDiscovery + 'static>(
+    peer_discovery: P,
+) -> RendezvousBehaviour<P> {
+    RendezvousBehaviour::new(peer_discovery)
 }
 
 //Configure networking connection stack(Tcp, Noise, Yamux)

@@ -185,7 +185,7 @@ NYM_API_EPHEMERA="$PROJECT_ROOT"/target/release/nym_api_ephemera
 REWARD_CONTRACT="$PROJECT_ROOT"/target/release/reward_contract
 
 export RUST_LOG="nym_api=debug,ephemera=debug,info"
-#export RUST_LOG="libp2p=trace"
+#export RUST_LOG="reqwest=trace"
 export RUST_BACKTRACE=1
 
 build() {
@@ -326,6 +326,8 @@ run_reward_contract() {
   CONTRACT_DB_PATH="$REWARD_CONTRACT_DIR"/db/contract.sqlite
   SMART_CONTRACT_URL=127.0.0.1:6789
 
+  EPHEMERA_CONFIG_FILE=$EPHEMERA_HOME_DIR/node1/ephemera.toml
+
   mkdir -p "$REWARD_CONTRACT_DIR"/logs
   mkdir -p "$REWARD_CONTRACT_DIR"/db
 
@@ -335,6 +337,7 @@ run_reward_contract() {
   echo "Starting reward contract"
   $REWARD_CONTRACT --db-path "$CONTRACT_DB_PATH" \
                    --url "$SMART_CONTRACT_URL" \
+                   --ephemera-config "$EPHEMERA_CONFIG_FILE" \
                     > "$LOGS_FILE" 2>&1 &
 
   echo "$!" >> "$PIDS_FILE"

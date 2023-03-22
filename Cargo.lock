@@ -1514,7 +1514,7 @@ dependencies = [
  "libp2p",
  "libp2p-identity",
  "log",
- "lru 0.10.0",
+ "lru",
  "parking_lot 0.12.1",
  "pretty_env_logger",
  "prost",
@@ -1522,6 +1522,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "refinery",
+ "reqwest",
  "rocksdb",
  "rusqlite",
  "serde",
@@ -1536,6 +1537,7 @@ dependencies = [
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",
+ "void",
 ]
 
 [[package]]
@@ -2348,7 +2350,6 @@ dependencies = [
  "libp2p-core",
  "libp2p-dns",
  "libp2p-gossipsub",
- "libp2p-identify",
  "libp2p-identity",
  "libp2p-kad",
  "libp2p-mdns",
@@ -2439,28 +2440,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libp2p-identify"
-version = "0.42.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40d1da1f75baf824cfdc80f6aced51f7cbf8dc14e32363e9443570a80d4ee337"
-dependencies = [
- "asynchronous-codec",
- "either",
- "futures",
- "futures-timer",
- "libp2p-core",
- "libp2p-identity",
- "libp2p-swarm",
- "log",
- "lru 0.9.0",
- "quick-protobuf",
- "quick-protobuf-codec",
- "smallvec",
- "thiserror",
- "void",
-]
-
-[[package]]
 name = "libp2p-identity"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2537,7 +2516,7 @@ checksum = "a42ec91e227d7d0dafa4ce88b333cdf5f277253873ab087555c92798db2ddd46"
 dependencies = [
  "libp2p-core",
  "libp2p-gossipsub",
- "libp2p-identify",
+ "libp2p-kad",
  "libp2p-swarm",
  "prometheus-client",
 ]
@@ -2819,15 +2798,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e16a91fb20f74b6d9a758a0103a2884af525a2fa34fbfe19f4b3c5482a4a54e9"
 dependencies = [
  "fid-rs",
-]
-
-[[package]]
-name = "lru"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71e7d46de488603ffdd5f30afbc64fbba2378214a2c3a2fb83abf3d33126df17"
-dependencies = [
- "hashbrown 0.13.2",
 ]
 
 [[package]]

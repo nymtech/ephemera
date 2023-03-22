@@ -13,9 +13,9 @@ use crate::block::producer::BlockProducer;
 use crate::block::types::block::Block;
 use crate::block::types::message::EphemeraMessage;
 use crate::config::BlockConfig;
+use crate::network::PeerId;
 use crate::storage::rocksdb::RocksDbStorage;
 use crate::storage::EphemeraDatabase;
-use crate::utilities::crypto::PeerId;
 use crate::utilities::id::EphemeraId;
 
 #[derive(Error, Debug)]

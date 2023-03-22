@@ -63,7 +63,7 @@ impl NetCommunicationSender {
     }
 
     pub async fn send_ephemera_message(&mut self, msg: EphemeraMessage) -> anyhow::Result<()> {
-        log::trace!("Gossiping ephemera message: {:?}", msg);
+        log::trace!("Ephemera message: {:?}", msg);
         self.message_sender_tx
             .send(msg)
             .await
@@ -71,7 +71,7 @@ impl NetCommunicationSender {
     }
 
     pub async fn send_protocol_message(&mut self, msg: RbMsg) -> anyhow::Result<()> {
-        log::trace!("Received protocol message: {:?}", msg);
+        log::trace!("Protocol message: {:?}", msg);
         self.broadcast_sender_tx
             .send(msg)
             .await

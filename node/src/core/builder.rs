@@ -11,9 +11,10 @@ use crate::config::Configuration;
 use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
 use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetCommunicationSender};
 use crate::network::libp2p::swarm::SwarmNetwork;
+use crate::network::{PeerDiscovery, PeerId, ToPeerId};
 use crate::storage::rocksdb::RocksDbStorage;
 use crate::utilities::crypto::key_manager::KeyManager;
-use crate::utilities::{Ed25519Keypair, PeerId, ToPeerId};
+use crate::utilities::Ed25519Keypair;
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
 use crate::{http, Ephemera};
 
@@ -37,12 +38,14 @@ pub struct EphemeraHandle {
     pub shutdown: ShutdownHandle,
 }
 
-pub struct EphemeraStarter {
+pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
     config: Configuration,
     instance_info: NodeInfo,
     block_manager_builder: Option<BlockManagerBuilder>,
     block_manager: Option<BlockManager>,
     broadcaster: Broadcaster,
+    peer_discovery: Option<P>,
+    application: Option<A>,
     from_network: Option<NetCommunicationReceiver>,
     to_network: Option<NetCommunicationSender>,
     ws_message_broadcast: Option<WsMessageBroadcaster>,
@@ -51,7 +54,7 @@ pub struct EphemeraStarter {
     api: EphemeraExternalApi,
 }
 
-impl EphemeraStarter {
+impl<P: PeerDiscovery + 'static, A: Application + 'static> EphemeraStarter<P, A> {
     //Crate pure data structures, no resource allocation nor threads
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
         let keypair = KeyManager::read_keypair(config.node.private_key.clone())?;
@@ -72,6 +75,8 @@ impl EphemeraStarter {
             block_manager_builder: Some(block_manager_builder),
             block_manager: None,
             broadcaster,
+            peer_discovery: None,
+            application: None,
             from_network: None,
             to_network: None,
             ws_message_broadcast: None,
@@ -82,14 +87,29 @@ impl EphemeraStarter {
         Ok(builder)
     }
 
+    pub fn with_peer_discovery(self, peer_discovery: P) -> Self {
+        Self {
+            peer_discovery: Some(peer_discovery),
+            ..self
+        }
+    }
+
+    pub fn with_application(self, application: A) -> EphemeraStarter<P, A> {
+        Self {
+            application: Some(application),
+            ..self
+        }
+    }
+
     //opens database and spawns dependent tasks
-    pub async fn init_tasks<A: Application>(self, application: A) -> anyhow::Result<Ephemera<A>> {
+    pub async fn init_tasks(self) -> anyhow::Result<Ephemera<A>> {
         let starter = self.connect_db().await?;
         let mut builder = starter.init_block_manager().await?;
 
         let (mut shutdown_manager, shutdown_handle) = ShutdownManager::init();
         builder.start_tasks(&mut shutdown_manager).await?;
 
+        let application = builder.application.take().unwrap();
         let ephemera = builder.ephemera(application, shutdown_handle, shutdown_manager);
         Ok(ephemera)
     }
@@ -187,10 +207,12 @@ impl EphemeraStarter {
     }
 
     fn start_network(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
+        log::info!("Starting network...{:?}", self.peer_discovery.is_some());
         let (mut network, from_network, to_network) = SwarmNetwork::new(
             self.config.libp2p.clone(),
             self.config.node.clone(),
             self.instance_info.clone(),
+            self.peer_discovery.take().unwrap(),
         );
 
         self.from_network = Some(from_network);
@@ -214,7 +236,7 @@ impl EphemeraStarter {
         Ok(join_handle)
     }
 
-    fn ephemera<A: Application>(
+    fn ephemera(
         self,
         application: A,
         shutdown_handle: ShutdownHandle,

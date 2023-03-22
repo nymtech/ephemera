@@ -7,8 +7,9 @@ use crate::block::types::block::Block;
 use crate::broadcast::bracha::quorum::BrachaQuorum;
 use crate::broadcast::signing::BlockSigner;
 use crate::broadcast::MessageType::{Echo, Vote};
-use crate::broadcast::{Command, ConsensusContext, PeerId, Quorum, RbMsg, Status};
+use crate::broadcast::{Command, ConsensusContext, Quorum, RbMsg, Status};
 use crate::config::BroadcastConfig;
+use crate::network::PeerId;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 use crate::utilities::crypto::Signature;
 

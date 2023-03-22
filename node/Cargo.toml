@@ -30,10 +30,11 @@ futures-timer = "3.0.2"
 futures-util = "0.3.25"
 bs58 = "0.4.0"
 log = "0.4.17"
-libp2p = { version = "0.51.0", features = ["gossipsub", "identify", "macros", "noise", "request-response", "serde", "tcp", "tokio", "yamux"] }
+libp2p = { version = "0.51.0", features = ["gossipsub", "kad", "macros", "noise", "request-response", "serde", "tcp", "tokio", "yamux"] }
 libp2p-identity= "0.1.0"
 lru = "0.10.0"
 thiserror = "1.0.37"
+reqwest = { version = "0.11.6", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7.4", features = ["full"] }
 parking_lot = "0.12.1"
@@ -53,6 +54,7 @@ unsigned-varint = "0.7.1"
 utoipa = { version = "3.0.1", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 uuid = { version = "1.2.2", features = ["v4"] }
+void = "1.0.2"
 
 [dev-dependencies]
 uuid = { version = "1.2.2", features = ["v4"] }

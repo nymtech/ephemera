@@ -7,6 +7,7 @@ pub mod epoch;
 pub mod metrics;
 pub mod nym_api_ephemera;
 pub mod nym_api_standalone;
+pub mod peers;
 pub mod reward;
 pub mod storage;
 
@@ -41,4 +42,6 @@ pub struct ContractArgs {
     pub epoch_duration_seconds: u64,
     #[clap(long)]
     pub url: String,
+    #[clap(long)]
+    pub ephemera_config: String,
 }

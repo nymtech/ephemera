@@ -45,8 +45,7 @@ pub struct BroadcastConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Libp2pConfig {
-    pub consensus_msg_topic_name: String,
-    pub proposed_msg_topic_name: String,
+    pub ephemera_msg_topic_name: String,
     pub heartbeat_interval_sec: u64,
     pub peers: Vec<PeerSetting>,
 }

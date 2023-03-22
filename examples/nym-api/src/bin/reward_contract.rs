@@ -1,4 +1,5 @@
 use clap::Parser;
+use ephemera::config::Configuration;
 use tokio::signal::unix::{signal, SignalKind};
 
 use nym_api::contract::SmartContract;
@@ -9,10 +10,9 @@ async fn main() {
     pretty_env_logger::init();
 
     let args = ContractArgs::parse();
+    let ephemera_config = Configuration::try_load(args.ephemera_config.clone().into()).unwrap();
 
-    let sh = tokio::spawn(async move {
-        SmartContract::start(args.url, args.db_path, args.epoch_duration_seconds).await
-    });
+    let sh = tokio::spawn(async move { SmartContract::start(args, ephemera_config).await });
 
     let mut stream_int = signal(SignalKind::interrupt()).unwrap();
     let mut stream_term = signal(SignalKind::terminate()).unwrap();

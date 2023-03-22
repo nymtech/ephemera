@@ -2,9 +2,8 @@ use clap::Parser;
 
 use crate::config::{
     BlockConfig, BroadcastConfig, Configuration, DbConfig, HttpConfig, Libp2pConfig, NodeConfig,
-    WsConfig, DEFAULT_CONSENSUS_MSG_TOPIC_NAME, DEFAULT_HEARTBEAT_INTERVAL_SEC,
-    DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT, DEFAULT_PROPOSED_MSG_TOPIC_NAME,
-    DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOTAL_NR_OF_NODES,
+    WsConfig, DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT,
+    DEFAULT_PROPOSED_MSG_TOPIC_NAME, DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOTAL_NR_OF_NODES,
 };
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 use crate::utilities::crypto::PublicKey;
@@ -57,8 +56,7 @@ impl InitCmd {
                 cluster_size: self.total_nr_of_nodes,
             },
             libp2p: Libp2pConfig {
-                consensus_msg_topic_name: DEFAULT_CONSENSUS_MSG_TOPIC_NAME.to_string(),
-                proposed_msg_topic_name: DEFAULT_PROPOSED_MSG_TOPIC_NAME.to_string(),
+                ephemera_msg_topic_name: DEFAULT_PROPOSED_MSG_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
                 peers: vec![],
             },

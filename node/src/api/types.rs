@@ -9,8 +9,9 @@ use utoipa::ToSchema;
 
 use crate::block::types::block::Block;
 use crate::block::types::message::{EphemeraMessage, EphemeraRawMessage};
+use crate::network::PeerId;
 use crate::utilities;
-use crate::utilities::crypto::{PeerId, Signature};
+use crate::utilities::crypto::Signature;
 use crate::utilities::encoding::Encode;
 use crate::utilities::id::generate_ephemera_id;
 use crate::utilities::id::EphemeraId;
