@@ -4,6 +4,9 @@ use std::time::Duration;
 
 use crate::broadcast::RbMsg;
 use crate::config::Libp2pConfig;
+use crate::network::libp2p::behaviours::messages::{
+    RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
+};
 use libp2p::core::{muxing::StreamMuxerBox, transport::Boxed};
 use libp2p::gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode};
 use libp2p::swarm::NetworkBehaviour;
@@ -11,9 +14,6 @@ use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
 use libp2p::yamux::YamuxConfig;
 use libp2p::{gossipsub, noise, request_response, PeerId as Libp2pPeerId, Transport};
 
-use crate::network::libp2p::behaviour::messages::{
-    RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
-};
 use crate::network::libp2p::discovery::rendezvous;
 use crate::network::libp2p::discovery::rendezvous::RendezvousBehaviour;
 use crate::network::PeerDiscovery;

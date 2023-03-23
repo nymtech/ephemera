@@ -2,16 +2,16 @@ use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
 use crate::config::{Libp2pConfig, NodeConfig};
 use crate::core::builder::NodeInfo;
-use crate::network::libp2p::behaviour::messages::RbMsgResponse;
+use crate::network::libp2p::behaviours::messages::RbMsgResponse;
 use crate::network::libp2p::discovery::rendezvous;
+use crate::network::libp2p::ephemera_behaviour::{
+    create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
+};
 use crate::network::libp2p::ephemera_sender::{
     EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
 };
 use crate::network::libp2p::network_sender::{
     EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
-};
-use crate::network::libp2p::swarm::{
-    create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
 };
 use crate::network::PeerDiscovery;
 use futures::StreamExt;
