@@ -12,7 +12,8 @@ use crate::broadcast::RbMsg;
 use crate::core::api_cmd::ApiCmdProcessor;
 use crate::core::builder::{EphemeraHandle, NodeInfo};
 use crate::core::shutdown::ShutdownManager;
-use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetCommunicationSender};
+use crate::network::libp2p::ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender};
+use crate::network::libp2p::network_sender::{NetCommunicationReceiver, NetworkEvent};
 use crate::storage::rocksdb::RocksDbStorage;
 use crate::storage::EphemeraDatabase;
 use crate::websocket::ws_manager::WsMessageBroadcaster;
@@ -33,7 +34,7 @@ pub struct Ephemera<A: Application> {
     pub(crate) from_network: NetCommunicationReceiver,
 
     /// A component which sends messages to network.
-    pub(crate) to_network: NetCommunicationSender,
+    pub(crate) to_network: EphemeraToNetworkSender,
 
     /// A component which has mutable access to database.
     pub(crate) storage: Arc<Mutex<RocksDbStorage>>,
@@ -89,36 +90,10 @@ impl<A: Application> Ephemera<A> {
                     }
                 }
 
-                //PROCESSING EPHEMERA MESSAGES(TRANSACTIONS) FROM NETWORK
-                Some(ephemera_msg) = self.from_network.ephemera_message_receiver.recv() => {
-                    // 1. Ask application to decide if we should accept this message.
-                    let msd_id = ephemera_msg.id.clone();
-                    let api_msg = ephemera_msg.clone().into();
-                    log::debug!("New ephemera message from network: {}", msd_id);
-                    match self.application.check_tx(api_msg){
-                        Ok(true) => {
-                            log::debug!("Application accepted message: {}", msd_id);
-                            // 2. send to BlockManager
-                            if let Err(err) = self.block_manager.new_message(ephemera_msg).await{
-                                log::error!("Error sending signed message to block manager: {:?}", err);
-                            }
-                        }
-                        Ok(false) => {
-                            log::debug!("Application rejected message: {:?}", msd_id);
-                        }
-                        Err(err) => {
-                            log::error!("Application rejected message: {:?}", err);
-                            continue;
-                        }
-                    }
-                }
-
-                //PROCESSING PROTOCOL MESSAGES(BLOCKS) FROM NETWORK
-                Some(network_msg) = self.from_network.protocol_msg_receiver.recv() => {
-                    log::trace!("New protocol message from network: {:?}", network_msg);
-                    if let Err(err) = self.process_block_from_network(network_msg).await{
-                        log::error!("Error processing block from network: {:?}", err);
-                    }
+                // PROCESSING NETWORK EVENTS
+                Some(net_event) = self.from_network.net_event_rcv.recv() => {
+                    log::trace!("New network event: {:?}", net_event);
+                    self.process_network_event(net_event).await;
                 }
 
                 //PROCESSING EXTERNAL API REQUESTS
@@ -140,6 +115,39 @@ impl<A: Application> Ephemera<A> {
                     break;
                 }
             }
+        }
+    }
+
+    async fn process_network_event(&mut self, net_event: NetworkEvent) {
+        match net_event {
+            NetworkEvent::EphemeraMessage(em) => {
+                // 1. Ask application to decide if we should accept this message.
+                let msd_id = em.id.clone();
+                let api_msg = (*em.clone()).into();
+                log::debug!("New ephemera message from network: {}", msd_id);
+                match self.application.check_tx(api_msg) {
+                    Ok(true) => {
+                        log::debug!("Application accepted message: {}", msd_id);
+                        // 2. send to BlockManager
+                        if let Err(err) = self.block_manager.new_message(*em).await {
+                            log::error!("Error sending signed message to block manager: {:?}", err);
+                        }
+                    }
+                    Ok(false) => {
+                        log::debug!("Application rejected message: {:?}", msd_id);
+                    }
+                    Err(err) => {
+                        log::error!("Application rejected message: {:?}", err);
+                    }
+                }
+            }
+            NetworkEvent::ProtocolMessage(pm) => {
+                log::trace!("New protocol message from network: {:?}", pm);
+                if let Err(err) = self.process_block_from_network(*pm).await {
+                    log::error!("Error processing block from network: {:?}", err);
+                }
+            }
+            NetworkEvent::PeersUpdated(peers) => {}
         }
     }
 
@@ -168,7 +176,9 @@ impl<A: Application> Ephemera<A> {
                 if command == Command::Broadcast {
                     log::trace!("Broadcasting new block: {:?}", rp);
                     //2. send to network
-                    self.to_network.send_protocol_message(rp).await?;
+                    self.to_network
+                        .send_ephemera_event(EphemeraEvent::ProtocolMessage(rp.into()))
+                        .await?;
                 }
             }
             Ok(_) => {
@@ -214,7 +224,9 @@ impl<A: Application> Ephemera<A> {
             }) => {
                 //Send protocol response to network
                 log::trace!("Broadcasting block to network: {:?}", rp);
-                self.to_network.send_protocol_message(rp.clone()).await?
+                self.to_network
+                    .send_ephemera_event(EphemeraEvent::ProtocolMessage(rp.into()))
+                    .await?;
             }
             Ok(ProtocolResponse {
                 status: Status::Committed,

@@ -22,11 +22,13 @@ use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
 use crate::config::{Libp2pConfig, NodeConfig};
 use crate::core::builder::NodeInfo;
-
 use crate::network::libp2p::discovery::rendezvous;
 use crate::network::libp2p::discovery::rendezvous::RendezvousBehaviour;
-use crate::network::libp2p::messages_channel::{
-    EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender,
+use crate::network::libp2p::ephemera_sender::{
+    EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
+};
+use crate::network::libp2p::network_sender::{
+    EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
 };
 use crate::network::PeerDiscovery;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
@@ -35,7 +37,7 @@ pub struct SwarmNetwork<P: PeerDiscovery + 'static> {
     libp2p_conf: Libp2pConfig,
     node_conf: NodeConfig,
     swarm: Swarm<GroupNetworkBehaviour<P>>,
-    from_ephemera_rcv: NetCommunicationReceiver,
+    from_ephemera_rcv: EphemeraToNetworkReceiver,
     to_ephemera_tx: NetCommunicationSender,
 }
 
@@ -48,9 +50,9 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     ) -> (
         SwarmNetwork<P>,
         NetCommunicationReceiver,
-        NetCommunicationSender,
+        EphemeraToNetworkSender,
     ) {
-        let (from_ephemera_tx, from_ephemera_rcv) = EphemeraNetworkCommunication::init();
+        let (from_ephemera_tx, from_ephemera_rcv) = EphemeraToNetwork::init();
         let (to_ephemera_tx, to_ephemera_rcv) = EphemeraNetworkCommunication::init();
 
         let local_key = node_info.keypair.clone();
@@ -106,23 +108,23 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                         }
                     }
                 },
-                cm_maybe = self.from_ephemera_rcv.ephemera_message_receiver.recv() => {
-                    if let Some(cm) = cm_maybe {
-                        self.send_ephemera_message(cm, &ephemera_msg_topic,).await;
-                    }
-                    else {
-                        anyhow::bail!("ephemera_message_receiver channel closed")
-                    }
-                }
-                pm_maybe = self.from_ephemera_rcv.protocol_msg_receiver.recv() => {
-                    if let Some(pm) = pm_maybe {
-                        self.send_protocol_message(pm).await;
-                    }
-                    else {
-                        anyhow::bail!("protocol_msg_receiver channel closed")
-                    }
+                Some(event) = self.from_ephemera_rcv.net_event_rcv.recv() => {
+                    self.process_ephemera_events(event).await;
                 }
             );
+        }
+    }
+
+    async fn process_ephemera_events(&mut self, event: EphemeraEvent) {
+        //FIXME:keep it around instead of create it every time
+        let ephemera_msg_topic = Topic::new(&self.libp2p_conf.ephemera_msg_topic_name);
+        match event {
+            EphemeraEvent::EphemeraMessage(em) => {
+                self.send_ephemera_message(*em, &ephemera_msg_topic).await;
+            }
+            EphemeraEvent::ProtocolMessage(pm) => {
+                self.send_protocol_message(*pm).await;
+            }
         }
     }
 
@@ -141,8 +143,9 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                         message,
                     } => {
                         if message.topic == (*ephemera_msg_topic).clone().into() {
+                            let msg: EphemeraMessage = serde_json::from_slice(&message.data[..])?;
                             self.to_ephemera_tx
-                                .send_ephemera_message_raw(message.data)
+                                .send_network_event(NetworkEvent::EphemeraMessage(msg.into()))
                                 .await?;
                         }
                     }
@@ -158,7 +161,11 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                             } => {
                                 log::debug!("Received request {request_id:?} from peer: {peer:?}",);
                                 let rb_id = request.id.clone();
-                                self.to_ephemera_tx.send_protocol_message(request).await?;
+                                self.to_ephemera_tx
+                                    .send_network_event(NetworkEvent::ProtocolMessage(
+                                        request.into(),
+                                    ))
+                                    .await?;
                                 if let Err(err) = self
                                     .swarm
                                     .behaviour_mut()
@@ -195,19 +202,31 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     }
                 }
 
-                GroupBehaviourEvent::StaticPeerDiscovery(_) => {}
                 GroupBehaviourEvent::Rendezvous(event) => match event {
                     rendezvous::Event::PeersUpdated => {
                         log::info!(
                             "Peers updated: {:?}",
                             self.swarm.behaviour_mut().rendezvous_behaviour.peer_ids()
                         );
-                        for peer_id in self.swarm.behaviour_mut().rendezvous_behaviour.peer_ids() {
-                            self.swarm
-                                .behaviour_mut()
-                                .gossipsub
-                                .add_explicit_peer(peer_id.inner());
+                        let new_peer_ids =
+                            self.swarm.behaviour_mut().rendezvous_behaviour.peer_ids();
+                        let previous_peer_ids = self
+                            .swarm
+                            .behaviour_mut()
+                            .rendezvous_behaviour
+                            .previous_peer_ids();
+                        let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
+
+                        for peer_id in previous_peer_ids {
+                            gossipsub.remove_explicit_peer(peer_id.inner());
                         }
+
+                        for peer_id in &new_peer_ids {
+                            gossipsub.add_explicit_peer(peer_id.inner());
+                        }
+                        self.to_ephemera_tx
+                            .send_network_event(NetworkEvent::PeersUpdated(new_peer_ids))
+                            .await?;
                     }
                 },
             },
@@ -264,19 +283,12 @@ struct GroupNetworkBehaviour<P: PeerDiscovery> {
 enum GroupBehaviourEvent {
     Gossipsub(gossipsub::Event),
     RequestResponse(request_response::Event<RbMsg, RbMsgResponse>),
-    StaticPeerDiscovery(()),
     Rendezvous(rendezvous::Event),
 }
 
 impl From<gossipsub::Event> for GroupBehaviourEvent {
     fn from(event: gossipsub::Event) -> Self {
         GroupBehaviourEvent::Gossipsub(event)
-    }
-}
-
-impl From<()> for GroupBehaviourEvent {
-    fn from(event: ()) -> Self {
-        GroupBehaviourEvent::StaticPeerDiscovery(event)
     }
 }
 
@@ -447,7 +459,7 @@ struct RbMsgProtocol;
 
 impl request_response::ProtocolName for RbMsgProtocol {
     fn protocol_name(&self) -> &[u8] {
-        "/ephemera-rbmsg/1".as_bytes()
+        "/ephemera/rb/1".as_bytes()
     }
 }
 

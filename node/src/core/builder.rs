@@ -9,7 +9,8 @@ use crate::block::manager::{BlockManager, BlockManagerBuilder};
 use crate::broadcast::bracha::broadcaster::Broadcaster;
 use crate::config::Configuration;
 use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
-use crate::network::libp2p::messages_channel::{NetCommunicationReceiver, NetCommunicationSender};
+use crate::network::libp2p::ephemera_sender::EphemeraToNetworkSender;
+use crate::network::libp2p::network_sender::NetCommunicationReceiver;
 use crate::network::libp2p::swarm::SwarmNetwork;
 use crate::network::{PeerDiscovery, PeerId, ToPeerId};
 use crate::storage::rocksdb::RocksDbStorage;
@@ -47,7 +48,7 @@ pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
     peer_discovery: Option<P>,
     application: Option<A>,
     from_network: Option<NetCommunicationReceiver>,
-    to_network: Option<NetCommunicationSender>,
+    to_network: Option<EphemeraToNetworkSender>,
     ws_message_broadcast: Option<WsMessageBroadcaster>,
     storage: Option<RocksDbStorage>,
     api_listener: ApiListener,

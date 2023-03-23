@@ -6,7 +6,7 @@ use crate::utilities;
 use crate::utilities::crypto::Signature;
 use crate::utilities::id::EphemeraId;
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct EphemeraMessage {
     pub(crate) id: EphemeraId,
     ///Unix timestamp in seconds

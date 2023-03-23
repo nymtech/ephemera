@@ -12,6 +12,7 @@ use crate::network::{Peer, PeerDiscovery, PeerId, PeerInfo};
 
 pub(crate) struct RendezvousBehaviour<P: PeerDiscovery> {
     peers: HashMap<PeerId, Peer>,
+    previous_peers: HashMap<PeerId, Peer>,
     peer_discovery: Option<P>,
     discovery_channel_tx: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
     discovery_channel_rcv: tokio::sync::mpsc::UnboundedReceiver<Vec<PeerInfo>>,
@@ -22,6 +23,7 @@ impl<P: PeerDiscovery + 'static> RendezvousBehaviour<P> {
         let (tx, rcv) = tokio::sync::mpsc::unbounded_channel();
         RendezvousBehaviour {
             peers: Default::default(),
+            previous_peers: Default::default(),
             peer_discovery: Some(peer_discovery),
             discovery_channel_tx: tx,
             discovery_channel_rcv: rcv,
@@ -30,6 +32,10 @@ impl<P: PeerDiscovery + 'static> RendezvousBehaviour<P> {
 
     pub fn peer_ids(&self) -> Vec<PeerId> {
         self.peers.keys().cloned().collect()
+    }
+
+    pub fn previous_peer_ids(&self) -> Vec<PeerId> {
+        self.previous_peers.keys().cloned().collect()
     }
 
     pub(crate) async fn spawn(&mut self) {
@@ -91,6 +97,8 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for RendezvousBehaviour<P> {
         _params: &mut impl PollParameters,
     ) -> Poll<NetworkBehaviourAction<Self::OutEvent, THandlerInEvent<Self>>> {
         if let Poll::Ready(Some(peers)) = self.discovery_channel_rcv.poll_recv(cx) {
+            let previous_peers = std::mem::take(&mut self.peers);
+            self.previous_peers = previous_peers;
             for peer_info in peers {
                 let peer: Peer = peer_info.try_into().unwrap();
                 self.peers.insert(peer.peer_id, peer);

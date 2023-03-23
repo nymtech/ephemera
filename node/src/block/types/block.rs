@@ -12,7 +12,7 @@ use crate::utilities::time::ephemera_now;
 
 pub type BlockHash = [u8; 32];
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct BlockHeader {
     pub(crate) id: EphemeraId,
     pub(crate) timestamp: u64,
@@ -46,7 +46,7 @@ impl Display for BlockHeader {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct Block {
     pub(crate) header: BlockHeader,
     pub(crate) messages: Vec<EphemeraMessage>,

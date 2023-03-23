@@ -1,3 +1,4 @@
 pub(super) mod discovery;
-pub(crate) mod messages_channel;
+pub(crate) mod ephemera_sender;
+pub(crate) mod network_sender;
 pub(crate) mod swarm;

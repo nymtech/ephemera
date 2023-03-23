@@ -84,7 +84,7 @@ impl ConsensusContext {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct RbMsg {
     ///Unique id of the message which stays the same throughout the protocol
     pub(crate) id: EphemeraId,
@@ -142,7 +142,7 @@ impl RbMsg {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) enum MessageType {
     Echo(Block),
     Vote(Block),

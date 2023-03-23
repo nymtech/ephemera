@@ -2,6 +2,7 @@ use crate::api::application::Application;
 use crate::api::types::{ApiBlock, ApiSignature};
 use crate::api::ApiCmd;
 use crate::api::ApiError::ApiError;
+use crate::network::libp2p::ephemera_sender::EphemeraEvent;
 use crate::storage::EphemeraDatabase;
 use crate::Ephemera;
 
@@ -29,7 +30,9 @@ impl ApiCmdProcessor {
                                 //Gossip to network for other nodes to receive
                                 ephemera
                                     .to_network
-                                    .send_ephemera_message(ephemera_msg)
+                                    .send_ephemera_event(EphemeraEvent::EphemeraMessage(
+                                        ephemera_msg.into(),
+                                    ))
                                     .await?;
                             }
                             Err(e) => log::error!("Error: {}", e),
