@@ -11,7 +11,7 @@ use crate::config::Configuration;
 use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
 use crate::network::libp2p::ephemera_sender::EphemeraToNetworkSender;
 use crate::network::libp2p::network_sender::NetCommunicationReceiver;
-use crate::network::libp2p::swarm::SwarmNetwork;
+use crate::network::libp2p::swarm_network::SwarmNetwork;
 use crate::network::{PeerDiscovery, PeerId, ToPeerId};
 use crate::storage::rocksdb::RocksDbStorage;
 use crate::utilities::crypto::key_manager::KeyManager;
