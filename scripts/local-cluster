@@ -24,11 +24,34 @@ Runs Ephemera cluster.
 EOH
 )
 
-STOP_HELP=$(
+RUN_NODE_HELP=$(
+  cat <<-EOH
+Starts a Ephemera node by its nr. Currently only nym-api instance is supported.
+
+  usage:      $0 run -n <node nr>
+
+  options:
+    -n        Which node to run
+EOH
+)
+
+STOP_CLUSTER_HELP=$(
   cat <<-EOH
 Stops currently running cluster of ephemera nodes.
 
   usage:      $0 stop
+
+EOH
+)
+
+STOP_NODE_HELP=$(
+  cat <<-EOH
+Stops a node by its nr.
+
+  usage:      $0 stop -n <node nr>
+
+  options:
+      -n        Node number(as 1 in node1)
 
 EOH
 )
@@ -49,14 +72,25 @@ EOH
 
 SUBCMD=$1
 
-[[ $SUBCMD == "init" \
-|| $SUBCMD == "run" \
-|| $SUBCMD == "stop" \
-|| $SUBCMD == "clean" \
-|| $SUBCMD == "delete" \
-|| $SUBCMD == "update_config" ]] \
-|| \
-{ echo "Please specify a subcommand of \`init\` or \`run\` or \`stop\` or \`clean\` or \`delete\` or \`update_config\`" && exit 1; }
+[[ $SUBCMD == "init" ||
+  $SUBCMD == "run" ||
+  $SUBCMD == "run_node" ||
+  $SUBCMD == "stop" ||
+  $SUBCMD == "clean" ||
+  $SUBCMD == "delete" ||
+  $SUBCMD == "update_config" ||
+  $SUBCMD == "stop_node" ]] ||
+  {
+    echo "Please specify a subcommand of:" &&
+      echo "\`init\`" &&
+      echo "\`run\`" &&
+      echo "\`run_node\`" &&
+      echo "\`stop\`" &&
+      echo "\`clean\`" &&
+      echo "\`delete\`" &&
+      echo "\`update_config\`" &&
+      echo "\`stop_node\`" && exit 1
+  }
 
 shift
 
@@ -85,7 +119,28 @@ shift
   while getopts :h opt; do
     case $opt in
     h)
-      echo "$STOP_HELP"
+      echo "$STOP_CLUSTER_HELP"
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: $OPTARG" >&2
+      exit 1
+      ;;
+    esac
+  done
+}
+
+[[ $SUBCMD == "stop_node" ]] && [[ $# -lt 1 || $# -gt 2 ]] && echo "$STOP_NODE_HELP" && exit 1
+
+[[ $SUBCMD == "stop_node" ]] && {
+  while getopts :n opt; do
+    case $opt in
+    n)
+      NODE_NR="${2}"
+      shift
+      ;;
+    h)
+      echo "$STOP_NODE_HELP"
       exit 0
       ;;
     \?)
@@ -176,6 +231,27 @@ echo $#
   done
 }
 
+[[ $SUBCMD == "run_node" ]] && [[ $# -lt 1 || $# -gt 2 ]] && echo "$RUN_NODE_HELP" && exit 1
+
+[[ $SUBCMD == "run_node" ]] && {
+  while getopts :n opt; do
+    case $opt in
+    n)
+      NODE_NR="${2}"
+      shift
+      ;;
+    h)
+      echo "$RUN_NODE_HELP"
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: $OPTARG" >&2
+      exit 1
+      ;;
+    esac
+  done
+}
+
 EPHEMERA_HOME_DIR=$(eval echo ~"$USER")/.ephemera
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 CLUSTER_DIR="${PROJECT_ROOT}/cluster"
@@ -218,12 +294,12 @@ create_cluster() {
     mkdir -p "$NODE_DIR"/ephemera/db
 
     $EPHEMERA init \
-            --node node"$c" \
-            --port $EPHEMERA_PORT \
-            --rocket-path "$DB_PATH"/ephemera"$COUNTER".db \
-            --ws-address "$WS_ADDRESS" \
-            --network-client-listener-address "$NETWORK_CLIENT_LISTENER_ADDRESS" \
-            --http-server-address "$HTTP_SERVER_ADDRESS"
+      --node node"$c" \
+      --port $EPHEMERA_PORT \
+      --rocket-path "$DB_PATH"/ephemera"$COUNTER".db \
+      --ws-address "$WS_ADDRESS" \
+      --network-client-listener-address "$NETWORK_CLIENT_LISTENER_ADDRESS" \
+      --http-server-address "$HTTP_SERVER_ADDRESS"
 
     COUNTER=$((COUNTER + 1))
     WS_PORT=$((WS_PORT + 1))
@@ -246,9 +322,9 @@ start_cluster() {
 
   COUNTER=0
   for dir in ~/.ephemera/*/ephemera.toml; do
-      if [[ $dir == *"node"* ]]; then
-          COUNTER=$((COUNTER + 1))
-      fi
+    if [[ $dir == *"node"* ]]; then
+      COUNTER=$((COUNTER + 1))
+    fi
   done
 
   [[ $COUNTER -lt 1 ]] && echo "No ephemera nodes found, try creating a cluster first." && exit 1
@@ -258,7 +334,7 @@ start_cluster() {
   touch "$PIDS_FILE"
 
   if [[ $APPLICATION == "nym-api" ]]; then
-      run_reward_contract
+    run_reward_contract
   fi
 
   sleep 2
@@ -279,6 +355,11 @@ start_cluster() {
   echo "Log files are in $EPHEMERA_HOME_DIR nodes subdirectories."
 }
 
+run_node() {
+  echo "Starting node $NODE_NR"
+  run_nym_api_ephemera "$EPHEMERA_HOME_DIR"/node"$NODE_NR"/ephemera.toml "$NODE_NR"
+}
+
 run_ephemera() {
   d=$1
   NR=$2
@@ -287,9 +368,9 @@ run_ephemera() {
   LOGS_FILE=$NODE_DIR/ephemera/logs/ephemera$NR.log
 
   echo "Starting $d"
-  $EPHEMERA run-node --config-file ~/.ephemera/node"${NR}"/ephemera.toml > "$LOGS_FILE" 2>&1 &
+  $EPHEMERA run-node --config-file ~/.ephemera/node"${NR}"/ephemera.toml >"$LOGS_FILE" 2>&1 &
 
-  echo "$!" >> "$PIDS_FILE"
+  echo "$!" >>"$PIDS_FILE"
 
   echo Log file: "$LOGS_FILE"
 }
@@ -309,12 +390,12 @@ run_nym_api_ephemera() {
 
   echo "Starting $d"
   $NYM_API_EPHEMERA --ephemera-config "$EPHEMERA_CONFIG_FILE" \
-                    --metrics-db-path "$METRICS_DB_PATH" \
-                    --smart-contract-url 127.0.0.1:6789 \
-                    --nym-api-id "$NR" \
-                    > "$LOGS_FILE" 2>&1 &
+    --metrics-db-path "$METRICS_DB_PATH" \
+    --smart-contract-url 127.0.0.1:6789 \
+    --nym-api-id "$NR" \
+    >"$LOGS_FILE" 2>&1 &
 
-  echo "$!" >> "$PIDS_FILE"
+  echo "$NR":"$!" >>"$PIDS_FILE"
 
   echo Log file: "$LOGS_FILE"
 }
@@ -336,27 +417,34 @@ run_reward_contract() {
 
   echo "Starting reward contract"
   $REWARD_CONTRACT --db-path "$CONTRACT_DB_PATH" \
-                   --url "$SMART_CONTRACT_URL" \
-                   --ephemera-config "$EPHEMERA_CONFIG_FILE" \
-                    > "$LOGS_FILE" 2>&1 &
+    --url "$SMART_CONTRACT_URL" \
+    --ephemera-config "$EPHEMERA_CONFIG_FILE" \
+    >"$LOGS_FILE" 2>&1 &
 
-  echo "$!" >> "$PIDS_FILE"
+  echo reward_contract:"$!" >>"$PIDS_FILE"
 
   echo "Reward contract started"
   echo Log file: "$LOGS_FILE"
 }
 
 stop_cluster() {
-  if test -f "$PIDS_FILE";
-  then
-     while read p; do
-       kill "$p" || true
-     done < "$PIDS_FILE"
-     rm "$PIDS_FILE"
-     echo "Stopped ephemera cluster"
+  if test -f "$PIDS_FILE"; then
+    while read p; do
+      NODE_PID=$(echo $p | awk -F ':' '{print $2}')
+      kill "$NODE_PID" || true
+    done <"$PIDS_FILE"
+    rm "$PIDS_FILE"
+    echo "Stopped ephemera cluster"
   else
-     echo "No ephemera cluster running"
+    echo "No ephemera cluster running"
   fi
+}
+
+stop_node() {
+  echo "Stopping node $NODE_NR"
+  NODE_PID=$(grep "$NODE_NR:" "$PIDS_FILE" | awk -F ':' '{print $2}')
+  echo "Killing $NODE_PID"
+  kill -9 "$NODE_PID"
 }
 
 clean() {
@@ -374,7 +462,7 @@ clean() {
   done
 }
 
-delete(){
+delete() {
   if test -f "$PIDS_FILE"; then
     echo "Cluster is running, try stopping it first by executing ./local-cluster stop."
     exit 1
@@ -392,16 +480,17 @@ update_config() {
       $EPHEMERA update-config --config-path "$d" --property "$PROPERTY_KEY" --value "$PROPERTY_VALUE"
     done
   else
-      EPHEMERA_CONFIG_FILE=~/.ephemera/$NODE_ID/ephemera.toml
-      echo "Updating $EPHEMERA_CONFIG_FILE"
-      $EPHEMERA update-config --config-path "$EPHEMERA_CONFIG_FILE" --property "$PROPERTY_KEY" --value "$PROPERTY_VALUE"
+    EPHEMERA_CONFIG_FILE=~/.ephemera/$NODE_ID/ephemera.toml
+    echo "Updating $EPHEMERA_CONFIG_FILE"
+    $EPHEMERA update-config --config-path "$EPHEMERA_CONFIG_FILE" --property "$PROPERTY_KEY" --value "$PROPERTY_VALUE"
   fi
 }
 
 [[ $SUBCMD == "init" ]] && create_cluster
 [[ $SUBCMD == "run" ]] && start_cluster
+[[ $SUBCMD == "run_node" ]] && run_node
 [[ $SUBCMD == "stop" ]] && stop_cluster
+[[ $SUBCMD == "stop_node" ]] && stop_node
 [[ $SUBCMD == "clean" ]] && clean
 [[ $SUBCMD == "delete" ]] && delete
 [[ $SUBCMD == "update_config" ]] && update_config
-
