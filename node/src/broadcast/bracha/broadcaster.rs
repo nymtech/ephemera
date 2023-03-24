@@ -69,6 +69,11 @@ impl Broadcaster {
         result
     }
 
+    pub(crate) async fn topology_updated(&mut self, peers: Vec<PeerId>) -> anyhow::Result<()> {
+        self.quorum.update_topology(peers);
+        Ok(())
+    }
+
     // on receiving <v> from leader:
     // if echo == true:
     // send <echo, v> to all parties

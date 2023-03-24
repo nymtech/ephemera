@@ -1,9 +1,29 @@
 use crate::broadcast::{ConsensusContext, MessageType, Quorum};
 use crate::config::BroadcastConfig;
+use crate::network::PeerId;
 
 pub(crate) struct BrachaQuorum {
     pub(crate) cluster_size: usize,
     pub(crate) max_faulty_nodes: usize,
+}
+
+impl BrachaQuorum {
+    /// Update the topology of the cluster.
+    ///
+    /// This is used to update the cluster size and the number of faulty nodes.
+    pub(crate) fn update_topology(&mut self, peer_ids: Vec<PeerId>) {
+        //As we don't have strong guarantees/consensus/timing constraints on the
+        //broadcast, we just update topology immediately.
+        //Theoretically it can break existing ongoing broadcast but timing chances for it
+        //probably are very low.
+        self.cluster_size = peer_ids.len();
+        self.max_faulty_nodes = (self.cluster_size as f64 * MAX_FAULTY_RATIO).ceil() as usize;
+        log::info!(
+            "Bracha quorum: cluster_size: {}, max_faulty_nodes: {}",
+            self.cluster_size,
+            self.max_faulty_nodes
+        );
+    }
 }
 
 const MAX_FAULTY_RATIO: f64 = 1.0 / 3.0;

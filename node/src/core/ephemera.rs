@@ -109,6 +109,8 @@ impl<A: Application> Ephemera<A> {
                         }
                     }
                 }
+
+                //PROCESSING SHUTDOWN REQUEST
                 _ = shutdown_manager.external_shutdown.recv() => {
                     log::info!("Shutting down ephemera");
                     shutdown_manager.stop().await;
@@ -147,7 +149,11 @@ impl<A: Application> Ephemera<A> {
                     log::error!("Error processing block from network: {:?}", err);
                 }
             }
-            NetworkEvent::PeersUpdated(peers) => {}
+            NetworkEvent::PeersUpdated(peers) => {
+                if let Err(err) = self.broadcaster.topology_updated(peers).await {
+                    log::error!("Error updating broadcaster topology: {:?}", err);
+                }
+            }
         }
     }
 
