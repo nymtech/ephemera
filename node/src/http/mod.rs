@@ -17,6 +17,7 @@ pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> anyhow::Resu
     let server = HttpServer::new(move || {
         App::new()
             .app_data(Data::new(api.clone()))
+            .service(query::health)
             .service(query::block_by_id)
             .service(query::block_signatures)
             .service(query::block_by_height)
@@ -37,6 +38,7 @@ fn swagger_ui() -> SwaggerUi {
     #[derive(OpenApi)]
     #[openapi(
         paths(
+            query::health,
             query::block_by_id,
             query::block_signatures,
             query::block_by_height,

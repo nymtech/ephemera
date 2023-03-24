@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use actix_web::{get, post, web, HttpRequest, HttpResponse};
-
 use tokio::sync::Mutex;
 
 use ephemera::network::PeerInfo;
@@ -67,8 +66,22 @@ pub(crate) async fn get_epoch(contract: web::Data<Arc<Mutex<SmartContract>>>) ->
 pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>) -> HttpResponse {
     log::debug!("GET /contract/peer_info");
 
+    let client = reqwest::Client::builder().build().unwrap();
+
     let mut peers: Vec<PeerInfo> = vec![];
-    for (peer_id, peer) in contract.lock().await.peer_info.peers.clone() {
+    for (i, (peer_id, peer)) in contract
+        .lock()
+        .await
+        .peer_info
+        .peers
+        .clone()
+        .into_iter()
+        .enumerate()
+    {
+        if !ping_health(i, &client).await {
+            log::info!("Skipping peer {} as it seems down", peer_id);
+            continue;
+        }
         let pub_key = peer.public_key.to_raw_vec();
         let pub_key = to_base58(pub_key);
         peers.push(PeerInfo {
@@ -78,7 +91,22 @@ pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>)
         });
     }
 
-    log::info!("Peers: {:?}", peers);
+    log::info!("Found {} peers", peers.len());
+    for peer in peers.iter() {
+        log::info!("Peer address: {:?}", peer.address);
+    }
 
     HttpResponse::Ok().json(peers)
+}
+
+async fn ping_health(node_id: usize, client: &reqwest::Client) -> bool {
+    let url = format!("http://127.0.0.1:700{node_id}/ephemera/health",);
+    log::info!("Pinging health endpoint at {}", url);
+    let response = client.get(url).send().await;
+
+    if response.is_err() {
+        return false;
+    }
+
+    response.unwrap().status().is_success()
 }

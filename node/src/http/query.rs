@@ -4,6 +4,16 @@ use crate::api::EphemeraExternalApi;
 
 #[utoipa::path(
 responses(
+(status = 200, description = "Endpoint to check if the server is running")),
+)]
+#[get("/ephemera/health")]
+pub(crate) async fn health() -> impl Responder {
+    log::debug!("GET /ephemera/health");
+    HttpResponse::Ok().json("OK")
+}
+
+#[utoipa::path(
+responses(
 (status = 200, description = "GET block by id")),
 params(("id", description = "Block id")),
 )]
