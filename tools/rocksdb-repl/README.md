@@ -1,6 +1,6 @@
 # RocksDb CLI
 
-Simple utility to query RocksDB database. Can't find a free GUI.
+Simple utility(which runs full database!) to query RocksDB. Can't find a free GUI.
 
 ## Usage
 

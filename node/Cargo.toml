@@ -9,7 +9,7 @@ path = "bin/main.rs"
 
 [profile.release]
 #By default on Linux and macOS, symbol information is included in the compiled .elf
-#strip = true
+strip = true
 #By default, Cargo specifies 16 parallel codegen units for release builds. This improves compile times, but prevents some optimizations.
 #codegen-units = 1
 
@@ -24,27 +24,23 @@ clap = { version = "4.0.32", features = ["derive"] }
 config = { version = "0.13", default-features = false, features = ["toml"] }
 chrono = "0.4"
 digest = "0.10.6"
-dirs = "4.0.0"
+dirs = "5.0.0"
 futures = "0.3.18"
 futures-timer = "3.0.2"
 futures-util = "0.3.25"
 bs58 = "0.4.0"
 log = "0.4.17"
 libp2p = { version = "0.51.0", features = ["gossipsub", "kad", "macros", "noise", "request-response", "serde", "tcp", "tokio", "yamux"] }
-libp2p-identity= "0.1.0"
+libp2p-identity = "0.1.0"
 lru = "0.10.0"
 thiserror = "1.0.37"
-reqwest = { version = "0.11.6", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7.4", features = ["full"] }
 parking_lot = "0.12.1"
 pretty_env_logger = "0.4"
-prost = "0.11.2"
 rand = "0.8.5"
 rand_chacha = { version = "0.3.1" }
-refinery = { version = "0.8.0", features = ["rusqlite"] }
-rusqlite = { version = "0.28.0", features = ["chrono"] }
-rocksdb = "0.19.0"
+rocksdb = "0.20.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0.149"
 serde_json = "1.0.91"
@@ -55,9 +51,3 @@ utoipa = { version = "3.0.1", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 uuid = { version = "1.2.2", features = ["v4"] }
 void = "1.0.2"
-
-[dev-dependencies]
-uuid = { version = "1.2.2", features = ["v4"] }
-
-[build-dependencies]
-prost-build = "0.11.2"

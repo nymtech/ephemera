@@ -34,6 +34,14 @@ impl<P: PeerDiscovery + 'static> RendezvousBehaviour<P> {
         self.peers.keys().cloned().collect()
     }
 
+    pub fn peer_ids_ref(&self) -> Vec<&PeerId> {
+        self.peers.keys().collect()
+    }
+
+    pub fn peers(&self) -> Vec<Peer> {
+        self.peers.values().cloned().collect()
+    }
+
     pub fn previous_peer_ids(&self) -> Vec<PeerId> {
         self.previous_peers.keys().cloned().collect()
     }

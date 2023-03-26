@@ -2,21 +2,22 @@ use std::iter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::broadcast::RbMsg;
-use crate::config::Libp2pConfig;
-use crate::network::libp2p::behaviours::messages::{
-    RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
-};
 use libp2p::core::{muxing::StreamMuxerBox, transport::Boxed};
 use libp2p::gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode};
+use libp2p::kad;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
 use libp2p::yamux::YamuxConfig;
 use libp2p::{gossipsub, noise, request_response, PeerId as Libp2pPeerId, Transport};
 
+use crate::broadcast::RbMsg;
+use crate::config::Libp2pConfig;
+use crate::network::libp2p::behaviours::broadcast_messages::{
+    RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
+};
 use crate::network::libp2p::discovery::rendezvous;
 use crate::network::libp2p::discovery::rendezvous::RendezvousBehaviour;
-use crate::network::PeerDiscovery;
+use crate::network::{PeerDiscovery, ToPeerId};
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 
 #[derive(NetworkBehaviour)]
@@ -25,6 +26,7 @@ pub(crate) struct GroupNetworkBehaviour<P: PeerDiscovery> {
     pub(crate) rendezvous_behaviour: RendezvousBehaviour<P>,
     pub(crate) gossipsub: gossipsub::Behaviour,
     pub(crate) request_response: request_response::Behaviour<RbMsgMessagesCodec>,
+    pub(crate) kademlia: kad::Kademlia<kad::store::MemoryStore>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -32,6 +34,7 @@ pub(crate) enum GroupBehaviourEvent {
     Gossipsub(gossipsub::Event),
     RequestResponse(request_response::Event<RbMsg, RbMsgResponse>),
     Rendezvous(rendezvous::Event),
+    Kademlia(kad::KademliaEvent),
 }
 
 impl From<gossipsub::Event> for GroupBehaviourEvent {
@@ -52,6 +55,12 @@ impl From<rendezvous::Event> for GroupBehaviourEvent {
     }
 }
 
+impl From<kad::KademliaEvent> for GroupBehaviourEvent {
+    fn from(event: kad::KademliaEvent) -> Self {
+        GroupBehaviourEvent::Kademlia(event)
+    }
+}
+
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
 //Peer discovery takes care of locating peers
@@ -62,32 +71,39 @@ pub(crate) fn create_behaviour<P: PeerDiscovery + 'static>(
 ) -> GroupNetworkBehaviour<P> {
     let ephemera_msg_topic = Topic::new(&libp2p_conf.ephemera_msg_topic_name);
 
-    let mut gossipsub = create_gossipsub(keypair);
-    gossipsub.subscribe(&ephemera_msg_topic).unwrap();
-
+    let gossipsub = create_gossipsub(keypair.clone(), &ephemera_msg_topic);
     let request_response = create_request_response();
     let rendezvous_behaviour = create_http_peer_discovery(peer_discovery);
+    let kademlia = create_kademlia(keypair);
 
     GroupNetworkBehaviour {
         rendezvous_behaviour,
         gossipsub,
         request_response,
+        kademlia,
     }
 }
 
 // Configure networking messaging stack(Gossipsub)
-pub(crate) fn create_gossipsub(local_key: Arc<Ed25519Keypair>) -> gossipsub::Behaviour {
+pub(crate) fn create_gossipsub(
+    local_key: Arc<Ed25519Keypair>,
+    topic: &Topic,
+) -> gossipsub::Behaviour {
     let gossipsub_config = gossipsub::ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(5))
+        // .message_id_fn(message_id_fn) TODO: Implement message id function, we know better than gossipsub which
+        // messages are duplicates
         .validation_mode(ValidationMode::Strict)
         .build()
         .expect("Valid config");
 
-    gossipsub::Behaviour::new(
+    let mut behaviour = gossipsub::Behaviour::new(
         MessageAuthenticity::Signed(local_key.0.clone()),
         gossipsub_config,
     )
-    .expect("Correct configuration")
+    .expect("Correct configuration");
+    behaviour.subscribe(topic).expect("Valid topic");
+    behaviour
 }
 
 pub(crate) fn create_request_response() -> request_response::Behaviour<RbMsgMessagesCodec> {
@@ -103,6 +119,16 @@ pub(crate) fn create_http_peer_discovery<P: PeerDiscovery + 'static>(
     peer_discovery: P,
 ) -> RendezvousBehaviour<P> {
     RendezvousBehaviour::new(peer_discovery)
+}
+
+pub(super) fn create_kademlia(
+    local_key: Arc<Ed25519Keypair>,
+) -> kad::Kademlia<kad::store::MemoryStore> {
+    let peer_id = local_key.peer_id();
+    let mut cfg = kad::KademliaConfig::default();
+    cfg.set_query_timeout(Duration::from_secs(5 * 60));
+    let store = kad::store::MemoryStore::new(peer_id.0);
+    kad::Kademlia::with_config(peer_id.0, store, cfg)
 }
 
 //Configure networking connection stack(Tcp, Noise, Yamux)
