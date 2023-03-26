@@ -8,6 +8,7 @@ use crate::api::{ApiListener, EphemeraExternalApi};
 use crate::block::manager::{BlockManager, BlockManagerBuilder};
 use crate::broadcast::bracha::broadcaster::Broadcaster;
 use crate::config::Configuration;
+use crate::core::api_cmd::ApiCmdProcessor;
 use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
 use crate::network::libp2p::ephemera_sender::EphemeraToNetworkSender;
 use crate::network::libp2p::network_sender::NetCommunicationReceiver;
@@ -257,6 +258,7 @@ impl<P: PeerDiscovery + 'static, A: Application + 'static> EphemeraStarter<P, A>
             storage: Arc::new(Mutex::new(self.storage.unwrap())),
             ws_message_broadcast: self.ws_message_broadcast.unwrap(),
             api_listener: self.api_listener,
+            api_cmd_processor: ApiCmdProcessor::new(),
             application: application.into(),
             ephemera_handle,
             shutdown_manager: Some(shutdown_manager),

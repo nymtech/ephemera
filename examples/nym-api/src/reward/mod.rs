@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,6 +7,7 @@ use tokio::sync::Mutex;
 
 use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
 use ephemera::api::{ApiError, EphemeraExternalApi};
+use ephemera::network::{PeerId, ToPeerId};
 use ephemera::utilities::{Ed25519Keypair, Keypair, PublicKey};
 
 use crate::contract::MixnodeToReward;
@@ -136,6 +136,10 @@ where
                 "Failed to submit rewards to contract with status {}",
                 response.status()
             );
+            return Err(anyhow::anyhow!(
+                "Failed to submit rewards to contract with status {}",
+                response.status()
+            ));
         }
         Ok(())
     }
@@ -159,6 +163,45 @@ where
             .expect("Ephemera access not set");
         let block = access.api.get_block_by_height(height).await?;
         Ok(block)
+    }
+
+    pub(crate) async fn store_in_dht(&self, epoch_id: u64) -> anyhow::Result<()> {
+        log::info!("Storing ourselves as winner in DHT for epoch id: {epoch_id:?}");
+
+        let access = self
+            .ephemera_access
+            .as_ref()
+            .expect("Ephemera access not set");
+
+        let key = format!("epoch_id_{epoch_id}").into_bytes();
+
+        let keypair = &access.key_pair;
+        let value = keypair.public_key().peer_id();
+
+        access.api.store_in_dht(key, value.to_bytes()).await?;
+        log::info!("Stored store request to DHT");
+        Ok(())
+    }
+
+    pub(crate) async fn query_dht(&self, epoch_id: u64) -> anyhow::Result<()> {
+        let access = self
+            .ephemera_access
+            .as_ref()
+            .expect("Ephemera access not set");
+
+        let key = format!("epoch_id_{epoch_id}").into_bytes();
+
+        match access.api.query_dht(key).await? {
+            None => {
+                log::info!("No winner found for epoch id from DHT: {epoch_id:?}");
+            }
+            Some((_, peer_id)) => {
+                let peer_id = PeerId::from_bytes(&peer_id[..]);
+                log::info!("Winner found for epoch id from DHT: {epoch_id:?} - {peer_id:?}");
+            }
+        }
+        //TODO: query winning node for block
+        Ok(())
     }
 
     pub(crate) async fn send_rewards_to_ephemera(

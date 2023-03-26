@@ -33,14 +33,19 @@ impl EpochOperations for RewardManager<V2> {
                 log::error!(
                     "Block for height {next_height} is not available after {counter} attempts"
                 );
+                log::debug!("Trying to get 'winner' from DHT");
+                let epoch_id = self.epoch.current_epoch_numer();
+                self.query_dht(epoch_id).await?;
                 break;
             }
             tokio::select! {
                 Ok(Some(block)) = self.get_block_by_height(next_height) => {
                     log::info!("Received local block with height {next_height}");
-                    self.try_submit_rewards_to_contract(nr_of_rewards, block)
-                        .await?;
-                    break;
+                    if self.try_submit_rewards_to_contract(nr_of_rewards, block).await.is_ok(){
+                        let epoch_id = self.epoch.current_epoch_numer();
+                        self.store_in_dht(epoch_id).await?;
+                        break;
+                    }
                 }
                 _ = tokio::time::sleep(Duration::from_secs(self.args.block_polling_interval_seconds)) => {
                     log::trace!("Block for height {next_height} is not available yet, waiting...");

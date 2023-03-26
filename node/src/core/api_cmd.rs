@@ -1,3 +1,7 @@
+use std::num::NonZeroUsize;
+
+use lru::LruCache;
+
 use crate::api::application::Application;
 use crate::api::types::{ApiBlock, ApiSignature};
 use crate::api::ApiCmd;
@@ -6,9 +10,20 @@ use crate::network::libp2p::ephemera_sender::EphemeraEvent;
 use crate::storage::EphemeraDatabase;
 use crate::Ephemera;
 
-pub(crate) struct ApiCmdProcessor;
+pub(crate) struct ApiCmdProcessor {
+    pub(crate) dht_query_cache: LruCache<
+        Vec<u8>,
+        tokio::sync::oneshot::Sender<Result<Option<(Vec<u8>, Vec<u8>)>, crate::api::ApiError>>,
+    >,
+}
 
 impl ApiCmdProcessor {
+    pub(crate) fn new() -> Self {
+        Self {
+            dht_query_cache: LruCache::new(NonZeroUsize::new(1000).unwrap()),
+        }
+    }
+
     pub(crate) async fn process_api_requests<A: Application>(
         ephemera: &mut Ephemera<A>,
         cmd: ApiCmd,
@@ -130,6 +145,24 @@ impl ApiCmdProcessor {
                             .expect("Error sending error to api");
                     }
                 };
+            }
+            ApiCmd::QueryDht(key, reply) => {
+                //FIXME: This is very loose, we could have multiple pending queries for the same key
+                ephemera
+                    .api_cmd_processor
+                    .dht_query_cache
+                    .put(key.clone(), reply);
+                ephemera
+                    .to_network
+                    .send_ephemera_event(EphemeraEvent::QueryDht { key })
+                    .await?;
+            }
+            ApiCmd::StoreInDht(key, value, reply) => {
+                ephemera
+                    .to_network
+                    .send_ephemera_event(EphemeraEvent::StoreInDht { key, value })
+                    .await?;
+                reply.send(Ok(())).expect("Error sending reply to api");
             }
         }
         Ok(())

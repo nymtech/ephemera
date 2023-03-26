@@ -1,1 +1,1 @@
-pub(crate) mod rendezvous;
+pub(super) mod rendezvous;

@@ -7,6 +7,8 @@ use crate::broadcast::RbMsg;
 pub(crate) enum EphemeraEvent {
     EphemeraMessage(Box<EphemeraMessage>),
     ProtocolMessage(Box<RbMsg>),
+    StoreInDht { key: Vec<u8>, value: Vec<u8> },
+    QueryDht { key: Vec<u8> },
 }
 
 pub(crate) struct EphemeraToNetwork;

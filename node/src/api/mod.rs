@@ -19,6 +19,8 @@ pub enum ApiError {
     ApiError(String),
 }
 
+//TODO: perhaps enum for responses
+
 #[derive(Debug)]
 pub(crate) enum ApiCmd {
     SubmitEphemeraMessage(ApiEphemeraMessage),
@@ -29,6 +31,11 @@ pub(crate) enum ApiCmd {
         String,
         oneshot::Sender<Result<Option<Vec<ApiSignature>>, ApiError>>,
     ),
+    QueryDht(
+        Vec<u8>,
+        oneshot::Sender<Result<Option<(Vec<u8>, Vec<u8>)>, ApiError>>,
+    ),
+    StoreInDht(Vec<u8>, Vec<u8>, oneshot::Sender<Result<(), ApiError>>),
 }
 
 impl Display for ApiCmd {
@@ -41,6 +48,12 @@ impl Display for ApiCmd {
             ApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})",),
             ApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
             ApiCmd::QueryBlockSignatures(id, _) => write!(f, "QueryBlockSignatures{id}"),
+            ApiCmd::QueryDht(_, _) => {
+                write!(f, "QueryDht")
+            }
+            ApiCmd::StoreInDht(_, _, _) => {
+                write!(f, "StoreInDht")
+            }
         }
     }
 }
@@ -95,6 +108,19 @@ impl EphemeraExternalApi {
     ) -> Result<Option<Vec<ApiSignature>>, ApiError> {
         log::trace!("get_block_by_height({block_id})",);
         self.send_and_wait_response(|tx| ApiCmd::QueryBlockSignatures(block_id, tx))
+            .await
+    }
+
+    pub async fn query_dht(&self, key: Vec<u8>) -> Result<Option<(Vec<u8>, Vec<u8>)>, ApiError> {
+        log::trace!("get_dht()");
+        //TODO: this needs timeout(somewhere around dht query functionality)
+        self.send_and_wait_response(|tx| ApiCmd::QueryDht(key, tx))
+            .await
+    }
+
+    pub async fn store_in_dht(&self, key: Vec<u8>, value: Vec<u8>) -> Result<(), ApiError> {
+        log::trace!("store_in_dht()");
+        self.send_and_wait_response(|tx| ApiCmd::StoreInDht(key, value, tx))
             .await
     }
 

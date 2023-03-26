@@ -24,6 +24,14 @@ impl PeerId {
     pub fn inner(&self) -> &PeerIdType {
         &self.0
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_bytes()
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        Ok(Self(PeerIdType::from_bytes(bytes)?))
+    }
 }
 
 impl From<PeerId> for libp2p_identity::PeerId {

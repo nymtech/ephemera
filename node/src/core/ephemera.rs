@@ -45,6 +45,9 @@ pub struct Ephemera<A: Application> {
     /// A component which listens API requests.
     pub(crate) api_listener: ApiListener,
 
+    /// A component which processes API requests.
+    pub(crate) api_cmd_processor: ApiCmdProcessor,
+
     /// An implementation of Application trait. Provides callbacks to broadcast.
     pub(crate) application: Arc<A>,
 
@@ -152,6 +155,19 @@ impl<A: Application> Ephemera<A> {
             NetworkEvent::PeersUpdated(peers) => {
                 if let Err(err) = self.broadcaster.topology_updated(peers).await {
                     log::error!("Error updating broadcaster topology: {:?}", err);
+                }
+            }
+            NetworkEvent::QueryDhtResponse { key, value } => {
+                match self.api_cmd_processor.dht_query_cache.pop(&key) {
+                    Some(reply) => {
+                        let response = Ok(Some((key, value)));
+                        if let Err(err) = reply.send(response) {
+                            log::error!("Error sending dht query response: {:?}", err);
+                        }
+                    }
+                    None => {
+                        log::error!("Error: No dht query cache found for key: {:?}", key);
+                    }
                 }
             }
         }

@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
 use futures::StreamExt;
-use libp2p::{
-    gossipsub::{self, IdentTopic as Topic},
-    Multiaddr, request_response, Swarm,
-};
 use libp2p::gossipsub::Event;
 use libp2p::kad;
 use libp2p::swarm::SwarmEvent;
+use libp2p::{
+    gossipsub::{self, IdentTopic as Topic},
+    request_response, Multiaddr, Swarm,
+};
 
 use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
@@ -115,6 +115,29 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             }
             EphemeraEvent::ProtocolMessage(pm) => {
                 self.send_protocol_message(*pm).await;
+            }
+            EphemeraEvent::StoreInDht { key, value } => {
+                let record = kad::Record::new(key, value);
+                //TODO: review quorum size
+                let quorum = kad::Quorum::One;
+                match self
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .put_record(record, quorum)
+                {
+                    Ok(ok) => {
+                        log::debug!("StoreDht: {:?}", ok);
+                    }
+                    Err(err) => {
+                        log::error!("StoreDht: {:?}", err);
+                    }
+                }
+            }
+            EphemeraEvent::QueryDht { key } => {
+                let kad_key = kad::record::Key::new::<Vec<u8>>(key.as_ref());
+                let query_id = self.swarm.behaviour_mut().kademlia.get_record(kad_key);
+                log::debug!("QueryDht: {:?}", query_id);
             }
         }
     }
@@ -327,8 +350,30 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     kad::QueryResult::RepublishProvider(rp) => {
                         log::debug!("RepublishProvider: {:?}", rp);
                     }
-                    kad::QueryResult::GetRecord(gr) => {
-                        log::debug!("GetRecord: {:?}", gr);
+                    kad::QueryResult::GetRecord(get_res) => {
+                        log::debug!("GetRecord: {:?}", get_res);
+                        match get_res {
+                            Ok(ok) => {
+                                log::debug!("GetRecordOk: {:?}", ok);
+                                match ok {
+                                    kad::GetRecordOk::FoundRecord(fr) => {
+                                        log::debug!("FoundRecord: {:?}", fr);
+                                        let record = fr.record;
+                                        let event = NetworkEvent::QueryDhtResponse {
+                                            key: record.key.to_vec(),
+                                            value: record.value,
+                                        };
+                                        self.to_ephemera_tx.send_network_event(event).await?;
+                                    }
+                                    kad::GetRecordOk::FinishedWithNoAdditionalRecord { .. } => {
+                                        log::debug!("FinishedWithNoAdditionalRecord");
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                log::error!("Error getting record: {:?}", err);
+                            }
+                        }
                     }
                     kad::QueryResult::PutRecord(pr) => {
                         log::debug!("PutRecord: {:?}", pr);

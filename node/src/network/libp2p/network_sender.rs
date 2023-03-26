@@ -9,6 +9,7 @@ pub(crate) enum NetworkEvent {
     EphemeraMessage(Box<EphemeraMessage>),
     ProtocolMessage(Box<RbMsg>),
     PeersUpdated(Vec<PeerId>),
+    QueryDhtResponse { key: Vec<u8>, value: Vec<u8> },
 }
 
 pub(crate) struct EphemeraNetworkCommunication;
