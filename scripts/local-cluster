@@ -261,12 +261,11 @@ NYM_API_EPHEMERA="$PROJECT_ROOT"/target/release/nym_api_ephemera
 REWARD_CONTRACT="$PROJECT_ROOT"/target/release/reward_contract
 
 export RUST_LOG="nym_api=debug,ephemera=debug,info"
-#export RUST_LOG="reqwest=trace"
 export RUST_BACKTRACE=1
 
 build() {
   echo "Building ephemera..."
-  cargo build --release
+  cargo build --release --features "rocksdb_storage"
 }
 
 create_cluster() {

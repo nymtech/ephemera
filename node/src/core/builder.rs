@@ -1,3 +1,4 @@
+use std::ops::DerefMut;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -14,7 +15,11 @@ use crate::network::libp2p::ephemera_sender::EphemeraToNetworkSender;
 use crate::network::libp2p::network_sender::NetCommunicationReceiver;
 use crate::network::libp2p::swarm_network::SwarmNetwork;
 use crate::network::{PeerDiscovery, PeerId, ToPeerId};
-use crate::storage::CompoundDatabase;
+#[cfg(feature = "rocksdb_storage")]
+use crate::storage::rocksdb::RocksDbStorage;
+#[cfg(feature = "sqlite_storage")]
+use crate::storage::sqlite::SqliteStorage;
+use crate::storage::EphemeraDatabase;
 use crate::utilities::crypto::key_manager::KeyManager;
 use crate::utilities::Ed25519Keypair;
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
@@ -51,12 +56,16 @@ pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
     from_network: Option<NetCommunicationReceiver>,
     to_network: Option<EphemeraToNetworkSender>,
     ws_message_broadcast: Option<WsMessageBroadcaster>,
-    storage: Option<CompoundDatabase>,
+    storage: Option<Box<dyn EphemeraDatabase>>,
     api_listener: ApiListener,
     api: EphemeraExternalApi,
 }
 
-impl<P: PeerDiscovery + 'static, A: Application + 'static> EphemeraStarter<P, A> {
+impl<P, A> EphemeraStarter<P, A>
+where
+    P: PeerDiscovery + 'static,
+    A: Application + 'static,
+{
     //Crate pure data structures, no resource allocation nor threads
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
         let keypair = KeyManager::read_keypair(config.node.private_key.clone())?;
@@ -105,7 +114,16 @@ impl<P: PeerDiscovery + 'static, A: Application + 'static> EphemeraStarter<P, A>
 
     //opens database and spawns dependent tasks
     pub async fn init_tasks(self) -> anyhow::Result<Ephemera<A>> {
-        let starter = self.connect_db().await?;
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "sqlite_storage")] {
+                let starter = self.connect_sqlite().await?;
+            } else if #[cfg(feature = "rocksdb_storage")] {
+                let starter = self.connect_rocksdb().await?;
+            } else {
+                compile_error!("Must enable either sqlite or rocksdb feature");
+            }
+        };
+
         let mut builder = starter.init_block_manager().await?;
 
         let (mut shutdown_manager, shutdown_handle) = ShutdownManager::init();
@@ -266,10 +284,19 @@ impl<P: PeerDiscovery + 'static, A: Application + 'static> EphemeraStarter<P, A>
     }
 
     //allocate database connection
-    async fn connect_db(mut self) -> anyhow::Result<Self> {
+    #[cfg(feature = "rocksdb_storage")]
+    async fn connect_rocksdb(mut self) -> anyhow::Result<Self> {
         log::info!("Opening database...");
-        let database = CompoundDatabase::open(self.config.storage.clone())?;
-        self.storage = Some(database);
+        let database = RocksDbStorage::open(self.config.storage.clone())?;
+        self.storage = Some(Box::new(database));
+        Ok(self)
+    }
+
+    #[cfg(feature = "sqlite_storage")]
+    async fn connect_sqlite(mut self) -> anyhow::Result<Self> {
+        log::info!("Opening database...");
+        let database = SqliteStorage::open(self.config.storage.clone())?;
+        self.storage = Some(Box::new(database));
         Ok(self)
     }
 
@@ -285,7 +312,7 @@ impl<P: PeerDiscovery + 'static, A: Application + 'static> EphemeraStarter<P, A>
                 anyhow::bail!("Block manager builder is not initialized")
             }
             Some(bm_builder) => {
-                let block_manager = bm_builder.build(&mut db)?;
+                let block_manager = bm_builder.build(db.deref_mut())?;
                 self.block_manager = Some(block_manager)
             }
         }

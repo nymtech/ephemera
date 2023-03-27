@@ -1,11 +1,11 @@
-use lru::LruCache;
 use std::num::NonZeroUsize;
+
+use lru::LruCache;
 
 use crate::api::application::Application;
 use crate::api::types::{ApiBlock, ApiSignature};
 use crate::api::ApiCmd;
 use crate::network::libp2p::ephemera_sender::EphemeraEvent;
-use crate::storage::EphemeraDatabase;
 use crate::{api, Ephemera};
 
 pub(crate) struct ApiCmdProcessor {
