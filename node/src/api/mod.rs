@@ -16,7 +16,7 @@ pub mod types;
 #[derive(Error, Debug)]
 pub enum ApiError {
     #[error("{0}")]
-    ApiError(String),
+    General(String),
 }
 
 //TODO: perhaps enum for responses
@@ -129,7 +129,7 @@ impl EphemeraExternalApi {
         log::trace!("send_ephemera_message({})", message);
         let cmd = ApiCmd::SubmitEphemeraMessage(message);
         self.commands_channel.send(cmd).await.map_err(|_| {
-            ApiError::ApiError(
+            ApiError::General(
                 "Api channel closed. It means that probably Ephemera is crashed".to_string(),
             )
         })
@@ -144,13 +144,13 @@ impl EphemeraExternalApi {
         let cmd = f(tx);
         if let Err(err) = self.commands_channel.send(cmd).await {
             log::error!("Failed to send command to Ephemera: {:?}", err);
-            return Err(ApiError::ApiError(
+            return Err(ApiError::General(
                 "Api channel closed. It means that probably Ephemera is crashed".to_string(),
             ));
         }
         rcv.await.map_err(|e| {
             log::error!("Failed to receive response from Ephemera: {:?}", e);
-            ApiError::ApiError("Failed to receive response from Ephemera".to_string())
+            ApiError::General("Failed to receive response from Ephemera".to_string())
         })?
     }
 }

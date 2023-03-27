@@ -1,19 +1,17 @@
 use std::num::NonZeroUsize;
-
 use lru::LruCache;
 
 use crate::api::application::Application;
 use crate::api::types::{ApiBlock, ApiSignature};
 use crate::api::ApiCmd;
-use crate::api::ApiError::ApiError;
 use crate::network::libp2p::ephemera_sender::EphemeraEvent;
 use crate::storage::EphemeraDatabase;
-use crate::Ephemera;
+use crate::{api, Ephemera};
 
 pub(crate) struct ApiCmdProcessor {
     pub(crate) dht_query_cache: LruCache<
         Vec<u8>,
-        tokio::sync::oneshot::Sender<Result<Option<(Vec<u8>, Vec<u8>)>, crate::api::ApiError>>,
+        tokio::sync::oneshot::Sender<Result<Option<(Vec<u8>, Vec<u8>)>, api::ApiError>>,
     >,
 }
 
@@ -74,7 +72,7 @@ impl ApiCmdProcessor {
                         reply.send(Ok(None)).expect("Error sending block to api");
                     }
                     Err(err) => {
-                        let api_error = ApiError(format!("Error getting block by id: {err:?}"));
+                        let api_error = api::ApiError::General(format!("Error getting block by id: {err:?}"));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
@@ -94,7 +92,7 @@ impl ApiCmdProcessor {
                         reply.send(Ok(None)).expect("Error sending block to api");
                     }
                     Err(err) => {
-                        let api_error = ApiError(format!("Error getting block by height: {err:?}"));
+                        let api_error = api::ApiError::General(format!("Error getting block by height: {err:?}"));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
@@ -112,13 +110,13 @@ impl ApiCmdProcessor {
                     }
                     Ok(None) => {
                         let api_error =
-                            ApiError("Ephemera has no blocks, this is a bug".to_string());
+                            api::ApiError::General("Ephemera has no blocks, this is a bug".to_string());
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
                     }
                     Err(err) => {
-                        let api_error = ApiError(format!("Error getting last block: {err:?}",));
+                        let api_error = api::ApiError::General(format!("Error getting last block: {err:?}",));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
@@ -139,7 +137,7 @@ impl ApiCmdProcessor {
                     }
                     Err(err) => {
                         let api_error =
-                            ApiError(format!("Error getting block signatures: {err:?}"));
+                            api::ApiError::General(format!("Error getting block signatures: {err:?}"));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
