@@ -296,7 +296,8 @@ create_cluster() {
     $EPHEMERA init \
       --node node"$c" \
       --port $EPHEMERA_PORT \
-      --rocket-path "$DB_PATH"/ephemera"$COUNTER".db \
+      --rocksdb-path "$DB_PATH"/ephemera"$COUNTER".db \
+      --sqlite-path "$DB_PATH"/ephemera"$COUNTER".sqlite \
       --ws-address "$WS_ADDRESS" \
       --network-client-listener-address "$NETWORK_CLIENT_LISTENER_ADDRESS" \
       --http-server-address "$HTTP_SERVER_ADDRESS"

@@ -6,3 +6,9 @@ members = [
     "examples/http-ws",
     "examples/nym-api",
 ]
+
+[profile.release]
+#By default on Linux and macOS, symbol information is included in the compiled .elf
+strip = true
+#By default, Cargo specifies 16 parallel codegen units for release builds. This improves compile times, but prevents some optimizations.
+#codegen-units = 1

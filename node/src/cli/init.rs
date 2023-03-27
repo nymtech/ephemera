@@ -23,7 +23,9 @@ pub struct InitCmd {
     #[clap(long, default_value_t = DEFAULT_TOTAL_NR_OF_NODES)]
     pub total_nr_of_nodes: usize,
     #[clap(long)]
-    pub rocket_path: String,
+    pub rocksdb_path: String,
+    #[clap(long)]
+    pub sqlite_path: String,
     #[clap(long)]
     pub ws_address: String,
     #[clap(long)]
@@ -61,7 +63,8 @@ impl InitCmd {
                 peers: vec![],
             },
             storage: DbConfig {
-                rocket_path: self.rocket_path,
+                rocket_path: self.rocksdb_path,
+                sqlite_path: self.sqlite_path,
                 create_if_not_exists: true,
             },
             websocket: WsConfig {

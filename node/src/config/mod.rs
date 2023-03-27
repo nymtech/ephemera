@@ -60,6 +60,7 @@ pub struct PeerSetting {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct DbConfig {
     pub rocket_path: String,
+    pub sqlite_path: String,
     pub create_if_not_exists: bool,
 }
 

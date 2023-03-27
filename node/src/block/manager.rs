@@ -14,8 +14,7 @@ use crate::block::types::block::Block;
 use crate::block::types::message::EphemeraMessage;
 use crate::config::BlockConfig;
 use crate::network::PeerId;
-use crate::storage::rocksdb::RocksDbStorage;
-use crate::storage::EphemeraDatabase;
+use crate::storage::{CompoundDatabase, EphemeraDatabase};
 use crate::utilities::id::EphemeraId;
 
 #[derive(Error, Debug)]
@@ -42,7 +41,7 @@ impl BlockManagerBuilder {
         }
     }
 
-    pub(crate) fn build(self, storage: &mut RocksDbStorage) -> anyhow::Result<BlockManager> {
+    pub(crate) fn build(self, storage: &mut CompoundDatabase) -> anyhow::Result<BlockManager> {
         //Although Ephemera is not a blockchain(chain of historically dependent blocks),
         //it's helpful to have some sort of notion of progress in time. So we use the concept of height.
         //The genesis block helps to define the start of it.

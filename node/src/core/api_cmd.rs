@@ -1,5 +1,5 @@
-use std::num::NonZeroUsize;
 use lru::LruCache;
+use std::num::NonZeroUsize;
 
 use crate::api::application::Application;
 use crate::api::types::{ApiBlock, ApiSignature};
@@ -72,7 +72,8 @@ impl ApiCmdProcessor {
                         reply.send(Ok(None)).expect("Error sending block to api");
                     }
                     Err(err) => {
-                        let api_error = api::ApiError::General(format!("Error getting block by id: {err:?}"));
+                        let api_error =
+                            api::ApiError::General(format!("Error getting block by id: {err:?}"));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
@@ -92,7 +93,9 @@ impl ApiCmdProcessor {
                         reply.send(Ok(None)).expect("Error sending block to api");
                     }
                     Err(err) => {
-                        let api_error = api::ApiError::General(format!("Error getting block by height: {err:?}"));
+                        let api_error = api::ApiError::General(format!(
+                            "Error getting block by height: {err:?}"
+                        ));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
@@ -109,14 +112,16 @@ impl ApiCmdProcessor {
                             .expect("Error sending block to api");
                     }
                     Ok(None) => {
-                        let api_error =
-                            api::ApiError::General("Ephemera has no blocks, this is a bug".to_string());
+                        let api_error = api::ApiError::General(
+                            "Ephemera has no blocks, this is a bug".to_string(),
+                        );
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
                     }
                     Err(err) => {
-                        let api_error = api::ApiError::General(format!("Error getting last block: {err:?}",));
+                        let api_error =
+                            api::ApiError::General(format!("Error getting last block: {err:?}",));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");
@@ -136,8 +141,9 @@ impl ApiCmdProcessor {
                             .expect("Error sending block signatures to api");
                     }
                     Err(err) => {
-                        let api_error =
-                            api::ApiError::General(format!("Error getting block signatures: {err:?}"));
+                        let api_error = api::ApiError::General(format!(
+                            "Error getting block signatures: {err:?}"
+                        ));
                         reply
                             .send(Err(api_error))
                             .expect("Error sending error to api");

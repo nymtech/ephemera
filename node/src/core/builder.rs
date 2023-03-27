@@ -14,7 +14,7 @@ use crate::network::libp2p::ephemera_sender::EphemeraToNetworkSender;
 use crate::network::libp2p::network_sender::NetCommunicationReceiver;
 use crate::network::libp2p::swarm_network::SwarmNetwork;
 use crate::network::{PeerDiscovery, PeerId, ToPeerId};
-use crate::storage::rocksdb::RocksDbStorage;
+use crate::storage::CompoundDatabase;
 use crate::utilities::crypto::key_manager::KeyManager;
 use crate::utilities::Ed25519Keypair;
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
@@ -51,7 +51,7 @@ pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
     from_network: Option<NetCommunicationReceiver>,
     to_network: Option<EphemeraToNetworkSender>,
     ws_message_broadcast: Option<WsMessageBroadcaster>,
-    storage: Option<RocksDbStorage>,
+    storage: Option<CompoundDatabase>,
     api_listener: ApiListener,
     api: EphemeraExternalApi,
 }
@@ -268,7 +268,7 @@ impl<P: PeerDiscovery + 'static, A: Application + 'static> EphemeraStarter<P, A>
     //allocate database connection
     async fn connect_db(mut self) -> anyhow::Result<Self> {
         log::info!("Opening database...");
-        let database = RocksDbStorage::open(self.config.storage.clone())?;
+        let database = CompoundDatabase::open(self.config.storage.clone())?;
         self.storage = Some(database);
         Ok(self)
     }
