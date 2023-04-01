@@ -1,14 +1,14 @@
 use clap::Parser;
 
-use crate::utilities::crypto::PublicKey;
-use crate::utilities::{to_hex, Ed25519Keypair, Keypair};
+use crate::utilities::crypto::EphemeraPublicKey;
+use crate::utilities::{to_hex, Ed25519Keypair, EphemeraKeypair};
 
 #[derive(Debug, Clone, Parser)]
 pub struct GenerateKeypairCmd;
 
 impl GenerateKeypairCmd {
     pub async fn execute(self) {
-        let keypair = Ed25519Keypair::generate_pair(None);
+        let keypair = Ed25519Keypair::generate(None);
         println!("Keypair hex: {:>5}", to_hex(keypair.to_raw_vec()));
         println!(
             "Public key hex: {:>5}",

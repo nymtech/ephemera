@@ -12,12 +12,13 @@ use libp2p::{gossipsub, noise, request_response, PeerId as Libp2pPeerId, Transpo
 
 use crate::broadcast::RbMsg;
 use crate::config::Libp2pConfig;
+use crate::network::discovery::PeerDiscovery;
 use crate::network::libp2p::behaviours::broadcast_messages::{
     RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
 };
-use crate::network::libp2p::discovery::rendezvous;
-use crate::network::libp2p::discovery::rendezvous::RendezvousBehaviour;
-use crate::network::{PeerDiscovery, ToPeerId};
+use crate::network::libp2p::behaviours::rendezvous;
+use crate::network::libp2p::behaviours::rendezvous::RendezvousBehaviour;
+use crate::network::peer::ToPeerId;
 use crate::utilities::crypto::ed25519::Ed25519Keypair;
 
 #[derive(NetworkBehaviour)]

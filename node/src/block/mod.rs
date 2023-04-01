@@ -74,6 +74,7 @@
 //! But it seems a reasonable assumption that in general duplicate messages are unwanted. Therefore, Ephemera solves this
 //! by dropping previous blocks which get Finalised/Committed after a new block has been created.
 
+pub(crate) mod builder;
 pub(crate) mod manager;
 pub(crate) mod message_pool;
 pub(crate) mod producer;

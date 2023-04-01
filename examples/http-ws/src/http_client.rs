@@ -1,8 +1,11 @@
-use ephemera::api::types;
-use reqwest::{IntoUrl, StatusCode, Url};
 use std::sync::{Arc, Mutex};
 
-use ephemera::utilities::{Ed25519Keypair, Encode, Keypair, PublicKey};
+use reqwest::{IntoUrl, StatusCode, Url};
+
+use ephemera::api::types;
+use ephemera::codec::Encode;
+use ephemera::crypto::{Ed25519Keypair, EphemeraKeypair};
+use ephemera::id::EphemeraId;
 
 use crate::Data;
 
@@ -32,7 +35,7 @@ impl SignedMessageClient {
         }
     }
 
-    pub(crate) async fn block_by_id(&self, id: String) -> Option<types::ApiBlock> {
+    pub(crate) async fn block_by_id(&self, id: EphemeraId) -> Option<types::ApiBlock> {
         let path = format!("{}{}{}", self.http, "ephemera/block/", id);
         let client: reqwest::Client = Default::default();
         match client.get(&path).send().await {
@@ -55,13 +58,15 @@ impl SignedMessageClient {
         keypair: Arc<Ed25519Keypair>,
         label: String,
     ) -> types::ApiEphemeraMessage {
-        let api_raw_message = types::ApiEphemeraRawMessage::new("Message".as_bytes().to_vec());
+        let api_raw_message =
+            types::RawApiEphemeraMessage::new("Label".to_string(), "Message".as_bytes().to_vec());
 
         let api_raw_message = api_raw_message.encode().unwrap();
+
+        //FIXME - decide what to sign, encoded message or its hash
         let signature = keypair.sign(&api_raw_message).unwrap();
+        let api_signature = types::ApiCertificate::new(signature, keypair.public_key());
 
-        let api_signature = types::ApiSignature::new(signature, keypair.public_key().to_raw_vec());
-
-        types::ApiEphemeraMessage::new(api_raw_message, api_signature, label)
+        types::ApiEphemeraMessage::new("Message".as_bytes().to_vec(), api_signature, label)
     }
 }

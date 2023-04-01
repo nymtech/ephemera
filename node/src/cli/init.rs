@@ -5,10 +5,9 @@ use crate::config::{
     WsConfig, DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT,
     DEFAULT_PROPOSED_MSG_TOPIC_NAME, DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOTAL_NR_OF_NODES,
 };
-use crate::utilities::crypto::ed25519::Ed25519Keypair;
-use crate::utilities::crypto::PublicKey;
+use crate::crypto::Keypair;
 use crate::utilities::encoding::to_base58;
-use crate::utilities::Keypair;
+use crate::utilities::EphemeraKeypair;
 
 #[derive(Debug, Clone, Parser)]
 pub struct InitCmd {
@@ -44,8 +43,8 @@ impl InitCmd {
             panic!("Configuration file already exists: {}", self.node);
         }
 
-        let keypair = Ed25519Keypair::generate_pair(None);
-        let pub_key = to_base58(keypair.public_key().to_raw_vec());
+        let keypair = Keypair::generate(None);
+        let pub_key = keypair.to_base58();
         let private_key = to_base58(keypair.to_raw_vec());
 
         let configuration = Configuration {

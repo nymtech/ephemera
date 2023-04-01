@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use std::task::{Context, Poll};
 
+use crate::network::discovery::{PeerDiscovery, PeerInfo};
+use crate::network::peer::{Peer, PeerId};
 use libp2p::swarm::{
     dummy, ConnectionId, FromSwarm, NetworkBehaviour, NetworkBehaviourAction, PollParameters,
     THandlerInEvent, THandlerOutEvent,
 };
 use libp2p::Multiaddr;
-
-use crate::network::{Peer, PeerDiscovery, PeerId, PeerInfo};
 
 pub(crate) struct RendezvousBehaviour<P: PeerDiscovery> {
     peers: HashMap<PeerId, Peer>,
@@ -52,13 +52,10 @@ impl<P: PeerDiscovery + 'static> RendezvousBehaviour<P> {
 
         peer_discovery.poll(tx.clone()).await.unwrap();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(
-                peer_discovery.get_request_interval_in_sec(),
-            ));
+            let mut interval = tokio::time::interval(peer_discovery.get_poll_interval());
             loop {
-                log::info!("Polling peer discovery");
                 interval.tick().await;
-                log::info!("Polling peer discovery (after tick)");
+                log::trace!("Polling peer discovery (after tick)");
                 if let Err(err) = peer_discovery.poll(tx.clone()).await {
                     log::error!("Error while polling peer discovery: {}", err);
                 }

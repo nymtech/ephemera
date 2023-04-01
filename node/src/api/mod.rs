@@ -8,7 +8,7 @@ use thiserror::Error;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::oneshot;
 
-use crate::api::types::{ApiBlock, ApiEphemeraMessage, ApiSignature};
+use crate::api::types::{ApiBlock, ApiCertificate, ApiEphemeraMessage};
 
 pub mod application;
 pub mod types;
@@ -23,13 +23,13 @@ pub enum ApiError {
 
 #[derive(Debug)]
 pub(crate) enum ApiCmd {
-    SubmitEphemeraMessage(ApiEphemeraMessage),
+    SubmitEphemeraMessage(Box<ApiEphemeraMessage>),
     QueryBlockByHeight(u64, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
     QueryBlockById(String, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
     QueryLastBlock(oneshot::Sender<Result<ApiBlock, ApiError>>),
     QueryBlockSignatures(
         String,
-        oneshot::Sender<Result<Option<Vec<ApiSignature>>, ApiError>>,
+        oneshot::Sender<Result<Option<Vec<ApiCertificate>>, ApiError>>,
     ),
     QueryDht(
         Vec<u8>,
@@ -105,7 +105,7 @@ impl EphemeraExternalApi {
     pub async fn get_block_signatures(
         &self,
         block_id: String,
-    ) -> Result<Option<Vec<ApiSignature>>, ApiError> {
+    ) -> Result<Option<Vec<ApiCertificate>>, ApiError> {
         log::trace!("get_block_by_height({block_id})",);
         self.send_and_wait_response(|tx| ApiCmd::QueryBlockSignatures(block_id, tx))
             .await
@@ -127,7 +127,7 @@ impl EphemeraExternalApi {
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers
     pub async fn send_ephemera_message(&self, message: ApiEphemeraMessage) -> Result<(), ApiError> {
         log::trace!("send_ephemera_message({})", message);
-        let cmd = ApiCmd::SubmitEphemeraMessage(message);
+        let cmd = ApiCmd::SubmitEphemeraMessage(message.into());
         self.commands_channel.send(cmd).await.map_err(|_| {
             ApiError::General(
                 "Api channel closed. It means that probably Ephemera is crashed".to_string(),

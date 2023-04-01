@@ -1,16 +1,19 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use clap::Parser;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::api::application::{Application, DefaultApplication};
-use crate::api::types::{ApiBlock, ApiEphemeraMessage, ApiEphemeraRawMessage};
+use crate::api::types::{ApiBlock, ApiEphemeraMessage, RawApiEphemeraMessage};
 use crate::config::{Configuration, Libp2pConfig, PeerSetting};
 use crate::core::builder::EphemeraStarter;
-use crate::utilities::crypto::ed25519::Ed25519Keypair;
-use crate::utilities::crypto::keypair::Keypair;
-use crate::utilities::encode;
+use crate::crypto::PublicKey;
+use crate::network::discovery::{PeerDiscovery, PeerInfo};
+use crate::utilities::encoding::Encoder;
+use crate::utilities::{Ed25519Keypair, EphemeraEncoder, EphemeraKeypair, EphemeraPublicKey};
 
 #[derive(Debug, Clone, Parser)]
 pub struct RunExternalNodeCmd {
@@ -20,18 +23,14 @@ pub struct RunExternalNodeCmd {
 
 struct DummyPeerDiscovery;
 
-use crate::network::{PeerDiscovery, PeerInfo};
-use async_trait::async_trait;
-use tokio::sync::mpsc::UnboundedSender;
-
 #[async_trait]
 impl PeerDiscovery for DummyPeerDiscovery {
     async fn poll(&mut self, _: UnboundedSender<Vec<PeerInfo>>) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn get_request_interval_in_sec(&self) -> u64 {
-        0
+    fn get_poll_interval(&self) -> std::time::Duration {
+        std::time::Duration::MAX
     }
 }
 
@@ -85,8 +84,8 @@ impl SignatureVerificationApplication {
 
     pub(crate) fn verify_message(&self, msg: ApiEphemeraMessage) -> anyhow::Result<()> {
         let signature = msg.signature.clone();
-        let raw_message: ApiEphemeraRawMessage = msg.into();
-        let encoded_message = encode(raw_message)?;
+        let raw_message: RawApiEphemeraMessage = msg.into();
+        let encoded_message = Encoder::encode(&raw_message)?;
         if self.keypair.verify(&encoded_message, &signature.signature) {
             Ok(())
         } else {
@@ -102,7 +101,7 @@ impl Application for SignatureVerificationApplication {
         Ok(true)
     }
 
-    fn accept_block(&self, _block: &ApiBlock) -> anyhow::Result<bool> {
+    fn check_block(&self, _block: &ApiBlock) -> anyhow::Result<bool> {
         todo!()
     }
 
@@ -125,13 +124,16 @@ impl ConfigPeers {
     }
 }
 
-impl From<PeerSetting> for PeerInfo {
-    fn from(setting: PeerSetting) -> Self {
-        PeerInfo {
+impl TryFrom<PeerSetting> for PeerInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(setting: PeerSetting) -> Result<Self, Self::Error> {
+        let pub_key = PublicKey::from_base58(setting.pub_key.as_str())?;
+        Ok(PeerInfo {
             name: setting.name,
             address: setting.address,
-            pub_key: setting.pub_key,
-        }
+            pub_key,
+        })
     }
 }
 
@@ -143,13 +145,13 @@ impl PeerDiscovery for ConfigPeers {
     ) -> anyhow::Result<()> {
         let mut peers = vec![];
         for setting in self.config.peers.clone() {
-            peers.push(setting.into());
+            peers.push(setting.try_into()?);
         }
         discovery_channel.send(peers).unwrap();
         Ok(())
     }
 
-    fn get_request_interval_in_sec(&self) -> u64 {
-        u64::MAX
+    fn get_poll_interval(&self) -> std::time::Duration {
+        std::time::Duration::MAX
     }
 }

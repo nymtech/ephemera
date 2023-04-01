@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::utilities::encoding::from_base58;
-use crate::utilities::{Ed25519Keypair, Keypair};
+use crate::utilities::{Ed25519Keypair, EphemeraKeypair};
 
 pub(crate) struct KeyManager;
 

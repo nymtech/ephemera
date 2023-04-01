@@ -36,42 +36,36 @@ use std::collections::HashSet;
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::block::types::block::Block;
-use crate::network::PeerId;
-use crate::utilities;
-use crate::utilities::crypto::Signature;
-use crate::utilities::id;
-use crate::utilities::id::EphemeraId;
+use crate::utilities::hash::HashType;
+use crate::{
+    block::types::block::Block,
+    network::peer::PeerId,
+    utilities::crypto::Certificate,
+    utilities::id::{EphemeraId, EphemeraIdentifier},
+    utilities::time::EphemeraTime,
+};
 
 pub(crate) mod bracha;
 pub(crate) mod signing;
 
-pub(crate) trait Quorum {
-    fn check_threshold(&self, ctx: &ConsensusContext, phase: MessageType) -> bool;
-}
-
-#[derive(Debug, Default, Clone)]
-pub(crate) struct ConsensusContext {
+#[derive(Debug, Clone)]
+pub(crate) struct ProtocolContext {
+    pub(crate) local_peer_id: PeerId,
     /// Message id
-    pub(crate) id: EphemeraId,
+    pub(crate) hash: HashType,
     /// Peers that sent prepare message(this peer included)
     pub(crate) echo: HashSet<PeerId>,
     /// Peers that sent commit message(this peer included)
     pub(crate) vote: HashSet<PeerId>,
-    /// Flag indicating if the message has received enough prepare messages
-    pub(crate) echo_threshold: bool,
-    /// Flag indicating if the message has received enough commit messages
-    pub(crate) vote_threshold: bool,
 }
 
-impl ConsensusContext {
-    pub(crate) fn new(id: EphemeraId) -> ConsensusContext {
-        ConsensusContext {
-            id,
+impl ProtocolContext {
+    pub(crate) fn new(hash: HashType, local_peer_id: PeerId) -> ProtocolContext {
+        ProtocolContext {
+            local_peer_id,
+            hash,
             echo: HashSet::new(),
             vote: HashSet::new(),
-            echo_threshold: false,
-            vote_threshold: false,
         }
     }
 
@@ -81,6 +75,14 @@ impl ConsensusContext {
 
     fn add_vote(&mut self, peer: PeerId) {
         self.vote.insert(peer);
+    }
+
+    fn echoed(&self) -> bool {
+        self.echo.contains(&self.local_peer_id)
+    }
+
+    fn voted(&self) -> bool {
+        self.vote.contains(&self.local_peer_id)
     }
 }
 
@@ -92,26 +94,23 @@ pub(crate) struct RbMsg {
     pub(crate) request_id: EphemeraId,
     ///Id of the peer that CREATED the message(not necessarily the one that sent it, with gossip it can come through a different peer)
     pub(crate) original_sender: PeerId,
-    /// Inner data identifier for embedded message.(FIXME: this is sort of hack)
-    pub(crate) data_identifier: EphemeraId,
     ///When the message was created by the sender.
     pub(crate) timestamp: u64,
     ///Current phase of the protocol(Echo, Vote)
     pub(crate) phase: MessageType,
-    ///Signature of the message. The same as block signature.
-    pub(crate) signature: Signature,
+    ///Signature of the message
+    pub(crate) certificate: Certificate,
 }
 
 impl RbMsg {
-    pub(crate) fn new(block: Block, original_sender: PeerId, signature: Signature) -> RbMsg {
+    pub(crate) fn new(raw: RawRbMsg, signature: Certificate) -> RbMsg {
         RbMsg {
-            id: id::generate_ephemera_id(),
-            request_id: id::generate_ephemera_id(),
-            original_sender,
-            data_identifier: block.header.id.clone(),
-            timestamp: utilities::time::ephemera_now(),
-            phase: MessageType::Echo(block),
-            signature,
+            id: raw.id,
+            request_id: raw.request_id,
+            original_sender: raw.original_sender,
+            timestamp: raw.timestamp,
+            phase: raw.message_type,
+            certificate: signature,
         }
     }
 
@@ -120,25 +119,62 @@ impl RbMsg {
             MessageType::Echo(block) | MessageType::Vote(block) => block,
         }
     }
+}
 
-    pub(crate) fn reply(&self, local_id: PeerId, phase: MessageType, signature: Signature) -> Self {
-        RbMsg {
-            id: self.id.clone(),
-            request_id: id::generate_ephemera_id(),
-            original_sender: local_id,
-            data_identifier: self.data_identifier.clone(),
-            timestamp: utilities::time::ephemera_now(),
-            phase,
-            signature,
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub(crate) struct RawRbMsg {
+    pub(crate) id: EphemeraId,
+    pub(crate) request_id: EphemeraId,
+    pub(crate) original_sender: PeerId,
+    pub(crate) timestamp: u64,
+    pub(crate) message_type: MessageType,
+}
+
+impl RawRbMsg {
+    pub(crate) fn new(block: Block, original_sender: PeerId) -> RawRbMsg {
+        RawRbMsg {
+            id: EphemeraId::generate(),
+            request_id: EphemeraId::generate(),
+            original_sender,
+            timestamp: EphemeraTime::now(),
+            message_type: MessageType::Echo(block),
         }
     }
 
-    pub(crate) fn echo_reply(&self, local_id: PeerId, data: Block, signature: Signature) -> Self {
-        self.reply(local_id, MessageType::Echo(data), signature)
+    pub(crate) fn get_block(&self) -> &Block {
+        match &self.message_type {
+            MessageType::Echo(block) | MessageType::Vote(block) => block,
+        }
     }
 
-    pub(crate) fn vote_reply(&self, local_id: PeerId, data: Block, signature: Signature) -> Self {
-        self.reply(local_id, MessageType::Vote(data), signature)
+    pub(crate) fn reply(&self, local_id: PeerId, phase: MessageType) -> Self {
+        RawRbMsg {
+            id: self.id.clone(),
+            request_id: EphemeraId::generate(),
+            original_sender: local_id,
+            timestamp: EphemeraTime::now(),
+            message_type: phase,
+        }
+    }
+
+    pub(crate) fn echo_reply(&self, local_id: PeerId, data: Block) -> Self {
+        self.reply(local_id, MessageType::Echo(data))
+    }
+
+    pub(crate) fn vote_reply(&self, local_id: PeerId, data: Block) -> Self {
+        self.reply(local_id, MessageType::Vote(data))
+    }
+}
+
+impl From<RbMsg> for RawRbMsg {
+    fn from(msg: RbMsg) -> Self {
+        RawRbMsg {
+            id: msg.id,
+            request_id: msg.request_id,
+            original_sender: msg.original_sender,
+            timestamp: msg.timestamp,
+            message_type: msg.phase,
+        }
     }
 }
 
@@ -151,7 +187,7 @@ pub(crate) enum MessageType {
 #[derive(Debug, PartialEq)]
 pub(crate) enum Status {
     Pending,
-    Committed,
+    Completed,
 }
 
 #[derive(Debug, PartialEq)]

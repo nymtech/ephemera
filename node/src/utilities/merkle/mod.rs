@@ -1,38 +1,32 @@
-//! Brute force, simple Merkle proof implementation for messages from Block root hash
-//! Useful for verifying that a message is included in a block.
-//! Or to put it other way, to verify that a message is "valid" given a valid block.
-//!
-//TODO - store merkle tree in block
-use crate::block::types::block::{BlockHash, RawBlock};
-use crate::block::types::message::EphemeraRawMessage;
-use crate::utilities::encode;
-use crate::utilities::hash::blake2_256;
+use crate::block::types::block::Block;
+use crate::block::types::message::EphemeraMessage;
+use crate::codec::Encode;
+use crate::utilities::hash::{EphemeraHasher, HashType, Hasher};
 
 pub(crate) struct Merkle;
 
 impl Merkle {
-    /// Calculate the Merkle hash of a block.
-    ///
-    /// If block has no messages, the root hash is the hash of the block header.
-    ///
-    /// If block has messages, the root hash is the hash of the block header and the hashes of the messages
-    /// using the Merkle tree algorithm.
-    pub(crate) fn calculate_root_hash(raw_block: &RawBlock) -> anyhow::Result<BlockHash> {
-        let header_bytes = encode(&raw_block.header)?;
-        let header_hash = blake2_256(&header_bytes);
-        if raw_block.signed_messages.is_empty() {
-            return Ok(header_hash);
+    /// Calculate block merkle root hash
+    pub(crate) fn calculate_merkle_root<H: EphemeraHasher>(
+        block: &Block,
+        mut hasher: H,
+    ) -> anyhow::Result<HashType> {
+        let header_bytes = block.header.encode()?;
+        hasher.update(&header_bytes);
+
+        if block.messages.is_empty() {
+            let hash = hasher.finish().into();
+            return Ok(hash);
         }
         let mut message_hashes = vec![];
-        for message in &raw_block.signed_messages {
-            let raw_message: EphemeraRawMessage = message.clone().into();
-            let raw_message_bytes = encode(&raw_message)?;
-            let hash = blake2_256(&raw_message_bytes);
+        for message in &block.messages {
+            let bytes = message.encode()?;
+            let hash = Hasher::digest(bytes.as_slice());
             message_hashes.push(hash);
         }
 
         let mut iter = message_hashes.into_iter();
-        let mut message_root = vec![];
+        let mut messages_root = vec![];
         loop {
             let mut new_hashes = vec![];
             let first = iter.next();
@@ -42,46 +36,50 @@ impl Merkle {
                 (Some(first), Some(second)) => {
                     let mut hash = first.to_vec();
                     hash.extend_from_slice(&second);
-                    let hash = blake2_256(&hash);
+                    let hash = Hasher::digest(&hash);
                     new_hashes.push(hash);
                 }
                 (Some(first), None) => {
                     new_hashes.push(first);
                     break;
                 }
+                (None, None) => {}
                 _ => break,
             }
+
             if new_hashes.len() == 1 {
-                message_root = new_hashes[0].to_vec();
+                messages_root = new_hashes[0].to_vec();
                 break;
+            } else if new_hashes.len() == 2 {
+                let mut hash = new_hashes[0].to_vec();
+                hash.extend_from_slice(&new_hashes[1]);
+                messages_root = Hasher::digest(&hash).to_vec();
+                break;
+            } else {
+                log::info!("Merkle tree has {} hashes", new_hashes.len());
+                iter = new_hashes.into_iter();
             }
         }
 
-        let mut root_hash = header_hash.to_vec();
-        root_hash.extend_from_slice(&message_root);
-        let root_hash = blake2_256(&root_hash);
+        let mut header_hash = hasher.finish().to_vec();
+        header_hash.extend_from_slice(&messages_root);
+        let root_hash = Hasher::digest(&header_hash);
 
-        Ok(root_hash)
+        Ok(root_hash.into())
     }
 
-    //FIXME  - not a very useful Merkle verification implementation
     /// Verify that a message is in a block.
+    /// The message is verified by checking that the merkle_root of the block matches the given merkle_root.
     ///
-    /// The message is verified by checking that the message index is correct and that the root hash of the block
-    /// is the same as the root hash of the given block(it could be Merkle Tree instead).
-    ///
-    /// Anyone who calls this function must trust that root_hash and raw_block are valid(as source of truth).
+    /// PS! It doesn't check message index
     pub(crate) fn verify_message_hash_in_block(
-        root_hash: BlockHash,
-        raw_block: &RawBlock,
-        message: EphemeraRawMessage,
-        message_index: usize,
+        merkle_root: HashType,
+        block: &Block,
+        message: EphemeraMessage,
     ) -> anyhow::Result<bool> {
-        //As we don't have a merkle tree saved anywhere(yet), we just do a brute force check
         let mut correct_index = false;
-        for (i, msg) in raw_block.signed_messages.clone().into_iter().enumerate() {
-            let raw_mgs: EphemeraRawMessage = msg.into();
-            if i == message_index && raw_mgs == message {
+        for msg in block.messages.clone().into_iter() {
+            if msg == message {
                 correct_index = true;
             }
         }
@@ -89,64 +87,61 @@ impl Merkle {
             return Ok(false);
         }
 
-        Ok(Self::calculate_root_hash(raw_block)? == root_hash)
+        //As we don't have a merkle tree saved anywhere(yet), we just do a brute force check
+        let hasher = Hasher::default();
+        Ok(Self::calculate_merkle_root(block, hasher)? == merkle_root)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::block::types::block::RawBlockHeader;
-    use crate::block::types::message::{EphemeraMessage, EphemeraRawMessage};
-    use crate::network::PeerId;
-    use crate::utilities::crypto::Signature;
-    use crate::utilities::id::generate_ephemera_id;
-
-    use super::*;
+    use crate::{
+        block::{
+            types::block::{Block, RawBlock, RawBlockHeader},
+            types::message::{EphemeraMessage, UnsignedEphemeraMessage},
+        },
+        codec::Encode,
+        crypto::Keypair,
+        network::peer::PeerId,
+        utilities::{crypto::Certificate, hash::Hasher, merkle::Merkle, EphemeraKeypair},
+    };
 
     #[test]
     fn test_merkle() {
+        for i in 0..=10 {
+            let (block, messages) = new_block(i);
+            let merkle_root = Merkle::calculate_merkle_root(&block, Hasher::default()).unwrap();
+
+            for m in 0..i {
+                assert!(Merkle::verify_message_hash_in_block(
+                    merkle_root.clone(),
+                    &block,
+                    messages[m].clone().into(),
+                )
+                .unwrap());
+            }
+        }
+    }
+
+    fn new_block(nr_of_messages: usize) -> (Block, Vec<EphemeraMessage>) {
         let peer_id = PeerId::random();
         let header = RawBlockHeader::new(peer_id, 0);
-        let messages = vec![
-            EphemeraMessage::new(
-                EphemeraRawMessage::new(generate_ephemera_id(), vec![1, 2, 3]),
-                Signature::default(),
-                "".to_string(),
-            ),
-            EphemeraMessage::new(
-                EphemeraRawMessage::new(generate_ephemera_id(), vec![4, 5, 6]),
-                Signature::default(),
-                "".to_string(),
-            ),
-            EphemeraMessage::new(
-                EphemeraRawMessage::new(generate_ephemera_id(), vec![7, 8, 9]),
-                Signature::default(),
-                "".to_string(),
-            ),
-        ];
-        let raw_block = RawBlock::new(header, messages.clone());
-        let root_hash = Merkle::calculate_root_hash(&raw_block).unwrap();
 
-        assert!(Merkle::verify_message_hash_in_block(
-            root_hash.clone(),
-            &raw_block,
-            messages[0].clone().into(),
-            0,
-        )
-        .unwrap());
-        assert!(Merkle::verify_message_hash_in_block(
-            root_hash.clone(),
-            &raw_block,
-            messages[1].clone().into(),
-            1,
-        )
-        .unwrap());
-        assert!(Merkle::verify_message_hash_in_block(
-            root_hash.clone(),
-            &raw_block,
-            messages[2].clone().into(),
-            2,
-        )
-        .unwrap());
+        let keypair = Keypair::generate(None);
+        let signature = keypair.sign(&header.encode().unwrap()).unwrap();
+        let certificate = Certificate::new(signature, keypair.public_key());
+
+        let mut messages = vec![];
+        for i in 0..nr_of_messages {
+            messages.push(EphemeraMessage::new(
+                UnsignedEphemeraMessage::new(format!("label{}", i), vec![i as u8]),
+                certificate.clone(),
+            ));
+        }
+
+        let raw_block = RawBlock::new(header.clone(), messages.clone());
+        let block_hash = raw_block.hash_with_default_hasher().unwrap();
+        let block = Block::new(raw_block, block_hash);
+        (block, messages)
     }
 }

@@ -1,8 +1,6 @@
 use ephemera::api::application::Application;
 use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
 use ephemera::config::Configuration;
-use ephemera::network::ToPeerId;
-use ephemera::utilities::{decode, Ed25519PublicKey, PublicKey};
 
 use crate::contract::MixnodeToReward;
 use crate::peers::NymApiEphemeraPeerInfo;
@@ -37,45 +35,20 @@ impl Application for RewardsEphemeraApplication {
     /// - Check that the transaction has a valid signature, we don't want to accept garbage messages
     ///   or messages from unknown peers
     fn check_tx(&self, tx: ApiEphemeraMessage) -> anyhow::Result<bool> {
-        if decode::<Vec<MixnodeToReward>>(&tx.data).is_err() {
+        if serde_json::from_slice::<Vec<MixnodeToReward>>(&tx.data).is_err() {
             log::error!("Message is not a valid Reward message");
             return Ok(false);
         }
+        Ok(true)
 
-        let public_key = Ed25519PublicKey::from_raw_vec(tx.signature.public_key)?;
-        let peer_id = public_key.peer_id();
-
-        match self.peer_info.get_peer_by_id(&peer_id) {
-            None => {
-                log::warn!("Unknown peer with public key: {}", peer_id);
-                Ok(false)
-            }
-            Some(pk) => {
-                if peer_id == self.peer_info.local_peer.peer_id {
-                    log::debug!("Message signed by local peer: {}", peer_id);
-                    return Ok(true);
-                } else {
-                    log::debug!(
-                        "Message signed by peer: {}, address:{}",
-                        peer_id,
-                        pk.address
-                    );
-                }
-                Ok(true)
-            }
-        }
-
-        //TODO - check signatures
-        //PS! message label should also be part of the signature to prevent replay attacks
-        // let signature = tx.signature.clone();
-        // let signature_bytes = from_hex(signature.signature)?;
-        // public_key.verify(&message.data, &signature_bytes)?;
+        //TODO
+        //PS! message label should also be part of the message hash to prevent replay attacks
     }
 
     /// Agree to accept the block if it contains threshold number of transactions
     /// We trust that transactions are valid(checked by check_tx)
-    fn accept_block(&self, block: &ApiBlock) -> anyhow::Result<bool> {
-        log::debug!("Block message count: {}", block.message_count());
+    fn check_block(&self, block: &ApiBlock) -> anyhow::Result<bool> {
+        log::info!("Block message count: {}", block.message_count());
 
         let block_threshold = ((block.message_count() as f64
             / self.peer_info.get_peers_count() as f64)
@@ -87,7 +60,11 @@ impl Application for RewardsEphemeraApplication {
         }
 
         if block_threshold >= self.app_config.peers_rewards_threshold {
-            log::debug!("Block accepted");
+            log::info!(
+                "Block accepted {}:{}",
+                block.header.height,
+                block.header.hash
+            );
             Ok(true)
         } else {
             log::debug!("Block rejected: not enough messages");

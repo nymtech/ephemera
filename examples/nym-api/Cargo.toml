@@ -3,12 +3,6 @@ name = "nym-api"
 version = "0.1.0"
 edition = "2021"
 
-[profile.release]
-#By default on Linux and macOS, symbol information is included in the compiled .elf
-strip = true
-#By default, Cargo specifies 16 parallel codegen units for release builds. This improves compile times, but prevents some optimizations.
-#codegen-units = 1
-
 [[bin]]
 name = "nym_api_standalone"
 path = "src/bin/nym_api_standalone.rs"
@@ -28,6 +22,7 @@ anyhow = "1.0.69"
 bs58 = "0.4.0"
 tokio = { version = "1.0", features = ["full"] }
 clap = { version = "4.0.26", features = ["derive"] }
+lazy_static = "1.4.0"
 log = "0.4.17"
 pretty_env_logger = "0.4.0"
 rusqlite = { version = "0.28.0", features = ["chrono"] }

@@ -15,6 +15,7 @@ use crate::core::shutdown::ShutdownManager;
 use crate::network::libp2p::ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender};
 use crate::network::libp2p::network_sender::{NetCommunicationReceiver, NetworkEvent};
 use crate::storage::EphemeraDatabase;
+use crate::utilities::crypto::Certificate;
 use crate::websocket::ws_manager::WsMessageBroadcaster;
 
 pub struct Ephemera<A: Application> {
@@ -85,10 +86,25 @@ impl<A: Application> Ephemera<A> {
         loop {
             tokio::select! {
                 // GENERATING NEW BLOCKS
-                Some(new_block) = self.block_manager.next() => {
+                Some((new_block, certificate)) = self.block_manager.next() => {
                     log::trace!("New block from block manager: {}", new_block);
-                    if let Err(err) = self.process_new_local_block(new_block).await{
-                        log::error!("Error processing new local block: {:?}", err);
+                    match self.application.check_block(&new_block.clone().into()) {
+                        Ok(accept) => {
+                            if accept {
+                                match self.process_new_local_block(new_block, certificate).await {
+                                    Ok(_) => {
+                                        log::debug!("New block processed successfully");
+                                        self.block_manager.accept_last_proposed_block();
+                                    }
+                                    Err(err) => {
+                                        log::error!("Error processing new local block: {:?}", err);
+                                    }
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            log::error!("Error processing new local block: {:?}", err);
+                        }
                     }
                 }
 
@@ -126,22 +142,21 @@ impl<A: Application> Ephemera<A> {
         match net_event {
             NetworkEvent::EphemeraMessage(em) => {
                 // 1. Ask application to decide if we should accept this message.
-                let msd_id = em.id.clone();
                 let api_msg = (*em.clone()).into();
-                log::debug!("New ephemera message from network: {}", msd_id);
+                log::debug!("New ephemera message from network: {:?}", api_msg);
                 match self.application.check_tx(api_msg) {
                     Ok(true) => {
-                        log::debug!("Application accepted message: {}", msd_id);
+                        log::trace!("Application accepted message: {:?}", em);
                         // 2. send to BlockManager
-                        if let Err(err) = self.block_manager.new_message(*em).await {
+                        if let Err(err) = self.block_manager.on_new_message(*em).await {
                             log::error!("Error sending signed message to block manager: {:?}", err);
                         }
                     }
                     Ok(false) => {
-                        log::debug!("Application rejected message: {:?}", msd_id);
+                        log::trace!("Application rejected message: {:?}", em);
                     }
                     Err(err) => {
-                        log::error!("Application rejected message: {:?}", err);
+                        log::error!("Application check_tx failed: {:?}", err);
                     }
                 }
             }
@@ -165,24 +180,21 @@ impl<A: Application> Ephemera<A> {
                         }
                     }
                     None => {
-                        log::error!("Error: No dht query cache found for key: {:?}", key);
+                        log::error!(
+                            "Error: No dht query cache found for key: {:?}",
+                            String::from_utf8(key)
+                        );
                     }
                 }
             }
         }
     }
 
-    async fn process_new_local_block(&mut self, new_block: Block) -> anyhow::Result<()> {
-        match self.application.accept_block(&new_block.clone().into()) {
-            Ok(accept) => {
-                if !accept {
-                    log::debug!("Application rejected new block: {}", new_block.header.id);
-                    return Ok(());
-                }
-            }
-            Err(err) => anyhow::bail!("Error checking if application accepts new block: {:?}", err),
-        }
-
+    async fn process_new_local_block(
+        &mut self,
+        new_block: Block,
+        certificate: Certificate,
+    ) -> anyhow::Result<()> {
         //Block manager generated new block that nobody hasn't seen yet.
         //We start reliable broadcaster protocol to broadcaster it to other nodes.
 
@@ -196,9 +208,10 @@ impl<A: Application> Ephemera<A> {
                 use crate::broadcast::Command;
                 if command == Command::Broadcast {
                     log::trace!("Broadcasting new block: {:?}", rp);
+                    let rb_msg = RbMsg::new(rp, certificate);
                     //2. send to network
                     self.to_network
-                        .send_ephemera_event(EphemeraEvent::ProtocolMessage(rp.into()))
+                        .send_ephemera_event(EphemeraEvent::ProtocolMessage(rb_msg.into()))
                         .await?;
                 }
             }
@@ -214,11 +227,12 @@ impl<A: Application> Ephemera<A> {
 
     async fn process_block_from_network(&mut self, msg: RbMsg) -> anyhow::Result<()> {
         let msg_id = msg.id.clone();
-        let block_id = msg.data_identifier.clone();
+        let block = msg.get_block();
+        let hash = block.header.hash;
         log::trace!(
-            "Processing message {}[block {}] from network",
+            "Processing message {:?}[block {:?}] from network",
             msg_id,
-            block_id
+            hash
         );
         //Item: PREPARE DOESN'T NEED TO SEND US FULL BLOCK IF IT'S OUR OWN BLOCK.
         //To improve performance, the other nodes technically don't need to send us block back if we created it.
@@ -227,8 +241,8 @@ impl<A: Application> Ephemera<A> {
         //Item: WE COULD POTENTIALLY VERIFY THAT PUBLIC KEY OF SENDER IS IN ALLOW LIST.
         //Verify that block is signed correctly.
         //We don't verify if sender's public keys in allow list(assume such a thing for security could exist)
-        let block = msg.get_block();
-        if let Err(err) = self.block_manager.on_block(block) {
+        let certificate = msg.certificate.clone();
+        if let Err(err) = self.block_manager.on_block(block, &certificate) {
             log::error!("Error processing block: {:?}", err);
         }
 
@@ -237,7 +251,7 @@ impl<A: Application> Ephemera<A> {
 
         //Send to local RB protocol
         use crate::broadcast::{Command, Status};
-        match self.broadcaster.handle(msg).await {
+        match self.broadcaster.handle(msg.into()).await {
             Ok(ProtocolResponse {
                 status: _,
                 command: Command::Broadcast,
@@ -245,25 +259,27 @@ impl<A: Application> Ephemera<A> {
             }) => {
                 //Send protocol response to network
                 log::trace!("Broadcasting block to network: {:?}", rp);
+                let certificate = self.block_manager.sign_block(rp.get_block())?;
+                let rb_msg = RbMsg::new(rp, certificate);
                 self.to_network
-                    .send_ephemera_event(EphemeraEvent::ProtocolMessage(rp.into()))
+                    .send_ephemera_event(EphemeraEvent::ProtocolMessage(rb_msg.into()))
                     .await?;
             }
             Ok(ProtocolResponse {
-                status: Status::Committed,
+                status: Status::Completed,
                 command: _,
                 protocol_reply: None,
             }) => {
                 //If committed, store in DB, send to WS
-                let block = self.block_manager.get_block_by_id(&block_id);
+                let block = self.block_manager.get_block_by_hash(&hash);
 
                 match block {
                     Some(block) => {
                         if block.header.creator == self.node_info.peer_id {
                             //DB
                             let signatures = self
-                                .broadcaster
-                                .get_block_signatures(&block.header.id)
+                                .block_manager
+                                .get_block_signatures(&block.header.hash)
                                 .expect("Error getting block signatures");
 
                             self.storage
@@ -281,7 +297,7 @@ impl<A: Application> Ephemera<A> {
 
                             //BlockManager
                             if let Err(err) =
-                                self.block_manager.on_block_committed(&block.header.id)
+                                self.block_manager.on_block_committed(&block.header.hash)
                             {
                                 log::error!(
                                     "Error notifying BlockManager about block commit: {:?}",
@@ -296,7 +312,7 @@ impl<A: Application> Ephemera<A> {
                         }
                     }
                     None => {
-                        log::error!("Block not found in BlockManager: {:?}", block_id)
+                        log::error!("Block not found in BlockManager: {:?}", hash)
                     }
                 }
             }

@@ -4,7 +4,7 @@ use crate::block::types::block::Block;
 use crate::storage::rocksdb::{block_height_key, block_id_key, last_block_key, signatures_key};
 use rocksdb::TransactionDB;
 
-use crate::utilities::crypto::Signature;
+use crate::utilities::crypto::Certificate;
 
 pub struct DbQuery {
     database: Arc<TransactionDB>,
@@ -56,13 +56,13 @@ impl DbQuery {
     pub(crate) fn get_block_signatures(
         &self,
         block_id: String,
-    ) -> anyhow::Result<Option<Vec<Signature>>> {
+    ) -> anyhow::Result<Option<Vec<Certificate>>> {
         log::trace!("Getting block signatures: {}", block_id);
 
         let signatures_key = signatures_key(&block_id);
 
         if let Some(signatures) = self.database.get(signatures_key)? {
-            let signatures: Vec<Signature> = serde_json::from_slice(&signatures)?;
+            let signatures: Vec<Certificate> = serde_json::from_slice(&signatures)?;
             log::trace!("Found signatures: {:?}", signatures);
             Ok(Some(signatures))
         } else {

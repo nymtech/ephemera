@@ -1,6 +1,16 @@
+use ephemera::crypto::{EphemeraPublicKey, PublicKey};
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
-use ephemera::network::{PeerDiscovery, PeerInfo};
+use ephemera::peer_discovery::{PeerDiscovery, PeerInfo};
+
+// Information about a peer.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct NymPeerInfo {
+    pub(crate) name: String,
+    pub(crate) address: String,
+    pub(crate) pub_key: String,
+}
 
 pub(crate) struct HttpPeerDiscovery {
     smart_contract_url: String,
@@ -20,19 +30,23 @@ impl PeerDiscovery for HttpPeerDiscovery {
     ) -> anyhow::Result<()> {
         let url = format!("http://{}/contract/peer_info", self.smart_contract_url);
         log::info!("Requesting peers from: {url}");
-        match reqwest::get(url).await?.json().await {
-            Ok(response) => {
-                log::info!("Response: {:?}", response);
-                discovery_channel.send(response).unwrap();
-            }
-            Err(err) => {
-                log::error!("Error while parsing response: {}", err);
-            }
-        }
+        let result: Vec<NymPeerInfo> = reqwest::get(url).await?.json().await?;
+        let peers = result
+            .into_iter()
+            .flat_map(|peer| {
+                let peer_info = PeerInfo {
+                    name: peer.name,
+                    address: peer.address,
+                    pub_key: PublicKey::from_base58(&peer.pub_key)?,
+                };
+                Ok::<PeerInfo, anyhow::Error>(peer_info)
+            })
+            .collect();
+        discovery_channel.send(peers)?;
         Ok(())
     }
 
-    fn get_request_interval_in_sec(&self) -> u64 {
-        60
+    fn get_poll_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(60)
     }
 }

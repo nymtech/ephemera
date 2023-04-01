@@ -5,6 +5,7 @@ use libp2p::request_response;
 use serde::{Deserialize, Serialize};
 
 use crate::broadcast::RbMsg;
+use crate::utilities::id::EphemeraId;
 
 #[derive(Clone)]
 pub(crate) struct RbMsgMessagesCodec;
@@ -96,11 +97,11 @@ impl request_response::ProtocolName for RbMsgProtocol {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct RbMsgResponse {
-    pub(crate) id: String,
+    pub(crate) id: EphemeraId,
 }
 
 impl RbMsgResponse {
-    pub(crate) fn new(id: String) -> Self {
+    pub(crate) fn new(id: EphemeraId) -> Self {
         Self { id }
     }
 }

@@ -1,4 +1,3 @@
-use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::Poll::Pending;
 use std::{task, time};
@@ -7,148 +6,121 @@ use futures::FutureExt;
 use futures::Stream;
 use futures_timer::Delay;
 use lru::LruCache;
-use thiserror::Error;
 
+use crate::block::message_pool::MessagePool;
 use crate::block::producer::BlockProducer;
 use crate::block::types::block::Block;
 use crate::block::types::message::EphemeraMessage;
+use crate::broadcast::signing::BlockSigner;
 use crate::config::BlockConfig;
-use crate::network::PeerId;
-use crate::storage::EphemeraDatabase;
-use crate::utilities::id::EphemeraId;
-
-#[derive(Error, Debug)]
-pub(crate) enum BlockManagerError {
-    #[error("Duplicate message: '{}'", .0)]
-    DuplicateMessage(String),
-}
-
-//Using builder so that initial interaction with database is isolated during Ephemera initialization.
-pub(crate) struct BlockManagerBuilder {
-    config: BlockConfig,
-    block_producer: BlockProducer,
-    delay: Delay,
-}
-
-impl BlockManagerBuilder {
-    pub(crate) fn new(config: BlockConfig, peer_id: PeerId) -> Self {
-        let block_producer = BlockProducer::new(peer_id);
-        let delay = Delay::new(time::Duration::from_secs(config.creation_interval_sec));
-        Self {
-            config,
-            block_producer,
-            delay,
-        }
-    }
-
-    pub(crate) fn build<D: EphemeraDatabase + ?Sized>(
-        self,
-        storage: &mut D,
-    ) -> anyhow::Result<BlockManager> {
-        //Although Ephemera is not a blockchain(chain of historically dependent blocks),
-        //it's helpful to have some sort of notion of progress in time. So we use the concept of height.
-        //The genesis block helps to define the start of it.
-        let mut most_recent_block = storage.get_last_block()?;
-        if most_recent_block.is_none() {
-            log::info!("No last block found in database. Creating genesis block.");
-            let genesis_block = Block::new_genesis_block(self.block_producer.peer_id);
-            storage.store_block(&genesis_block, vec![])?;
-            most_recent_block = Some(genesis_block);
-        }
-
-        let last_blocks =
-            LruCache::new(NonZeroUsize::new(1000).ok_or(anyhow::anyhow!("Invalid cache size"))?);
-        let last_created_block = most_recent_block.expect("Block should be present");
-
-        Ok(BlockManager {
-            config: self.config,
-            last_blocks,
-            last_created_block,
-            block_producer: self.block_producer,
-            delay: self.delay,
-        })
-    }
-}
+use crate::utilities::crypto::Certificate;
+use crate::utilities::hash::HashType;
 
 pub(crate) struct BlockManager {
-    config: BlockConfig,
+    pub(super) config: BlockConfig,
     /// All blocks what we received from the network or created by us
-    last_blocks: LruCache<String, Block>,
-    /// The last block that this node created
-    last_created_block: Block,
-    block_producer: BlockProducer,
+    pub(super) last_blocks: LruCache<HashType, Block>,
+    /// Last block that we created.
+    /// It's not Option because we always have genesis block
+    pub(super) last_proposed_block: Block,
+    /// Last block that we accepted
+    /// It's not Option because we always have genesis block
+    pub(super) last_accepted_block: Block,
+    /// Block producer. Simple helper that creates blocks
+    pub(super) block_producer: BlockProducer,
+    /// Message pool. Contains all messages that we received from the network and not included in any block yet
+    pub(super) message_pool: MessagePool,
     /// Delay between block creation attempts.
-    delay: Delay,
+    pub(super) delay: Delay,
+    /// Signs and verifies blocks
+    pub(super) block_signer: BlockSigner,
 }
 
 impl BlockManager {
-    pub(crate) async fn new_message(
-        &mut self,
-        msg: EphemeraMessage,
-    ) -> Result<(), BlockManagerError> {
-        //FIXME: remove double indirection
-        self.block_producer.message_pool_mut().add_message(msg)
+    pub(crate) async fn on_new_message(&mut self, msg: EphemeraMessage) -> anyhow::Result<()> {
+        self.message_pool.add_message(msg)
     }
 
-    pub(crate) fn on_block(&mut self, block: &Block) -> Result<(), BlockManagerError> {
-        if self.last_blocks.contains(&block.header.id) {
-            //TODO: change gossip of blocks to request-response in libp2p
-            log::trace!("Block already received: {}", block.header.id);
+    pub(crate) fn on_block(
+        &mut self,
+        block: &Block,
+        certificate: &Certificate,
+    ) -> anyhow::Result<()> {
+        //Reject blocks with invalid hash
+        let hash = block.hash_with_default_hasher()?;
+        if block.header.hash != hash {
+            anyhow::bail!(format!(
+                "Block hash mismatch: {:?} != {hash:?}",
+                block.header.hash,
+            ));
+        }
+
+        //Verify that block signature is valid
+        if self.block_signer.verify_block(block, certificate).is_err() {
+            anyhow::bail!(format!(
+                "Block signature verification failed: {:?}",
+                block.header.hash
+            ));
+        }
+
+        if self.last_blocks.contains(&hash) {
+            log::trace!("Block already received: {}", block.header.hash);
             return Ok(());
         }
-        log::info!("Block received: {}", block.header.id);
-        self.last_blocks
-            .put(block.header.id.clone(), block.to_owned());
+
+        log::debug!("Block received: {}", block.header.hash);
+        self.last_blocks.put(hash, block.to_owned());
         Ok(())
     }
 
-    /// After a block gets committed, clear up mempool from its messages
-    pub(crate) fn on_block_committed(
-        &mut self,
-        block_id: &EphemeraId,
-    ) -> Result<(), BlockManagerError> {
-        log::debug!("Cleaning mempool from block: {} messages...", block_id);
+    pub(crate) fn sign_block(&mut self, block: &Block) -> anyhow::Result<Certificate> {
+        let hash = block.hash_with_default_hasher()?;
+        let certificate = self.block_signer.sign_block(block, &hash)?;
+        Ok(certificate)
+    }
 
-        if let Some(block) = self.last_blocks.get(&block_id.to_string()) {
-            //TODO: handle gaps in block heights
-            if self.last_created_block.get_block_id() != *block_id {
+    /// After a block gets committed, clear up mempool from its messages
+    pub(crate) fn on_block_committed(&mut self, block_hash: &HashType) -> anyhow::Result<()> {
+        if let Some(block) = self.last_blocks.get(block_hash) {
+            if block.header.creator != self.block_producer.peer_id {
+                log::debug!("Not locally created block {block_hash:?}, not cleaning mempool");
+                return Ok(());
+            }
+
+            //FIXME...: handle gaps in block heights
+            if self.last_accepted_block.get_hash() != *block_hash {
                 log::warn!(
-                    "Received committed block {block_id} after we created next block, ignoring..."
+                    "Received committed block {block_hash} after we created next block, ignoring..."
                 );
                 return Ok(());
             }
 
-            if block.header.creator != self.block_producer.peer_id {
-                log::debug!("Not my block {block_id}, not cleaning mempool");
-                return Ok(());
-            }
-
-            self.block_producer
-                //FIXME: remove double indirection
-                .message_pool_mut()
-                .remove_messages(&block.messages);
-
-            log::debug!(
-                "Mempool cleaned from block {} messages: {}",
-                block_id,
-                block.messages.len()
-            );
+            self.message_pool.remove_messages(&block.messages)?;
+            log::debug!("Mempool cleaned up from block: {:?} messages", block_hash)
         } else {
             //TODO: something to think about
-            log::error!("Block not found: {}", block_id);
+            log::error!("Block not found: {}", block_hash);
         }
         Ok(())
     }
 
-    pub(crate) fn get_block_by_id(&mut self, block_id: &EphemeraId) -> Option<Block> {
+    pub(crate) fn get_block_by_hash(&mut self, block_id: &HashType) -> Option<Block> {
         self.last_blocks.get(block_id).cloned()
+    }
+
+    pub(crate) fn get_block_signatures(&mut self, hash: &HashType) -> Option<Vec<Certificate>> {
+        self.block_signer.get_block_signatures(hash)
+    }
+
+    pub(crate) fn accept_last_proposed_block(&mut self) {
+        self.last_accepted_block = self.last_proposed_block.clone();
     }
 }
 
 //Produces blocks at a predefined interval.
-//If blocks actually will be broadcast is a different question and depends on the application.
+//If blocks will be actually broadcast is a different question and depends on the application.
 impl Stream for BlockManager {
-    type Item = Block;
+    type Item = (Block, Certificate);
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -156,21 +128,34 @@ impl Stream for BlockManager {
     ) -> task::Poll<Option<Self::Item>> {
         //Optionally it is possible to turn off block production and let the node behave just as voter.
         //For example for testing purposes.
-        //If this should become common then we should consider using a different approach.
         if !self.config.producer {
             return Pending;
         }
 
         match self.delay.poll_unpin(cx) {
             task::Poll::Ready(_) => {
-                //FIXME: this all is very loose now, no checking of caps etc
-                let previous_block_header = self.last_created_block.header.clone();
-                let result = match self.block_producer.produce_block(previous_block_header) {
+                //FIXME...: this all is very loose now, no checking of caps etc
+                let previous_block_header = self.last_accepted_block.header.clone();
+                let new_height = previous_block_header.height + 1;
+                let pending_messages = self.message_pool.get_messages();
+                let result = match self
+                    .block_producer
+                    .produce_block(new_height, pending_messages)
+                {
                     Ok(block) => {
-                        self.last_created_block = block.clone();
-                        self.last_blocks.put(block.header.id.clone(), block.clone());
+                        let hash = block
+                            .hash_with_default_hasher()
+                            .expect("Failed to hash block");
 
-                        task::Poll::Ready(Some(block))
+                        log::debug!("Produced block: {:?}", hash);
+                        self.last_proposed_block = block.clone();
+                        self.last_blocks.put(hash, block.clone());
+
+                        let certificate = self
+                            .block_signer
+                            .sign_block(&block, &hash)
+                            .expect("Failed to sign block");
+                        task::Poll::Ready(Some((block, certificate)))
                     }
                     Err(err) => {
                         log::error!("Error producing block: {:?}", err);
@@ -184,5 +169,93 @@ impl Stream for BlockManager {
             }
             Pending => Pending,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::num::NonZeroUsize;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use crate::crypto::Keypair;
+    use crate::network::peer::{PeerId, ToPeerId};
+    use crate::utilities::EphemeraKeypair;
+
+    use super::*;
+
+    #[test]
+    fn test_accept_valid_block() {
+        let keypair: Arc<Keypair> = Keypair::generate(None).into();
+        let peer_id = keypair.public_key().peer_id();
+        let mut manager = block_manager(keypair, peer_id);
+        let block = block();
+        let certificate = manager.sign_block(&block).unwrap();
+
+        let result = manager.on_block(&block, &certificate);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reject_invalid_hash() {
+        let keypair: Arc<Keypair> = Keypair::generate(None).into();
+        let peer_id = keypair.public_key().peer_id();
+        let mut manager = block_manager(keypair, peer_id);
+        let mut block = block();
+        let certificate = manager.sign_block(&block).unwrap();
+
+        block.header.hash = HashType::new([0; 32]);
+        let result = manager.on_block(&block, &certificate);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reject_invalid_signature() {
+        let keypair: Arc<Keypair> = Keypair::generate(None).into();
+        let peer_id = keypair.public_key().peer_id();
+        let mut manager = block_manager(keypair, peer_id);
+
+        let correct_block = block();
+        let fake_block = block();
+
+        let fake_certificate = manager.sign_block(&fake_block).unwrap();
+        let correct_certificate = manager.sign_block(&correct_block).unwrap();
+
+        let result = manager.on_block(&correct_block, &fake_certificate);
+        assert!(result.is_err());
+
+        let result = manager.on_block(&fake_block, &correct_certificate);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_on_block_committed() {
+        //TODO: how to handle non-termination?
+    }
+
+    fn block_manager(keypair: Arc<Keypair>, peer_id: PeerId) -> BlockManager {
+        let genesis_block = Block::new_genesis_block(peer_id.clone());
+        BlockManager {
+            config: BlockConfig {
+                producer: true,
+                creation_interval_sec: 0,
+            },
+            last_blocks: LruCache::new(NonZeroUsize::new(10).unwrap()),
+            last_proposed_block: genesis_block.clone(),
+            last_accepted_block: genesis_block.clone(),
+            block_producer: BlockProducer::new(peer_id.clone()),
+            message_pool: MessagePool::new(),
+            delay: Delay::new(Duration::from_secs(0)),
+            block_signer: BlockSigner::new(keypair.clone()),
+        }
+    }
+
+    fn block() -> Block {
+        let keypair: Arc<Keypair> = Keypair::generate(None).into();
+        let peer_id = keypair.public_key().peer_id();
+        let mut producer = BlockProducer::new(peer_id.clone());
+        producer.produce_block(1, vec![]).unwrap()
     }
 }

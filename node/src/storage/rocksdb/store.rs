@@ -4,7 +4,7 @@ use crate::block::types::block::Block;
 use crate::storage::rocksdb::{block_height_key, block_id_key, last_block_key, signatures_key};
 use rocksdb::{TransactionDB, WriteBatchWithTransaction};
 
-use crate::utilities::crypto::Signature;
+use crate::utilities::crypto::Certificate;
 
 pub struct DbStore {
     connection: Arc<TransactionDB>,
@@ -18,13 +18,14 @@ impl DbStore {
     pub(crate) fn store_block(
         &self,
         block: &Block,
-        signatures: Vec<Signature>,
+        signatures: Vec<Certificate>,
     ) -> anyhow::Result<()> {
         log::debug!("Storing block: {}", block.header);
-        let block_id_key = block_id_key(&block.header.id);
+        let hash_str = block.header.hash.to_string();
+        let block_id_key = block_id_key(&hash_str);
         log::trace!("Block id key: {}", block_id_key);
 
-        let signatures_key = signatures_key(&block.header.id);
+        let signatures_key = signatures_key(&hash_str);
         log::trace!("Block signatures key: {}", signatures_key);
 
         let height_key = block_height_key(&block.header.height);
@@ -39,10 +40,10 @@ impl DbStore {
 
         //Store last block id(without prefix!)
         //May want to check that height is incremented by 1
-        batch.put(last_block_key(), block.header.id.as_bytes());
+        batch.put(last_block_key(), hash_str.clone());
 
         // Store block height
-        batch.put(height_key.as_bytes(), block.header.id.as_bytes());
+        batch.put(height_key.as_bytes(), hash_str);
 
         // Store block(without signature)
         let block_bytes = serde_json::to_vec::<Block>(block)?;

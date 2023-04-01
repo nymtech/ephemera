@@ -24,6 +24,7 @@ impl EpochOperations for RewardManager<V2> {
 
         //Poll next block which should include all messages from the previous epoch from almost all Nym-Api nodes
         let mut counter = 0;
+        let mut winning_block = None;
         log::info!(
             "Waiting for block with height {next_height} maximum {} seconds",
             self.args.block_polling_max_attempts * self.args.block_polling_interval_seconds
@@ -33,25 +34,47 @@ impl EpochOperations for RewardManager<V2> {
                 log::error!(
                     "Block for height {next_height} is not available after {counter} attempts"
                 );
-                log::debug!("Trying to get 'winner' from DHT");
-                let epoch_id = self.epoch.current_epoch_numer();
-                self.query_dht(epoch_id).await?;
                 break;
             }
             tokio::select! {
                 Ok(Some(block)) = self.get_block_by_height(next_height) => {
-                    log::info!("Received local block with height {next_height}");
-                    if self.try_submit_rewards_to_contract(nr_of_rewards, block).await.is_ok(){
+                    log::info!("Received local block with height {next_height}, hash:{:?}", block.header.hash);
+                    if self.try_submit_rewards_to_contract(nr_of_rewards, block.clone()).await.is_ok(){
+                        log::info!("Submitted rewards to smart contract");
                         let epoch_id = self.epoch.current_epoch_numer();
                         self.store_in_dht(epoch_id).await?;
-                        break;
+                        log::info!("Stored rewards in DHT");
+                        winning_block = Some(block);
                     }
+                    break;
                 }
                 _ = tokio::time::sleep(Duration::from_secs(self.args.block_polling_interval_seconds)) => {
                     log::trace!("Block for height {next_height} is not available yet, waiting...");
                 }
             }
             counter += 1;
+        }
+
+        if winning_block.is_none() {
+            log::info!("Querying for block with height {next_height} from the DHT");
+            counter = 0;
+            let epoch_id = self.epoch.current_epoch_numer();
+            loop {
+                if counter > self.args.block_polling_max_attempts {
+                    log::error!("DHT: Block for height {next_height} is not available after {counter} attempts");
+                    break;
+                }
+                tokio::select! {
+                   Ok(Some(peer_id)) = self.query_dht(epoch_id) => {
+                       log::info!("DHT: Received block with height {next_height} from peer {peer_id}");
+                       break;
+                   }
+                   _= tokio::time::sleep(Duration::from_secs(self.args.block_polling_interval_seconds)) => {
+                       log::trace!("DHT: Block for height {next_height} is not available in yet, waiting...");
+                   }
+                }
+                counter += 1;
+            }
         }
 
         // TODO: query smart contract for the nym-api which was able to submit rewards and query its block.

@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 
 use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
-use crate::network::PeerId;
+use crate::network::peer::PeerId;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum NetworkEvent {

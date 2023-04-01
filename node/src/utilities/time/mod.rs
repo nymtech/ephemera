@@ -1,5 +1,9 @@
 use chrono::Utc;
 
-pub fn ephemera_now() -> u64 {
-    Utc::now().timestamp_millis() as u64
+pub struct EphemeraTime;
+
+impl EphemeraTime {
+    pub fn now() -> u64 {
+        Utc::now().timestamp_millis() as u64
+    }
 }

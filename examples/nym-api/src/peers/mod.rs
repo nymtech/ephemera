@@ -3,39 +3,59 @@ use std::collections::HashMap;
 use anyhow::anyhow;
 
 use ephemera::config::Configuration;
-use ephemera::network::{Peer, PeerId, ToPeerId};
-use ephemera::utilities::{Ed25519Keypair, Keypair};
+use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
 
-/// Information about other Nym-Apis.
+pub(crate) type PeerId = String;
+
+#[derive(Debug, Clone)]
+pub struct NymPeer {
+    pub name: String,
+    pub address: String,
+    pub public_key: PublicKey,
+    pub peer_id: PeerId,
+}
+
+impl NymPeer {
+    pub(crate) fn new(
+        name: String,
+        address: String,
+        public_key: PublicKey,
+        peer_id: PeerId,
+    ) -> Self {
+        Self {
+            name,
+            address,
+            public_key,
+            peer_id,
+        }
+    }
+}
+
+// Information about other Nym-Apis.
 pub(crate) struct NymApiEphemeraPeerInfo {
-    /// Information about local Nym-API.
-    pub(crate) local_peer: Peer,
-    /// Information about other Nym-APIs.
-    pub(crate) peers: HashMap<PeerId, Peer>,
+    pub(crate) local_peer: NymPeer,
+    pub(crate) peers: HashMap<PeerId, NymPeer>,
 }
 
 impl NymApiEphemeraPeerInfo {
-    fn new(local_peer: Peer, peers: HashMap<PeerId, Peer>) -> Self {
+    fn new(local_peer: NymPeer, peers: HashMap<PeerId, NymPeer>) -> Self {
         Self { local_peer, peers }
-    }
-
-    pub(crate) fn get_peer_by_id(&self, peer_id: &PeerId) -> Option<&Peer> {
-        self.peers.get(peer_id)
     }
 
     pub(crate) fn get_peers_count(&self) -> usize {
         self.peers.len()
     }
 
-    //DEV ONLY - get peers from dev Ephemera cluster config files
+    //LOCAL DEV CLUSTER ONLY
+    //Get peers from dev Ephemera cluster config files
     pub(crate) fn from_ephemera_dev_cluster_conf(
         conf: &Configuration,
     ) -> anyhow::Result<NymApiEphemeraPeerInfo> {
         let node_info = conf.node.clone();
 
         let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
-        let keypair = Ed25519Keypair::from_raw_vec(keypair).unwrap();
-        let local_peer_id = keypair.peer_id();
+        let keypair = Keypair::from_raw_vec(keypair).unwrap();
+        let local_peer_id = keypair.public_key().to_base58();
 
         let home_path = dirs::home_dir()
             .ok_or(anyhow!("Failed to get home dir"))?
@@ -64,15 +84,15 @@ impl NymApiEphemeraPeerInfo {
                 let node_info = conf.node;
 
                 let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
-                let keypair = Ed25519Keypair::from_raw_vec(keypair).unwrap();
+                let keypair = Keypair::from_raw_vec(keypair).unwrap();
 
-                let peer_id = keypair.peer_id();
+                let peer_id = keypair.public_key().to_base58();
 
-                let peer = Peer::new(
-                    peer_id.to_string(),
-                    node_info.address.parse().unwrap(),
+                let peer = NymPeer::new(
+                    peer_id.clone(),
+                    node_info.address.clone(),
                     keypair.public_key(),
-                    peer_id,
+                    peer_id.clone(),
                 );
 
                 peers.insert(peer_id, peer);

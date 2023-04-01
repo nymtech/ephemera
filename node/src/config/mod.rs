@@ -34,7 +34,7 @@ pub struct Configuration {
 pub struct NodeConfig {
     pub address: String,
     pub pub_key: String,
-    //TODO: dev only
+    //FIXME: dev only
     pub private_key: String,
 }
 

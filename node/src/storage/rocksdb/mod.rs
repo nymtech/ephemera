@@ -7,7 +7,7 @@ use crate::config::DbConfig;
 use crate::storage::rocksdb::query::DbQuery;
 use crate::storage::rocksdb::store::DbStore;
 use crate::storage::EphemeraDatabase;
-use crate::utilities::crypto::Signature;
+use crate::utilities::crypto::Certificate;
 
 pub(crate) mod query;
 pub(crate) mod store;
@@ -57,11 +57,11 @@ impl EphemeraDatabase for RocksDbStorage {
         self.db_query.get_block_by_height(height)
     }
 
-    fn get_block_signatures(&self, block_id: String) -> anyhow::Result<Option<Vec<Signature>>> {
+    fn get_block_certificates(&self, block_id: String) -> anyhow::Result<Option<Vec<Certificate>>> {
         self.db_query.get_block_signatures(block_id)
     }
 
-    fn store_block(&mut self, block: &Block, signatures: Vec<Signature>) -> anyhow::Result<()> {
+    fn store_block(&mut self, block: &Block, signatures: Vec<Certificate>) -> anyhow::Result<()> {
         self.db_store.store_block(block, signatures)
     }
 }

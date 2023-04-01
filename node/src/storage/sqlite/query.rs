@@ -2,7 +2,7 @@ use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Row};
 
 use crate::block::types::block::Block;
 use crate::config::DbConfig;
-use crate::utilities::crypto::Signature;
+use crate::utilities::crypto::Certificate;
 
 pub(crate) struct DbQuery {
     pub(crate) connection: Connection,
@@ -15,7 +15,7 @@ impl DbQuery {
         Ok(query)
     }
 
-    pub(crate) fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<Block>> {
+    pub(crate) fn get_block_by_hash(&self, block_id: String) -> anyhow::Result<Option<Block>> {
         log::trace!("Getting block by id: {}", block_id);
 
         let mut stmt = self
@@ -74,7 +74,7 @@ impl DbQuery {
     pub(crate) fn get_block_signatures(
         &self,
         block_id: String,
-    ) -> anyhow::Result<Option<Vec<Signature>>> {
+    ) -> anyhow::Result<Option<Vec<Certificate>>> {
         log::trace!("Getting block signatures by block id {}", block_id);
 
         let mut stmt = self
@@ -85,7 +85,7 @@ impl DbQuery {
             .query_row(params![block_id], |row| {
                 let signatures: Vec<u8> = row.get(0)?;
                 let signatures =
-                    serde_json::from_slice::<Vec<Signature>>(&signatures).map_err(|e| {
+                    serde_json::from_slice::<Vec<Certificate>>(&signatures).map_err(|e| {
                         log::error!("Error deserializing block: {}", e);
                         rusqlite::Error::InvalidQuery {}
                     })?;

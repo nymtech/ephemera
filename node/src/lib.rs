@@ -24,11 +24,28 @@
 //!
 //! Note that it *requires* a blockchain to be present.
 
-//TODO: organize imports(visibility, re-exports, etc)
-
 pub use crate::core::builder::EphemeraStarter;
 pub use crate::core::ephemera::Ephemera;
 pub use crate::core::shutdown::ShutdownHandle;
+
+pub mod id {
+    pub use super::utilities::id::EphemeraId;
+}
+
+pub mod peer_discovery {
+    pub use super::network::discovery::{PeerDiscovery, PeerInfo};
+}
+
+pub mod crypto {
+    pub use super::utilities::crypto::{
+        Ed25519Keypair, Ed25519PublicKey, EphemeraKeypair, EphemeraPublicKey, KeyPairError,
+        Keypair, PublicKey,
+    };
+}
+
+pub mod codec {
+    pub use super::utilities::encoding::{Decode, Encode};
+}
 
 pub mod api;
 pub(crate) mod block;
@@ -36,9 +53,9 @@ pub(crate) mod broadcast;
 pub mod cli;
 pub mod config;
 mod core;
-pub mod http;
+pub(crate) mod http;
 pub mod logging;
-pub mod network;
+mod network;
 mod storage;
-pub mod utilities;
+mod utilities;
 mod websocket;

@@ -3,7 +3,7 @@ use anyhow::Result;
 use rusqlite::{params, Connection, OpenFlags};
 
 use crate::config::DbConfig;
-use crate::utilities::crypto::Signature;
+use crate::utilities::crypto::Certificate;
 
 pub struct DbStore {
     connection: Connection,
@@ -15,10 +15,14 @@ impl DbStore {
         Ok(DbStore { connection })
     }
 
-    pub(crate) fn store_block(&mut self, block: &Block, signatures: Vec<Signature>) -> Result<()> {
+    pub(crate) fn store_block(
+        &mut self,
+        block: &Block,
+        signatures: Vec<Certificate>,
+    ) -> Result<()> {
         log::debug!("Storing block: {}", block.header);
 
-        let id = block.header.id.clone();
+        let id = block.header.hash.to_string();
         let height = block.header.height;
         let block_bytes = serde_json::to_vec::<Block>(block).map_err(|e| anyhow::anyhow!(e))?;
         let signatures_bytes = serde_json::to_vec(&signatures).map_err(|e| anyhow::anyhow!(e))?;

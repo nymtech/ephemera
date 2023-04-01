@@ -6,15 +6,17 @@ use tokio::task::JoinHandle;
 
 use crate::api::application::Application;
 use crate::api::{ApiListener, EphemeraExternalApi};
-use crate::block::manager::{BlockManager, BlockManagerBuilder};
+use crate::block::builder::BlockManagerBuilder;
+use crate::block::manager::BlockManager;
 use crate::broadcast::bracha::broadcaster::Broadcaster;
 use crate::config::Configuration;
 use crate::core::api_cmd::ApiCmdProcessor;
 use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
+use crate::network::discovery::PeerDiscovery;
 use crate::network::libp2p::ephemera_sender::EphemeraToNetworkSender;
 use crate::network::libp2p::network_sender::NetCommunicationReceiver;
 use crate::network::libp2p::swarm_network::SwarmNetwork;
-use crate::network::{PeerDiscovery, PeerId, ToPeerId};
+use crate::network::peer::{PeerId, ToPeerId};
 #[cfg(feature = "rocksdb_storage")]
 use crate::storage::rocksdb::RocksDbStorage;
 #[cfg(feature = "sqlite_storage")]
@@ -74,9 +76,9 @@ where
 
         let instance_info = NodeInfo::new(peer_id, keypair.clone());
 
-        let broadcaster = Broadcaster::new(config.broadcast.clone(), peer_id, keypair);
+        let broadcaster = Broadcaster::new(config.broadcast.clone(), peer_id);
 
-        let block_manager_builder = BlockManagerBuilder::new(config.block.clone(), peer_id);
+        let block_manager_builder = BlockManagerBuilder::new(config.block.clone(), keypair);
 
         let (api, api_listener) = EphemeraExternalApi::new();
 

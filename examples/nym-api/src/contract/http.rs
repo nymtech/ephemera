@@ -1,13 +1,18 @@
 use std::sync::Arc;
 
 use actix_web::{get, post, web, HttpRequest, HttpResponse};
+use lazy_static::lazy_static;
 use tokio::sync::Mutex;
 
-use ephemera::network::PeerInfo;
-use ephemera::utilities::{to_base58, PublicKey};
+use ephemera::crypto::EphemeraPublicKey;
 
 use crate::contract::{MixnodeToReward, SmartContract};
+use crate::nym_api_ephemera::peer_discovery::NymPeerInfo;
 use crate::HTTP_NYM_API_HEADER;
+
+lazy_static! {
+    static ref HTTP_CLIENT: reqwest::Client = reqwest::Client::builder().build().unwrap();
+}
 
 #[post("/contract/submit_rewards")]
 pub(crate) async fn submit_reward(
@@ -15,7 +20,7 @@ pub(crate) async fn submit_reward(
     message: web::Json<Vec<MixnodeToReward>>,
     contract: web::Data<Arc<Mutex<SmartContract>>>,
 ) -> HttpResponse {
-    log::debug!("POST /contract/submit_reward {:?}", message);
+    log::info!("POST /contract/submit_reward {:?}", message);
 
     let nym_api_id = req
         .headers()
@@ -25,11 +30,11 @@ pub(crate) async fn submit_reward(
         .unwrap();
     let rewards = message.into_inner();
 
-    log::debug!(
+    log::info!(
         "Received {} reward submissions from {nym_api_id}",
         rewards.len(),
     );
-    log::debug!("Reward info {:?}", rewards);
+    log::info!("Reward info {:?}", rewards);
 
     match contract
         .lock()
@@ -52,7 +57,7 @@ pub(crate) async fn submit_reward(
 pub(crate) async fn get_epoch(contract: web::Data<Arc<Mutex<SmartContract>>>) -> HttpResponse {
     match contract.lock().await.get_epoch_from_db().await {
         Ok(epoch) => {
-            log::debug!("GET /contract/epoch {:?}", epoch);
+            log::info!("GET /contract/epoch {:?}", epoch);
             HttpResponse::Ok().json(epoch)
         }
         Err(err) => {
@@ -64,11 +69,9 @@ pub(crate) async fn get_epoch(contract: web::Data<Arc<Mutex<SmartContract>>>) ->
 
 #[get("/contract/peer_info")]
 pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>) -> HttpResponse {
-    log::debug!("GET /contract/peer_info");
+    log::info!("GET /contract/peer_info");
 
-    let client = reqwest::Client::builder().build().unwrap();
-
-    let mut peers: Vec<PeerInfo> = vec![];
+    let mut peers: Vec<NymPeerInfo> = vec![];
     for (i, (peer_id, peer)) in contract
         .lock()
         .await
@@ -78,16 +81,15 @@ pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>)
         .into_iter()
         .enumerate()
     {
-        if !ping_health(i, &client).await {
+        if !ping_health(i).await {
             log::info!("Skipping peer {} as it seems down", peer_id);
             continue;
         }
-        let pub_key = peer.public_key.to_raw_vec();
-        let pub_key = to_base58(pub_key);
-        peers.push(PeerInfo {
+
+        peers.push(NymPeerInfo {
             name: peer_id.to_string(),
-            address: peer.address.to_string(),
-            pub_key,
+            address: peer.address,
+            pub_key: peer.public_key.to_base58(),
         });
     }
 
@@ -99,10 +101,10 @@ pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>)
     HttpResponse::Ok().json(peers)
 }
 
-async fn ping_health(node_id: usize, client: &reqwest::Client) -> bool {
+async fn ping_health(node_id: usize) -> bool {
     let url = format!("http://127.0.0.1:700{node_id}/ephemera/health",);
     log::info!("Pinging health endpoint at {}", url);
-    let response = client.get(url).send().await;
+    let response = HTTP_CLIENT.get(url).send().await;
 
     if response.is_err() {
         return false;

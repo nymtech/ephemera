@@ -15,7 +15,7 @@ pub(crate) async fn submit_message(
     message: web::Json<ApiEphemeraMessage>,
     api: web::Data<EphemeraExternalApi>,
 ) -> HttpResponse {
-    log::debug!("POST /ephemera/submit_message {}", message.id);
+    log::debug!("POST /ephemera/submit_message {:?}", message);
 
     match api.send_ephemera_message(message.into_inner()).await {
         Ok(_) => HttpResponse::Ok().json("Message submitted"),

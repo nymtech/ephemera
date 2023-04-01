@@ -7,11 +7,11 @@ use tokio::sync::Mutex;
 
 use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
 use ephemera::api::{ApiError, EphemeraExternalApi};
-use ephemera::network::{PeerId, ToPeerId};
-use ephemera::utilities::{Ed25519Keypair, Keypair, PublicKey};
+use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
 
 use crate::contract::MixnodeToReward;
 use crate::epoch::Epoch;
+use crate::peers::PeerId;
 use crate::reward::new::aggregator::RewardsAggregator;
 use crate::storage::db::{MetricsStorageType, Storage};
 use crate::{Args, HTTP_NYM_API_HEADER, NR_OF_MIX_NODES};
@@ -27,11 +27,11 @@ pub(crate) struct V2;
 
 pub struct EphemeraAccess {
     pub(crate) api: EphemeraExternalApi,
-    pub(crate) key_pair: Ed25519Keypair,
+    pub(crate) key_pair: Keypair,
 }
 
 impl EphemeraAccess {
-    pub(crate) fn new(api: EphemeraExternalApi, key_pair: Ed25519Keypair) -> Self {
+    pub(crate) fn new(api: EphemeraExternalApi, key_pair: Keypair) -> Self {
         Self { api, key_pair }
     }
 }
@@ -131,11 +131,10 @@ where
             .json(&rewards)
             .send()
             .await?;
+
+        log::info!("Response from contract: {:?}", response);
+
         if !response.status().is_success() {
-            log::error!(
-                "Failed to submit rewards to contract with status {}",
-                response.status()
-            );
             return Err(anyhow::anyhow!(
                 "Failed to submit rewards to contract with status {}",
                 response.status()
@@ -176,14 +175,14 @@ where
         let key = format!("epoch_id_{epoch_id}").into_bytes();
 
         let keypair = &access.key_pair;
-        let value = keypair.public_key().peer_id();
+        let value = keypair.public_key().to_base58();
 
-        access.api.store_in_dht(key, value.to_bytes()).await?;
-        log::info!("Stored store request to DHT");
+        access.api.store_in_dht(key, value.into_bytes()).await?;
+        log::info!("Sent store request to DHT");
         Ok(())
     }
 
-    pub(crate) async fn query_dht(&self, epoch_id: u64) -> anyhow::Result<()> {
+    pub(crate) async fn query_dht(&self, epoch_id: u64) -> anyhow::Result<Option<String>> {
         let access = self
             .ephemera_access
             .as_ref()
@@ -194,14 +193,14 @@ where
         match access.api.query_dht(key).await? {
             None => {
                 log::info!("No winner found for epoch id from DHT: {epoch_id:?}");
+                Ok(None)
             }
             Some((_, peer_id)) => {
-                let peer_id = PeerId::from_bytes(&peer_id[..]);
+                let peer_id = PeerId::from_utf8(peer_id).expect("Invalid peer id");
                 log::info!("Winner found for epoch id from DHT: {epoch_id:?} - {peer_id:?}");
+                Ok(Some(peer_id))
             }
         }
-        //TODO: query winning node for block
-        Ok(())
     }
 
     pub(crate) async fn send_rewards_to_ephemera(
@@ -209,7 +208,7 @@ where
         rewards: Vec<MixnodeToReward>,
     ) -> anyhow::Result<()> {
         let ephemera_msg = self.create_ephemera_message(rewards)?;
-        log::debug!("Sending rewards to ephemera: {:?}", ephemera_msg.id);
+        log::debug!("Sending rewards to ephemera: {:?}", ephemera_msg);
 
         let access = self
             .ephemera_access
@@ -230,12 +229,12 @@ where
             .expect("Ephemera access not set")
             .key_pair;
 
-        let data = ephemera::utilities::encode(rewards)?;
+        let data = serde_json::to_vec(&rewards)?;
 
         let signature = keypair.sign(&data)?;
-        let pub_key = keypair.public_key().to_raw_vec();
+        let pub_key = keypair.public_key();
 
-        let api_signature = ephemera::api::types::ApiSignature::new(signature, pub_key);
+        let api_signature = ephemera::api::types::ApiCertificate::new(signature, pub_key);
 
         let epoch_nr = self.epoch.current_epoch_numer().to_string();
         let api_signed_message = ApiEphemeraMessage::new(data, api_signature, epoch_nr);
@@ -257,7 +256,7 @@ where
         let mut mix_node_rewards = vec![];
 
         for message in block.messages {
-            log::debug!("Message: {}", message);
+            log::trace!("Message: {}", message);
             let mix_node_reward: Vec<MixnodeToReward> = serde_json::from_slice(&message.data)?;
             mix_node_rewards.push(mix_node_reward);
         }
@@ -271,6 +270,10 @@ where
             .lock()
             .await
             .save_rewarding_results(self.epoch.current_epoch_numer(), nr_of_rewards)?;
+        log::info!(
+            "Saved rewarding results for epoch: {:?}",
+            self.epoch.current_epoch_numer()
+        );
 
         Ok(())
     }

@@ -16,9 +16,9 @@ impl RewardsAggregator {
                     .push(mixnode.performance);
             }
         }
-        log::info!("Mix rewards by node: {:?}", mix_rewards);
+        log::trace!("Mix rewards by node: {:?}", mix_rewards);
 
-        log::info!("Calculating mean average for each node");
+        log::trace!("Calculating mean average for each node");
         let mut mean_avg = vec![];
         for (mix_id, rewards) in mix_rewards {
             let sum: u8 = rewards.iter().sum();

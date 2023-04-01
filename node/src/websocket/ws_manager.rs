@@ -68,7 +68,7 @@ impl WsMessageBroadcaster {
     }
 
     pub(crate) fn send_block(&self, block: &Block) -> Result<()> {
-        log::debug!("Sending block {} to websocket clients", block.header.id);
+        log::debug!("Sending block {} to websocket clients", block.header.hash);
         let json = serde_json::to_string::<ApiBlock>(block.into())?;
         let msg = Message::Text(json);
         self.pending_messages_tx.send(msg)?;

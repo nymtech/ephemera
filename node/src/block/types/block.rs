@@ -1,33 +1,37 @@
-use std::fmt::Display;
-use std::hash::{Hash, Hasher};
+use std::fmt::{Debug, Display};
 
 use serde::{Deserialize, Serialize};
 
-use crate::block::types::message::EphemeraMessage;
-use crate::network::PeerId;
-use crate::utilities;
-use crate::utilities::encoding::{Decode, Encode};
-use crate::utilities::id::{generate_ephemera_id, EphemeraId};
-use crate::utilities::time::ephemera_now;
-
-pub type BlockHash = [u8; 32];
+use crate::codec::Decode;
+use crate::utilities::encoding::{Decoder, EphemeraDecoder};
+use crate::utilities::hash::{HashType, Hasher};
+use crate::{
+    block::types::message::EphemeraMessage,
+    crypto::Keypair,
+    network::peer::PeerId,
+    utilities::{
+        crypto::Certificate,
+        encoding::{Encode, Encoder},
+        hash::{EphemeraHash, EphemeraHasher},
+        time::EphemeraTime,
+        EphemeraEncoder,
+    },
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct BlockHeader {
-    pub(crate) id: EphemeraId,
     pub(crate) timestamp: u64,
     pub(crate) creator: PeerId,
     pub(crate) height: u64,
-    pub(crate) hash: BlockHash,
+    pub(crate) hash: HashType,
 }
 
 impl BlockHeader {
-    pub(crate) fn new(creator: PeerId, height: u64, hash: BlockHash) -> Self {
+    pub(crate) fn new(raw_header: RawBlockHeader, hash: HashType) -> Self {
         Self {
-            id: generate_ephemera_id(),
-            timestamp: ephemera_now(),
-            creator,
-            height,
+            timestamp: raw_header.timestamp,
+            creator: raw_header.creator,
+            height: raw_header.height,
             hash,
         }
     }
@@ -35,82 +39,53 @@ impl BlockHeader {
 
 impl Display for BlockHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let id = &self.id;
+        let hash = &self.hash;
         let time = self.timestamp;
         let creator = &self.creator;
         let height = self.height;
         write!(
             f,
-            "id: {id}, timestamp: {time}, creator: {creator}, height: {height}",
+            "hash: {hash}, timestamp: {time}, creator: {creator}, height: {height}",
         )
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub(crate) struct Block {
-    pub(crate) header: BlockHeader,
-    pub(crate) messages: Vec<EphemeraMessage>,
-}
-
-impl Block {
-    pub(crate) fn new(raw_block: RawBlock, hash: BlockHash) -> Self {
-        let header = BlockHeader::new(raw_block.header.creator, raw_block.header.height, hash);
-        Self {
-            header,
-            messages: raw_block.signed_messages,
-        }
-    }
-
-    pub(crate) fn get_block_id(&self) -> EphemeraId {
-        self.header.id.clone()
-    }
-
-    pub(crate) fn new_genesis_block(peer_id: PeerId) -> Self {
-        Self {
-            header: BlockHeader {
-                id: generate_ephemera_id(),
-                timestamp: ephemera_now(),
-                creator: peer_id,
-                height: 0,
-                hash: [0; 32],
-            },
-            messages: Vec::new(),
-        }
+impl Encode for BlockHeader {
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Encoder::encode(&self)
     }
 }
 
-impl Display for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let header = &self.header;
-        write!(f, "{header}, nr of messages: {}", self.messages.len())
+impl Decode for BlockHeader {
+    type Output = Self;
+
+    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
+        Decoder::decode(bytes)
     }
 }
 
-impl From<Block> for RawBlock {
-    fn from(block: Block) -> Self {
-        Self {
-            header: block.header.into(),
-            signed_messages: block.messages,
-        }
-    }
-}
-
-impl From<&Block> for &RawBlock {
-    fn from(block: &Block) -> Self {
-        let raw_block: RawBlock = block.clone().into();
-        Box::leak(Box::new(raw_block))
+impl EphemeraHash for BlockHeader {
+    fn hash<H: EphemeraHasher>(&self, state: &mut H) -> anyhow::Result<()> {
+        let bytes = Encoder::encode(&self)?;
+        state.update(&bytes);
+        Ok(())
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct RawBlockHeader {
+    pub(crate) timestamp: u64,
     pub(crate) creator: PeerId,
     pub(crate) height: u64,
 }
 
 impl RawBlockHeader {
     pub(crate) fn new(creator: PeerId, height: u64) -> Self {
-        Self { creator, height }
+        Self {
+            timestamp: EphemeraTime::now(),
+            creator,
+            height,
+        }
     }
 }
 
@@ -125,9 +100,74 @@ impl Display for RawBlockHeader {
 impl From<BlockHeader> for RawBlockHeader {
     fn from(block_header: BlockHeader) -> Self {
         Self {
+            timestamp: block_header.timestamp,
             creator: block_header.creator,
             height: block_header.height,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub(crate) struct Block {
+    pub(crate) header: BlockHeader,
+    pub(crate) messages: Vec<EphemeraMessage>,
+}
+
+impl Block {
+    pub(crate) fn new(raw_block: RawBlock, block_hash: HashType) -> Self {
+        let header = BlockHeader::new(raw_block.header.clone(), block_hash);
+        Self {
+            header,
+            messages: raw_block.messages,
+        }
+    }
+
+    pub(crate) fn get_hash(&self) -> HashType {
+        self.header.hash
+    }
+
+    pub(crate) fn new_genesis_block(creator: PeerId) -> Self {
+        Self {
+            header: BlockHeader {
+                timestamp: EphemeraTime::now(),
+                creator,
+                height: 0,
+                hash: HashType::new([0; 32]),
+            },
+            messages: Vec::new(),
+        }
+    }
+
+    pub(crate) fn sign(&self, keypair: &Keypair) -> anyhow::Result<Certificate> {
+        let raw_block: RawBlock = self.clone().into();
+        let certificate = Certificate::prepare(keypair, &raw_block)?;
+        Ok(certificate)
+    }
+
+    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<HashType> {
+        let raw_block: RawBlock = self.clone().into();
+        raw_block.hash_with_default_hasher()
+    }
+}
+
+impl Display for Block {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let header = &self.header;
+        write!(f, "{header}, nr of messages: {}", self.messages.len())
+    }
+}
+
+impl Encode for Block {
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Encoder::encode(&self)
+    }
+}
+
+impl Decode for Block {
+    type Output = Block;
+
+    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
+        Decoder::decode(bytes)
     }
 }
 
@@ -135,42 +175,72 @@ impl From<BlockHeader> for RawBlockHeader {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct RawBlock {
     pub(crate) header: RawBlockHeader,
-    pub(crate) signed_messages: Vec<EphemeraMessage>,
+    pub(crate) messages: Vec<EphemeraMessage>,
 }
 
 impl RawBlock {
-    pub(crate) fn new(header: RawBlockHeader, signed_messages: Vec<EphemeraMessage>) -> Self {
+    pub(crate) fn new(header: RawBlockHeader, messages: Vec<EphemeraMessage>) -> Self {
+        Self { header, messages }
+    }
+
+    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<HashType> {
+        let mut hasher = Hasher::default();
+        self.hash(&mut hasher)?;
+        let block_hash = hasher.finish().into();
+        Ok(block_hash)
+    }
+}
+
+impl From<Block> for RawBlock {
+    fn from(block: Block) -> Self {
         Self {
-            header,
-            signed_messages,
+            header: block.header.into(),
+            messages: block.messages,
         }
+    }
+}
+
+impl Encode for RawBlockHeader {
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Encoder::encode(&self)
+    }
+}
+
+impl Decode for RawBlockHeader {
+    type Output = RawBlockHeader;
+
+    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
+        Decoder::decode(bytes)
     }
 }
 
 impl Encode for RawBlock {
     fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        utilities::encoding::encode(self)
+        Encoder::encode(&self)
     }
 }
 
 impl Decode for RawBlock {
-    fn decode(bytes: &[u8]) -> anyhow::Result<Self> {
-        utilities::encoding::decode(bytes)
+    type Output = RawBlock;
+
+    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
+        Decoder::decode(bytes)
     }
 }
 
-//TODO: integrate with blake2_256
-impl Hash for BlockHeader {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.creator.hash(state);
-        self.height.hash(state);
+impl EphemeraHash for RawBlockHeader {
+    fn hash<H: EphemeraHasher>(&self, state: &mut H) -> anyhow::Result<()> {
+        state.update(&self.encode()?);
+        Ok(())
     }
 }
 
-//TODO: integrate with blake2_256
-impl Hash for Block {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.header.hash(state);
-        self.messages.hash(state);
+impl EphemeraHash for RawBlock {
+    fn hash<H: EphemeraHasher>(&self, state: &mut H) -> anyhow::Result<()> {
+        self.header.hash(state)?;
+        for message in &self.messages {
+            message.hash(state)?;
+        }
+        Ok(())
     }
 }

@@ -13,9 +13,10 @@ use std::thread::sleep;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
 use chrono::{DateTime, Duration, Utc};
-use ephemera::config::Configuration;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+
+use ephemera::config::Configuration;
 
 use crate::contract::http::{get_epoch, get_nym_apis, submit_reward};
 use crate::epoch::{Epoch, EpochInfo};
@@ -46,6 +47,7 @@ impl MixnodeToReward {
     }
 }
 
+//Simulates smart contract functionality related to rewarding and peer discovery
 pub struct SmartContract {
     pub(crate) storage: Storage<ContractStorageType>,
     pub(crate) epoch: Epoch,

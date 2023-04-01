@@ -4,8 +4,7 @@ use std::thread;
 use clap::Parser;
 
 use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
-use ephemera::logging::init_logging;
-use ephemera::utilities::{Ed25519Keypair, Ed25519PublicKey, Keypair, PublicKey};
+use ephemera::crypto::{Ed25519Keypair, EphemeraKeypair, EphemeraPublicKey};
 
 use crate::http_client::SignedMessageClient;
 use crate::ws_listener::WsBlockListener;
@@ -38,7 +37,7 @@ struct Data {
 
 #[tokio::main]
 async fn main() {
-    init_logging();
+    pretty_env_logger::init();
 
     let args = Args::parse();
 
@@ -50,7 +49,7 @@ async fn main() {
     let signed_msg_data = shared_data.clone();
     let signed_msg_args = args.clone();
     tokio::spawn(async move {
-        let keypair = Ed25519Keypair::generate_pair(None);
+        let keypair = Ed25519Keypair::generate(None);
         send_signed_messages(keypair, signed_msg_data, signed_msg_args).await;
     });
 
@@ -150,15 +149,11 @@ fn verify_messages_signatures(block: ApiBlock) -> anyhow::Result<()> {
     for message in block.messages {
         let signature = message.signature.clone();
 
-        match Ed25519PublicKey::from_raw_vec(signature.public_key) {
-            Ok(pub_key) => {
-                if !pub_key.verify(&message.data, &signature.signature) {
-                    anyhow::bail!("Signature verification failed");
-                }
-            }
-            Err(err) => {
-                anyhow::bail!("Signature verification failed: {:?}", err);
-            }
+        if !signature
+            .public_key
+            .verify(&message.data, &signature.signature)
+        {
+            anyhow::bail!("Signature verification failed");
         }
     }
     Ok(())

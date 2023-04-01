@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use lru::LruCache;
 
 use crate::api::application::Application;
-use crate::api::types::{ApiBlock, ApiSignature};
+use crate::api::types::{ApiBlock, ApiCertificate};
 use crate::api::ApiCmd;
 use crate::network::libp2p::ephemera_sender::EphemeraEvent;
 use crate::{api, Ephemera};
@@ -30,13 +30,14 @@ impl ApiCmdProcessor {
         match cmd {
             ApiCmd::SubmitEphemeraMessage(sm) => {
                 // 1. Ask application to decide if we should accept this message.
-                match ephemera.application.check_tx(sm.clone()) {
+                match ephemera.application.check_tx(*sm.clone()) {
                     Ok(true) => {
                         // 2. Send to BlockManager to put into memory pool
-                        let ephemera_msg: crate::block::types::message::EphemeraMessage = sm.into();
+                        let ephemera_msg: crate::block::types::message::EphemeraMessage =
+                            (*sm).try_into()?;
                         match ephemera
                             .block_manager
-                            .new_message(ephemera_msg.clone())
+                            .on_new_message(ephemera_msg.clone())
                             .await
                         {
                             Ok(_) => {
@@ -129,12 +130,17 @@ impl ApiCmdProcessor {
                 };
             }
             ApiCmd::QueryBlockSignatures(block_id, reply) => {
-                match ephemera.storage.lock().await.get_block_signatures(block_id) {
+                match ephemera
+                    .storage
+                    .lock()
+                    .await
+                    .get_block_certificates(block_id)
+                {
                     Ok(signatures) => {
                         let signatures = signatures.map(|s| {
                             s.into_iter()
                                 .map(|s| s.into())
-                                .collect::<Vec<ApiSignature>>()
+                                .collect::<Vec<ApiCertificate>>()
                         });
                         reply
                             .send(Ok(signatures))

@@ -38,7 +38,7 @@ pub struct Args {
 pub struct ContractArgs {
     #[clap(long)]
     pub db_path: String,
-    #[clap(long, default_value = "20")]
+    #[clap(long, default_value = "60")]
     pub epoch_duration_seconds: u64,
     #[clap(long)]
     pub url: String,

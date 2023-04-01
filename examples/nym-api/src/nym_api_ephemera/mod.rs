@@ -7,20 +7,20 @@ use tokio::task::JoinHandle;
 
 use ephemera::api::EphemeraExternalApi;
 use ephemera::config::Configuration;
-use ephemera::utilities::{Ed25519Keypair, Keypair};
+use ephemera::crypto::{Ed25519Keypair, EphemeraKeypair, Keypair};
 use ephemera::{EphemeraStarter, ShutdownHandle};
 use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;
-use crate::nym_api_ephemera::app::application::RewardsEphemeraApplication;
+use crate::nym_api_ephemera::application::RewardsEphemeraApplication;
 use crate::nym_api_ephemera::peer_discovery::HttpPeerDiscovery;
 use crate::reward::new::aggregator::RewardsAggregator;
 use crate::reward::{EphemeraAccess, RewardManager, V2};
 use crate::storage::db::{MetricsStorageType, Storage};
 use crate::{metrics, Args};
 
-mod app;
-mod peer_discovery;
+pub(crate) mod application;
+pub(crate) mod peer_discovery;
 
 mod migrations {
     use refinery::embed_migrations;
@@ -153,7 +153,7 @@ impl NymApi {
 
     fn read_nym_api_keypair(ephemera_config: &Configuration) -> anyhow::Result<Ed25519Keypair> {
         let key_pair = bs58::decode(&ephemera_config.node.private_key).into_vec()?;
-        let key_pair = Ed25519Keypair::from_raw_vec(key_pair)?;
+        let key_pair = Keypair::from_raw_vec(key_pair)?;
         Ok(key_pair)
     }
 }

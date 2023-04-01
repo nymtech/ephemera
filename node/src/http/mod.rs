@@ -1,6 +1,4 @@
-use actix_web::dev::Server;
-use actix_web::web::Data;
-use actix_web::{App, HttpServer};
+use actix_web::{dev::Server, web::Data, App, HttpServer};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -45,7 +43,7 @@ fn swagger_ui() -> SwaggerUi {
             query::last_block,
             submit::submit_message
         ),
-        components(schemas(types::ApiBlock, types::ApiEphemeraMessage, types::ApiSignature))
+        components(schemas(types::ApiBlock, types::ApiEphemeraMessage, types::ApiCertificate))
     )]
     struct ApiDoc;
     SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-doc/openapi.json", ApiDoc::openapi())

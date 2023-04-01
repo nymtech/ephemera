@@ -49,6 +49,9 @@ utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 uuid = { version = "1.2.2", features = ["v4"] }
 void = "1.0.2"
 
+[dev-dependencies]
+assert_matches = "1.5.0"
+
 [features]
 default = ["rocksdb_storage"]
 rocksdb_storage = ["rocksdb"]

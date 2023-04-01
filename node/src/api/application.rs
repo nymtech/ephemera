@@ -15,7 +15,8 @@ pub trait Application {
     /// Ephemera produces new blocks with configured interval.
     /// Application can decide whether to accept the block or not.
     /// For example, if the block doesn't contain any transactions, it can be rejected.
-    fn accept_block(&self, _block: &ApiBlock) -> anyhow::Result<bool>;
+    //TODO: maybe add more metadata, including list of peers which will be part of broadcast
+    fn check_block(&self, _block: &ApiBlock) -> anyhow::Result<bool>;
 
     /// DeliverBlock is called after block is confirmed by Ephemera and persisted to the storage.
     fn deliver_block(&self, _block: ApiBlock) -> anyhow::Result<()>;
@@ -31,7 +32,7 @@ impl Application for DefaultApplication {
         Ok(true)
     }
 
-    fn accept_block(&self, block: &ApiBlock) -> anyhow::Result<bool> {
+    fn check_block(&self, block: &ApiBlock) -> anyhow::Result<bool> {
         log::trace!("ApplicationPlaceholder::accept_block: {block:?}");
         Ok(true)
     }

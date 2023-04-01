@@ -7,19 +7,21 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::block::types::block::Block;
-use crate::block::types::message::{EphemeraMessage, EphemeraRawMessage};
-use crate::network::PeerId;
-use crate::utilities;
-use crate::utilities::crypto::Signature;
-use crate::utilities::encoding::Encode;
-use crate::utilities::id::generate_ephemera_id;
-use crate::utilities::id::EphemeraId;
+use crate::{
+    block::types::block::Block,
+    block::types::message::EphemeraMessage,
+    codec::{Decode, Encode},
+    crypto::PublicKey,
+    network::peer::PeerId,
+    utilities::crypto::{Certificate, Signature},
+    utilities::encoding::{Decoder, Encoder, EphemeraDecoder},
+    utilities::id::EphemeraId,
+    utilities::time::EphemeraTime,
+    utilities::EphemeraEncoder,
+};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiEphemeraMessage {
-    /// The id of the message. It has meaning only for the creator of the message.
-    pub id: String,
     /// The timestamp of the message.
     pub timestamp: u64,
     /// The label of the message. It can be used to identify the type of a message for example.
@@ -27,14 +29,13 @@ pub struct ApiEphemeraMessage {
     /// The data of the message. It is application specific.
     pub data: Vec<u8>,
     /// The signature of the message. It implements Default trait instead of using Option.
-    pub signature: ApiSignature,
+    pub signature: ApiCertificate,
 }
 
 impl ApiEphemeraMessage {
-    pub fn new(data: Vec<u8>, signature: ApiSignature, label: String) -> Self {
+    pub fn new(data: Vec<u8>, signature: ApiCertificate, label: String) -> Self {
         Self {
-            id: generate_ephemera_id(),
-            timestamp: utilities::time::ephemera_now(),
+            timestamp: EphemeraTime::now(),
             label,
             data,
             signature,
@@ -46,61 +47,55 @@ impl Display for ApiEphemeraMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ApiEphemeraMessage(id: {}, timestamp: {}, label: {})",
-            self.id, self.timestamp, self.label,
+            "ApiEphemeraMessage(timestamp: {}, label: {})",
+            self.timestamp, self.label,
         )
     }
 }
 
-impl From<ApiEphemeraMessage> for ApiEphemeraRawMessage {
+impl From<ApiEphemeraMessage> for RawApiEphemeraMessage {
     fn from(message: ApiEphemeraMessage) -> Self {
-        ApiEphemeraRawMessage {
-            id: message.id,
+        RawApiEphemeraMessage {
+            timestamp: message.timestamp,
+            label: message.label,
             data: message.data,
         }
     }
 }
 
-impl From<ApiEphemeraRawMessage> for EphemeraRawMessage {
-    fn from(raw_message: ApiEphemeraRawMessage) -> Self {
-        EphemeraRawMessage::new(raw_message.id, raw_message.data)
-    }
-}
-
 impl From<ApiEphemeraMessage> for EphemeraMessage {
-    fn from(ephemera_message: ApiEphemeraMessage) -> Self {
-        let raw_message: ApiEphemeraRawMessage = ephemera_message.clone().into();
-        EphemeraMessage::new(
-            raw_message.into(),
-            ephemera_message.signature.into(),
-            ephemera_message.label,
-        )
+    fn from(message: ApiEphemeraMessage) -> Self {
+        Self {
+            timestamp: message.timestamp,
+            label: message.label,
+            data: message.data,
+            certificate: message.signature.into(),
+        }
     }
 }
 
 impl From<EphemeraMessage> for ApiEphemeraMessage {
     fn from(ephemera_message: EphemeraMessage) -> Self {
         Self {
-            id: ephemera_message.id,
             timestamp: ephemera_message.timestamp,
             label: ephemera_message.label,
             data: ephemera_message.data,
-            signature: ApiSignature {
-                signature: ephemera_message.signature.signature,
-                public_key: ephemera_message.signature.public_key,
+            signature: ApiCertificate {
+                signature: ephemera_message.certificate.signature,
+                public_key: ephemera_message.certificate.public_key,
             },
         }
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiSignature {
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiCertificate {
+    pub signature: Signature,
+    pub public_key: PublicKey,
 }
 
-impl ApiSignature {
-    pub fn new(signature: Vec<u8>, public_key: Vec<u8>) -> Self {
+impl ApiCertificate {
+    pub fn new(signature: Signature, public_key: PublicKey) -> Self {
         Self {
             signature,
             public_key,
@@ -108,8 +103,8 @@ impl ApiSignature {
     }
 }
 
-impl From<Signature> for ApiSignature {
-    fn from(signature: Signature) -> Self {
+impl From<Certificate> for ApiCertificate {
+    fn from(signature: Certificate) -> Self {
         Self {
             signature: signature.signature,
             public_key: signature.public_key,
@@ -117,9 +112,9 @@ impl From<Signature> for ApiSignature {
     }
 }
 
-impl From<ApiSignature> for Signature {
-    fn from(value: ApiSignature) -> Self {
-        Signature {
+impl From<ApiCertificate> for Certificate {
+    fn from(value: ApiCertificate) -> Self {
+        Certificate {
             signature: value.signature,
             public_key: value.public_key,
         }
@@ -127,23 +122,33 @@ impl From<ApiSignature> for Signature {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiEphemeraRawMessage {
-    pub id: String,
+pub struct RawApiEphemeraMessage {
+    pub timestamp: u64,
+    pub label: String,
     pub data: Vec<u8>,
 }
 
-impl ApiEphemeraRawMessage {
-    pub fn new(data: Vec<u8>) -> Self {
+impl RawApiEphemeraMessage {
+    pub fn new(label: String, data: Vec<u8>) -> Self {
         Self {
-            id: generate_ephemera_id(),
+            timestamp: EphemeraTime::now(),
+            label,
             data,
         }
     }
 }
 
-impl Encode for ApiEphemeraRawMessage {
+impl Decode for RawApiEphemeraMessage {
+    type Output = Self;
+
+    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
+        Decoder::decode(bytes)
+    }
+}
+
+impl Encode for RawApiEphemeraMessage {
     fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        utilities::encoding::encode(self)
+        Encoder::encode(self)
     }
 }
 
@@ -153,6 +158,7 @@ pub struct ApiBlockHeader {
     pub timestamp: u64,
     pub creator: PeerId,
     pub height: u64,
+    pub hash: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
@@ -198,10 +204,11 @@ impl From<Block> for ApiBlock {
     fn from(block: Block) -> Self {
         Self {
             header: ApiBlockHeader {
-                id: block.header.id,
+                id: Default::default(),
                 timestamp: block.header.timestamp,
                 creator: block.header.creator,
                 height: block.header.height,
+                hash: block.header.hash.to_string(),
             },
             messages: block
                 .messages

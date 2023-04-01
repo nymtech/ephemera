@@ -1,23 +1,52 @@
-use crate::broadcast::{ConsensusContext, MessageType, Quorum};
+use crate::broadcast::{MessageType, ProtocolContext};
 use crate::config::BroadcastConfig;
-use crate::network::PeerId;
 
 pub(crate) struct BrachaQuorum {
     pub(crate) cluster_size: usize,
     pub(crate) max_faulty_nodes: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BrachaMessageType {
+    Echo,
+    Vote,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BrachaAction {
+    Vote,
+    Deliver,
+    Ignore,
+}
+
+impl BrachaAction {
+    pub(crate) fn is_vote(&self) -> bool {
+        matches!(self, BrachaAction::Vote)
+    }
+
+    pub(crate) fn is_deliver(&self) -> bool {
+        matches!(self, BrachaAction::Deliver)
+    }
+}
+
+impl From<MessageType> for BrachaMessageType {
+    fn from(message_type: MessageType) -> Self {
+        match message_type {
+            MessageType::Echo(_) => BrachaMessageType::Echo,
+            MessageType::Vote(_) => BrachaMessageType::Vote,
+        }
+    }
+}
+
 impl BrachaQuorum {
-    /// Update the topology of the cluster.
-    ///
-    /// This is used to update the cluster size and the number of faulty nodes.
-    pub(crate) fn update_topology(&mut self, peer_ids: Vec<PeerId>) {
+    /// Notify quota about topology change.
+    pub(crate) fn update_topology(&mut self, nr_of_peers: usize) {
         //As we don't have strong guarantees/consensus/timing constraints on the
         //broadcast, we just update topology immediately.
         //Theoretically it can break existing ongoing broadcast but timing chances for it
         //probably are very low.
-        self.cluster_size = peer_ids.len();
-        self.max_faulty_nodes = (self.cluster_size as f64 * MAX_FAULTY_RATIO).ceil() as usize;
+        self.cluster_size = nr_of_peers;
+        self.max_faulty_nodes = (self.cluster_size as f64 * MAX_FAULTY_RATIO).floor() as usize;
         log::info!(
             "Bracha quorum: cluster_size: {}, max_faulty_nodes: {}",
             self.cluster_size,
@@ -30,7 +59,7 @@ const MAX_FAULTY_RATIO: f64 = 1.0 / 3.0;
 
 impl BrachaQuorum {
     pub fn new(settings: BroadcastConfig) -> Self {
-        let max_faulty_nodes = (settings.cluster_size as f64 * MAX_FAULTY_RATIO).ceil() as usize;
+        let max_faulty_nodes = (settings.cluster_size as f64 * MAX_FAULTY_RATIO).floor() as usize;
         log::info!(
             "Bracha quorum: cluster_size: {}, max_faulty_nodes: {}",
             settings.cluster_size,
@@ -41,46 +70,181 @@ impl BrachaQuorum {
             max_faulty_nodes,
         }
     }
-}
 
-impl Quorum for BrachaQuorum {
-    fn check_threshold(&self, ctx: &ConsensusContext, phase: MessageType) -> bool {
+    pub(crate) fn check_threshold(
+        &self,
+        ctx: &ProtocolContext,
+        phase: BrachaMessageType,
+    ) -> BrachaAction {
         match phase {
-            MessageType::Echo(_) => {
-                if ctx.echo.len() >= self.cluster_size - self.max_faulty_nodes {
+            BrachaMessageType::Echo => {
+                if ctx.echo.len() > self.cluster_size - self.max_faulty_nodes {
                     log::debug!(
                         "Echo threshold reached: {}/{} for {}",
                         ctx.echo.len(),
                         self.cluster_size - self.max_faulty_nodes,
-                        ctx.id
+                        ctx.hash
                     );
-                    true
+                    BrachaAction::Vote
                 } else {
-                    false
+                    BrachaAction::Ignore
                 }
             }
-            MessageType::Vote(_) => {
-                let votes_threshold_to_send_our_vote = ctx.vote.len() > self.max_faulty_nodes;
-                if votes_threshold_to_send_our_vote {
-                    log::debug!(
-                        "Vote send threshold reached: {}/{} for {}",
-                        ctx.vote.len(),
-                        self.max_faulty_nodes + 1,
-                        ctx.id
-                    );
+            BrachaMessageType::Vote => {
+                if !ctx.voted() {
+                    // f + 1 votes are enough to send our vote
+                    if ctx.vote.len() > self.max_faulty_nodes {
+                        log::debug!(
+                            "Vote send threshold reached: {}/{} for {}",
+                            ctx.vote.len(),
+                            self.max_faulty_nodes + 1,
+                            ctx.hash
+                        );
+                        return BrachaAction::Vote;
+                    }
                 }
-                let votes_threshold_to_deliver =
-                    ctx.vote.len() >= self.cluster_size - self.max_faulty_nodes;
-                if votes_threshold_to_deliver {
-                    log::debug!(
-                        "Deliver threshold reached: {}/{} for {}",
-                        ctx.vote.len(),
-                        self.cluster_size - self.max_faulty_nodes,
-                        ctx.id
-                    );
+
+                if ctx.voted() {
+                    // n-f votes are enough to deliver the value
+                    if ctx.vote.len() > self.cluster_size - self.max_faulty_nodes {
+                        log::debug!(
+                            "Deliver threshold reached: {}/{} for {}",
+                            ctx.vote.len(),
+                            self.cluster_size - self.max_faulty_nodes,
+                            ctx.hash
+                        );
+                        return BrachaAction::Deliver;
+                    }
                 }
-                votes_threshold_to_send_our_vote || votes_threshold_to_deliver
+
+                BrachaAction::Ignore
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        broadcast::{
+            bracha::quorum::{BrachaAction, BrachaMessageType, BrachaQuorum},
+            ProtocolContext,
+        },
+        config::BroadcastConfig,
+        network::peer::PeerId,
+    };
+
+    #[test]
+    fn test_max_faulty_nodes() {
+        let quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+        assert_eq!(quorum.max_faulty_nodes, 3);
+    }
+
+    #[test]
+    fn test_vote_threshold_from_n_minus_f_peers() {
+        let quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+
+        let ctx = ctx_with_nr_echoes(0);
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Echo),
+            BrachaAction::Ignore
+        );
+
+        let ctx = ctx_with_nr_echoes(3);
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Echo),
+            BrachaAction::Ignore
+        );
+
+        let ctx = ctx_with_nr_echoes(8);
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Echo),
+            BrachaAction::Vote
+        );
+    }
+
+    #[test]
+    fn test_vote_threshold_from_f_plus_one_peers() {
+        let quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+
+        let ctx = ctx_with_nr_votes(0, None);
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Vote),
+            BrachaAction::Ignore
+        );
+
+        let ctx = ctx_with_nr_votes(3, None);
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Vote),
+            BrachaAction::Ignore
+        );
+
+        let ctx = ctx_with_nr_votes(5, None);
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Vote),
+            BrachaAction::Vote
+        );
+    }
+
+    #[test]
+    fn test_deliver_threshold_from_n_minus_f_peers() {
+        let quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+
+        let local_peer_id = PeerId::random();
+        let ctx = ctx_with_nr_votes(0, local_peer_id.into());
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Vote),
+            BrachaAction::Ignore
+        );
+
+        let ctx = ctx_with_nr_votes(3, local_peer_id.into());
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Vote),
+            BrachaAction::Ignore
+        );
+
+        let ctx = ctx_with_nr_votes(7, local_peer_id.into());
+        assert_eq!(
+            quorum.check_threshold(&ctx, BrachaMessageType::Vote),
+            BrachaAction::Deliver
+        );
+    }
+
+    #[test]
+    fn test_change_topology() {
+        let mut quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+        assert_eq!(quorum.max_faulty_nodes, 3);
+
+        quorum.update_topology(13);
+        assert_eq!(quorum.max_faulty_nodes, 4);
+    }
+
+    fn ctx_with_nr_echoes(n: usize) -> ProtocolContext {
+        let mut ctx = ProtocolContext {
+            local_peer_id: PeerId::random(),
+            hash: [0; 32].into(),
+            echo: Default::default(),
+            vote: Default::default(),
+        };
+        for _ in 0..n {
+            ctx.echo.insert(PeerId::random());
+        }
+        ctx
+    }
+
+    fn ctx_with_nr_votes(n: usize, local_peer_id: Option<PeerId>) -> ProtocolContext {
+        let mut ctx = ProtocolContext {
+            local_peer_id: local_peer_id.unwrap_or(PeerId::random()),
+            hash: [0; 32].into(),
+            echo: Default::default(),
+            vote: Default::default(),
+        };
+        for _ in 0..n {
+            ctx.vote.insert(PeerId::random());
+        }
+        if local_peer_id.is_some() {
+            ctx.vote.insert(local_peer_id.unwrap());
+        }
+        ctx
     }
 }
