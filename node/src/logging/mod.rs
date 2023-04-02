@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Logging setup
 pub fn init_logging() {
     if let Ok(directives) = ::std::env::var("RUST_LOG") {

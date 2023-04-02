@@ -1,6 +1,6 @@
+use std::{task, time};
 use std::pin::Pin;
 use std::task::Poll::Pending;
-use std::{task, time};
 
 use futures::FutureExt;
 use futures::Stream;
@@ -199,10 +199,44 @@ mod test {
     use std::sync::Arc;
     use std::time::Duration;
 
+    use assert_matches::assert_matches;
+
     use crate::crypto::{EphemeraKeypair, Keypair};
     use crate::network::peer::{PeerId, ToPeerId};
 
     use super::*;
+
+    #[tokio::test]
+    async fn test_add_message() {
+        let keypair: Arc<Keypair> = Keypair::generate(None).into();
+        let peer_id = keypair.public_key().peer_id();
+        let mut manager = block_manager(keypair, peer_id);
+
+        let message =
+            EphemeraMessage::signed("label1".to_string(), vec![0], &Keypair::generate(None))
+                .unwrap();
+
+        let hash = message.hash_with_default_hasher().unwrap();
+
+        manager.on_new_message(message).await.unwrap();
+
+        assert!(manager.message_pool.contains(&hash));
+    }
+
+    #[tokio::test]
+    async fn test_add_duplicate_message() {
+        let keypair: Arc<Keypair> = Keypair::generate(None).into();
+        let peer_id = keypair.public_key().peer_id();
+        let mut manager = block_manager(keypair, peer_id);
+
+        let message =
+            EphemeraMessage::signed("label1".to_string(), vec![0], &Keypair::generate(None))
+                .unwrap();
+
+        manager.on_new_message(message.clone()).await.unwrap();
+        assert_matches!(manager.on_new_message(message).await, Err(BlockManagerError::DuplicateMessage(_)));
+    }
+
 
     #[test]
     fn test_accept_valid_block() {

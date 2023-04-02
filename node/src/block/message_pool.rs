@@ -62,18 +62,6 @@ mod test {
     use crate::crypto::{EphemeraKeypair, Keypair};
 
     #[test]
-    #[should_panic(expected = "Message already in pool")]
-    fn test_add_duplicate() {
-        let message =
-            EphemeraMessage::signed("label1".to_string(), vec![0], &Keypair::generate(None))
-                .unwrap();
-
-        let mut pool = MessagePool::new();
-        pool.add_message(message.clone()).unwrap();
-        pool.add_message(message).unwrap();
-    }
-
-    #[test]
     fn test_add_remove() {
         let message =
             EphemeraMessage::signed("label1".to_string(), vec![0], &Keypair::generate(None))

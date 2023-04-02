@@ -82,7 +82,7 @@ impl BlockSigner {
 #[cfg(test)]
 mod test {
     use crate::block::types::block::RawBlockHeader;
-    use crate::block::types::message::{EphemeraMessage, UnsignedEphemeraMessage};
+    use crate::block::types::message::{EphemeraMessage, RawEphemeraMessage};
     use crate::crypto::EphemeraKeypair;
     use crate::network::peer::ToPeerId;
 
@@ -117,7 +117,7 @@ mod test {
         let peer_id = keypair.public_key().peer_id();
 
         let raw_ephemera_message =
-            UnsignedEphemeraMessage::new("label".to_string(), "payload".as_bytes().to_vec());
+            RawEphemeraMessage::new("label".to_string(), "payload".as_bytes().to_vec());
 
         let message_certificate = Certificate::prepare(keypair, &raw_ephemera_message).unwrap();
         let messages = vec![EphemeraMessage::new(

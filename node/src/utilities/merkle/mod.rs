@@ -99,7 +99,7 @@ mod tests {
     use crate::{
         block::{
             types::block::{Block, RawBlock, RawBlockHeader},
-            types::message::{EphemeraMessage, UnsignedEphemeraMessage},
+            types::message::{EphemeraMessage, RawEphemeraMessage},
         },
         codec::Encode,
         crypto::Keypair,
@@ -135,7 +135,7 @@ mod tests {
         let mut messages = vec![];
         for i in 0..nr_of_messages {
             messages.push(EphemeraMessage::new(
-                UnsignedEphemeraMessage::new(format!("label{}", i), vec![i as u8]),
+                RawEphemeraMessage::new(format!("label{}", i), vec![i as u8]),
                 certificate.clone(),
             ));
         }

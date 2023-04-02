@@ -24,9 +24,9 @@ pub(crate) struct EphemeraMessage {
 }
 
 impl EphemeraMessage {
-    pub(crate) fn new(raw_message: UnsignedEphemeraMessage, certificate: Certificate) -> Self {
+    pub(crate) fn new(raw_message: RawEphemeraMessage, certificate: Certificate) -> Self {
         Self {
-            timestamp: EphemeraTime::now(),
+            timestamp: raw_message.timestamp,
             label: raw_message.label,
             data: raw_message.data,
             certificate,
@@ -34,7 +34,7 @@ impl EphemeraMessage {
     }
 
     pub(crate) fn signed(label: String, data: Vec<u8>, keypair: &Keypair) -> anyhow::Result<Self> {
-        let raw_message = UnsignedEphemeraMessage::new(label, data);
+        let raw_message = RawEphemeraMessage::new(label, data);
         let certificate = Certificate::prepare(keypair, &raw_message)?;
         Ok(Self::new(raw_message, certificate))
     }
@@ -70,27 +70,33 @@ impl EphemeraHash for EphemeraMessage {
 
 /// Raw message represents all the data what will be signed.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub(crate) struct UnsignedEphemeraMessage {
+pub(crate) struct RawEphemeraMessage {
+    pub(crate) timestamp: u64,
     pub(crate) label: String,
     pub(crate) data: Vec<u8>,
 }
 
-impl UnsignedEphemeraMessage {
+impl RawEphemeraMessage {
     pub(crate) fn new(label: String, data: Vec<u8>) -> Self {
-        Self { label, data }
+        Self {
+            timestamp: EphemeraTime::now(),
+            label,
+            data
+        }
     }
 }
 
-impl From<EphemeraMessage> for UnsignedEphemeraMessage {
+impl From<EphemeraMessage> for RawEphemeraMessage {
     fn from(message: EphemeraMessage) -> Self {
         Self {
+            timestamp: message.timestamp,
             label: message.label,
             data: message.data,
         }
     }
 }
 
-impl Encode for UnsignedEphemeraMessage {
+impl Encode for RawEphemeraMessage {
     fn encode(&self) -> anyhow::Result<Vec<u8>> {
         Encoder::encode(&self)
     }
@@ -110,7 +116,7 @@ mod test {
             EphemeraMessage::signed("test".to_string(), vec![1, 2, 3], &message_signing_keypair)
                 .unwrap();
         let certificate = message.certificate.clone();
-        let raw_message: UnsignedEphemeraMessage = message.into();
+        let raw_message: RawEphemeraMessage = message.into();
         let data = raw_message.encode().unwrap();
 
         assert!(certificate.public_key.verify(&data, &certificate.signature));
@@ -131,7 +137,7 @@ mod test {
             &message_signing_keypair,
         )
         .unwrap();
-        let raw_message: UnsignedEphemeraMessage = modified_message.into();
+        let raw_message: RawEphemeraMessage = modified_message.into();
         let data = raw_message.encode().unwrap();
 
         assert!(!certificate.public_key.verify(&data, &certificate.signature));
