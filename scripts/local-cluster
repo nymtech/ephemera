@@ -262,7 +262,7 @@ REWARD_CONTRACT="$PROJECT_ROOT"/target/release/reward_contract
 
 #export RUST_LOG="nym_api=debug,ephemera=debug,info"
 export RUST_LOG="info"
-export RUST_BACKTRACE=1
+export RUST_BACKTRACE=full
 
 build() {
   echo "Building ephemera..."
@@ -371,7 +371,7 @@ run_ephemera() {
   echo "Starting $d"
   $EPHEMERA run-node --config-file ~/.ephemera/node"${NR}"/ephemera.toml >"$LOGS_FILE" 2>&1 &
 
-  echo "$!" >>"$PIDS_FILE"
+  echo "$NR":"$!" >>"$PIDS_FILE"
 
   echo Log file: "$LOGS_FILE"
 }

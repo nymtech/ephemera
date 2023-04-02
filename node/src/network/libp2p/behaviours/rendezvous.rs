@@ -9,6 +9,7 @@ use libp2p::swarm::{
     THandlerInEvent, THandlerOutEvent,
 };
 use libp2p::Multiaddr;
+use tokio::task::JoinHandle;
 
 pub(crate) struct RendezvousBehaviour<P: PeerDiscovery> {
     peers: HashMap<PeerId, Peer>,
@@ -46,12 +47,16 @@ impl<P: PeerDiscovery + 'static> RendezvousBehaviour<P> {
         self.previous_peers.keys().cloned().collect()
     }
 
-    pub(crate) async fn spawn(&mut self) {
+    pub(crate) async fn spawn(&mut self) -> anyhow::Result<JoinHandle<()>> {
         let tx = self.discovery_channel_tx.clone();
-        let mut peer_discovery = self.peer_discovery.take().unwrap();
+        let mut peer_discovery = self
+            .peer_discovery
+            .take()
+            .ok_or(anyhow::anyhow!("Peer discovery already spawned"))?;
 
-        peer_discovery.poll(tx.clone()).await.unwrap();
-        tokio::spawn(async move {
+        peer_discovery.poll(tx.clone()).await?;
+
+        let join_handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(peer_discovery.get_poll_interval());
             loop {
                 interval.tick().await;
@@ -61,6 +66,7 @@ impl<P: PeerDiscovery + 'static> RendezvousBehaviour<P> {
                 }
             }
         });
+        Ok(join_handle)
     }
 }
 
@@ -104,6 +110,7 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for RendezvousBehaviour<P> {
         if let Poll::Ready(Some(peers)) = self.discovery_channel_rcv.poll_recv(cx) {
             let previous_peers = std::mem::take(&mut self.peers);
             self.previous_peers = previous_peers;
+
             for peer_info in peers {
                 let peer: Peer = peer_info.try_into().unwrap();
                 self.peers.insert(peer.peer_id, peer);

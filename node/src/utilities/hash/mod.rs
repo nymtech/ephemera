@@ -3,8 +3,6 @@ use digest::consts::U32;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
 
-use crate::utilities::to_base58;
-
 pub type Hasher = Blake2bHasher;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
@@ -22,13 +20,13 @@ impl HashType {
 
 impl Debug for HashType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", to_base58(self.0))
+        write!(f, "{:?}", self.base58())
     }
 }
 
 impl Display for HashType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", to_base58(self.0))
+        write!(f, "{}", self.base58())
     }
 }
 

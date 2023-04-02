@@ -2,9 +2,8 @@
 //! Basically they are public version of the same types used internally.
 //! But it seems like a good idea to keep external and internal types separate.
 
-use std::fmt::Display;
-
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 use utoipa::ToSchema;
 
 use crate::{
@@ -13,11 +12,13 @@ use crate::{
     codec::{Decode, Encode},
     crypto::PublicKey,
     network::peer::PeerId,
-    utilities::crypto::{Certificate, Signature},
-    utilities::encoding::{Decoder, Encoder, EphemeraDecoder},
-    utilities::id::EphemeraId,
-    utilities::time::EphemeraTime,
-    utilities::EphemeraEncoder,
+    utilities::{
+        crypto::{Certificate, Signature},
+        encoding::{Decoder, Encoder, EphemeraDecoder},
+        id::EphemeraId,
+        time::EphemeraTime,
+        EphemeraEncoder,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]

@@ -51,10 +51,6 @@ pub fn to_hex<T: AsRef<[u8]>>(data: T) -> String {
     array_bytes::bytes2hex("", data.as_ref())
 }
 
-pub fn to_base58<T: AsRef<[u8]>>(data: T) -> String {
-    bs58::encode(data.as_ref()).into_string()
-}
-
 pub fn from_base58<T: AsRef<[u8]>>(data: T) -> anyhow::Result<Vec<u8>> {
     bs58::decode(data.as_ref())
         .into_vec()

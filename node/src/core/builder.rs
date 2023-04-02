@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::api::application::Application;
-use crate::api::{ApiListener, EphemeraExternalApi};
+use crate::api::{http, ApiListener, EphemeraExternalApi};
 use crate::block::builder::BlockManagerBuilder;
 use crate::block::manager::BlockManager;
 use crate::broadcast::bracha::broadcaster::Broadcaster;
@@ -25,7 +25,7 @@ use crate::storage::EphemeraDatabase;
 use crate::utilities::crypto::key_manager::KeyManager;
 use crate::utilities::Ed25519Keypair;
 use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
-use crate::{http, Ephemera};
+use crate::Ephemera;
 
 #[derive(Clone)]
 pub(crate) struct NodeInfo {
@@ -140,7 +140,6 @@ where
     //(also relative to Ephemera).
     //TODO: Need to write down how all these components work together and depend on each other
     async fn start_tasks(&mut self, shutdown_manager: &mut ShutdownManager) -> anyhow::Result<()> {
-        ////////////////////////// NETWORK /////////////////////////////////////
         log::info!("Starting network...");
         match self.start_network(shutdown_manager.subscribe()) {
             Ok(nw_task) => {
@@ -151,9 +150,7 @@ where
                 return Err(err);
             }
         }
-        ////////////////////////////////////////////////////////////////////////
 
-        ////////////////////////// HTTP SERVER /////////////////////////////////////
         log::info!("Starting http server...");
         match self.start_http(shutdown_manager.subscribe()) {
             Ok(http_task) => {
@@ -164,9 +161,7 @@ where
                 return Err(err);
             }
         }
-        ////////////////////////////////////////////////////////////////////////
 
-        ////////////////////////// WEBSOCKET /////////////////////////////////////
         log::info!("Starting websocket listener...");
         match self.start_websocket(shutdown_manager.subscribe()).await {
             Ok(ws_task) => {

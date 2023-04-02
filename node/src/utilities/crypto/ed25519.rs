@@ -82,8 +82,7 @@ impl EphemeraKeypair for Ed25519Keypair {
     where
         Self: Sized,
     {
-        let keypair = libp2p::identity::Keypair::from_protobuf_encoding(&raw)
-            .map_err(|e| KeyPairError::Deserialization(e.to_string()))?;
+        let keypair = libp2p::identity::Keypair::from_protobuf_encoding(&raw)?;
         Ok(Ed25519Keypair(keypair))
     }
 
@@ -103,8 +102,7 @@ impl EphemeraPublicKey for Ed25519PublicKey {
     where
         Self: Sized,
     {
-        let public_key = libp2p::identity::PublicKey::from_protobuf_encoding(&raw)
-            .map_err(|e| KeyPairError::Deserialization(e.to_string()))?;
+        let public_key = libp2p::identity::PublicKey::from_protobuf_encoding(&raw)?;
         Ok(Ed25519PublicKey(public_key))
     }
 

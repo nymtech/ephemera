@@ -53,7 +53,6 @@ pub(crate) mod broadcast;
 pub mod cli;
 pub mod config;
 mod core;
-pub(crate) mod http;
 pub mod logging;
 mod network;
 mod storage;

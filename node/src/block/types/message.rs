@@ -70,7 +70,6 @@ impl EphemeraHash for EphemeraMessage {
 }
 
 /// Raw message represents all the data what will be signed.
-//TODO decide how exactly use EphemeraRawMessage internally/externally
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub(crate) struct UnsignedEphemeraMessage {
     pub(crate) label: String,

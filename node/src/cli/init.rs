@@ -5,8 +5,7 @@ use crate::config::{
     WsConfig, DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT,
     DEFAULT_PROPOSED_MSG_TOPIC_NAME, DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOTAL_NR_OF_NODES,
 };
-use crate::crypto::Keypair;
-use crate::utilities::encoding::to_base58;
+use crate::crypto::{EphemeraPublicKey, Keypair};
 use crate::utilities::EphemeraKeypair;
 
 #[derive(Debug, Clone, Parser)]
@@ -44,13 +43,13 @@ impl InitCmd {
         }
 
         let keypair = Keypair::generate(None);
-        let pub_key = keypair.to_base58();
-        let private_key = to_base58(keypair.to_raw_vec());
+        let public_key = keypair.public_key().to_base58();
+        let private_key = keypair.to_base58();
 
         let configuration = Configuration {
             node: NodeConfig {
                 address: format!("{}{}", self.address, self.port),
-                pub_key,
+                public_key,
                 private_key,
             },
             broadcast: BroadcastConfig {

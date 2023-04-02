@@ -79,14 +79,15 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         // Spawn rendezvous behaviour outside of swarm event loop.
         // It would look better if it were integrated into libp2p architecture.
         // Maybe some good ideas will come up in the future.
-        self.swarm
+        let mut rendezvous_handle = self
+            .swarm
             .behaviour_mut()
             .rendezvous_behaviour
             .spawn()
-            .await;
+            .await?;
 
         loop {
-            tokio::select!(
+            tokio::select! {
                 swarm_event = self.swarm.next() => {
                     match swarm_event{
                         Some(event) => {
@@ -102,7 +103,11 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 Some(event) = self.from_ephemera_rcv.net_event_rcv.recv() => {
                     self.process_ephemera_events(event).await;
                 }
-            );
+                _ = &mut rendezvous_handle => {
+                    log::info!("Rendezvous behaviour finished");
+                    return Ok(());
+                }
+            }
         }
     }
 

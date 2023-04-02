@@ -21,19 +21,6 @@ pub struct RunExternalNodeCmd {
     pub config_file: String,
 }
 
-struct DummyPeerDiscovery;
-
-#[async_trait]
-impl PeerDiscovery for DummyPeerDiscovery {
-    async fn poll(&mut self, _: UnboundedSender<Vec<PeerInfo>>) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    fn get_poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::MAX
-    }
-}
-
 impl RunExternalNodeCmd {
     pub async fn execute(&self) -> anyhow::Result<()> {
         let conf = match Configuration::try_load(PathBuf::from(self.config_file.as_str())) {
@@ -111,6 +98,19 @@ impl Application for SignatureVerificationApplication {
     }
 }
 
+struct DummyPeerDiscovery;
+
+#[async_trait]
+impl PeerDiscovery for DummyPeerDiscovery {
+    async fn poll(&mut self, _: UnboundedSender<Vec<PeerInfo>>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn get_poll_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(60)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct ConfigPeers {
     config: Libp2pConfig,
@@ -152,6 +152,6 @@ impl PeerDiscovery for ConfigPeers {
     }
 
     fn get_poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::MAX
+        std::time::Duration::from_secs(60)
     }
 }

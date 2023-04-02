@@ -14,7 +14,9 @@ pub(crate) async fn health() -> impl Responder {
 
 #[utoipa::path(
 responses(
-(status = 200, description = "GET block by id")),
+(status = 200, description = "GET block by id"),
+(status = 404, description = "Block not found"),
+(status = 500, description = "Server failed to process request")),
 params(("id", description = "Block id")),
 )]
 #[get("/ephemera/block/{id}")]
@@ -36,7 +38,9 @@ pub(crate) async fn block_by_id(
 
 #[utoipa::path(
 responses(
-(status = 200, description = "Get block signatures")),
+(status = 200, description = "Get block signatures"),
+(status = 404, description = "Signatures not found"),
+(status = 500, description = "Server failed to process request")),
 params(("id", description = "Block id")),
 )]
 #[get("/ephemera/block/signatures/{id}")]
@@ -59,7 +63,9 @@ pub(crate) async fn block_signatures(
 
 #[utoipa::path(
 responses(
-(status = 200, description = "Get block by height")),
+(status = 200, description = "Get block by height"),
+(status = 404, description = "Block not found"),
+(status = 500, description = "Server failed to process request")),
 params(("height", description = "Block height")),
 )]
 #[get("/ephemera/block/height/{height}")]
@@ -81,7 +87,8 @@ pub(crate) async fn block_by_height(
 
 #[utoipa::path(
 responses(
-(status = 200, description = "Get last block")),
+(status = 200, description = "Get last block"),
+(status = 500, description = "Server failed to process request")),
 )]
 //Need to use plural(blocks), otherwise overlaps with block_by_id route
 #[get("/ephemera/blocks/last")]

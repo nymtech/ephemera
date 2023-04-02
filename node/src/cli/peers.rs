@@ -89,7 +89,7 @@ impl AddLocalPeersCmd {
                 conf.libp2p.peers.push(PeerSetting {
                     name: node_name.to_string(),
                     address: peer_conf.node.address.clone(),
-                    pub_key: peer_conf.node.pub_key.clone(),
+                    pub_key: peer_conf.node.public_key.clone(),
                 });
                 conf.broadcast.cluster_size = configs.len();
             }

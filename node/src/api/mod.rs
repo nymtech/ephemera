@@ -1,29 +1,42 @@
 //! # Ephemera API
 //!
 //! This module contains all the types and functions available as part of the Ephemera public API.
+//!
 //! This API is also available over HTTP.
-use std::fmt::Display;
 
+pub mod application;
+pub(crate) mod http;
+pub mod types;
+
+use std::fmt::Display;
 use thiserror::Error;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::oneshot;
+use tokio::sync::{
+    mpsc::{channel, Receiver, Sender},
+    oneshot,
+};
 
 use crate::api::types::{ApiBlock, ApiCertificate, ApiEphemeraMessage};
 
-pub mod application;
-pub mod types;
-
 #[derive(Error, Debug)]
 pub enum ApiError {
-    #[error("{0}")]
-    General(String),
+    #[error("Application rejected ephemera message")]
+    ApplicationRejectedMessage,
+    #[error("Duplicate message")]
+    DuplicateMessage,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
 }
 
-//TODO: perhaps enum for responses
+//TODO: perhaps strict types for responses
+
+pub(crate) type DhtKV = (Vec<u8>, Vec<u8>);
 
 #[derive(Debug)]
 pub(crate) enum ApiCmd {
-    SubmitEphemeraMessage(Box<ApiEphemeraMessage>),
+    SubmitEphemeraMessage(
+        Box<ApiEphemeraMessage>,
+        oneshot::Sender<Result<(), ApiError>>,
+    ),
     QueryBlockByHeight(u64, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
     QueryBlockById(String, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
     QueryLastBlock(oneshot::Sender<Result<ApiBlock, ApiError>>),
@@ -31,17 +44,14 @@ pub(crate) enum ApiCmd {
         String,
         oneshot::Sender<Result<Option<Vec<ApiCertificate>>, ApiError>>,
     ),
-    QueryDht(
-        Vec<u8>,
-        oneshot::Sender<Result<Option<(Vec<u8>, Vec<u8>)>, ApiError>>,
-    ),
+    QueryDht(Vec<u8>, oneshot::Sender<Result<Option<DhtKV>, ApiError>>),
     StoreInDht(Vec<u8>, Vec<u8>, oneshot::Sender<Result<(), ApiError>>),
 }
 
 impl Display for ApiCmd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ApiCmd::SubmitEphemeraMessage(message) => {
+            ApiCmd::SubmitEphemeraMessage(message, _) => {
                 write!(f, "SubmitEphemeraMessage({message})",)
             }
             ApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})",),
@@ -127,12 +137,8 @@ impl EphemeraExternalApi {
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers
     pub async fn send_ephemera_message(&self, message: ApiEphemeraMessage) -> Result<(), ApiError> {
         log::trace!("send_ephemera_message({})", message);
-        let cmd = ApiCmd::SubmitEphemeraMessage(message.into());
-        self.commands_channel.send(cmd).await.map_err(|_| {
-            ApiError::General(
-                "Api channel closed. It means that probably Ephemera is crashed".to_string(),
-            )
-        })
+        self.send_and_wait_response(|tx| ApiCmd::SubmitEphemeraMessage(message.into(), tx))
+            .await
     }
 
     async fn send_and_wait_response<F, R>(&self, f: F) -> Result<R, ApiError>
@@ -143,14 +149,13 @@ impl EphemeraExternalApi {
         let (tx, rcv) = oneshot::channel();
         let cmd = f(tx);
         if let Err(err) = self.commands_channel.send(cmd).await {
-            log::error!("Failed to send command to Ephemera: {:?}", err);
-            return Err(ApiError::General(
-                "Api channel closed. It means that probably Ephemera is crashed".to_string(),
-            ));
+            return Err(ApiError::Internal(err.into()));
         }
         rcv.await.map_err(|e| {
-            log::error!("Failed to receive response from Ephemera: {:?}", e);
-            ApiError::General("Failed to receive response from Ephemera".to_string())
+            ApiError::Internal(
+                anyhow::Error::msg(format!("Failed to receive response from Ephemera: {:?}", e))
+                    .into(),
+            )
         })?
     }
 }

@@ -33,7 +33,7 @@ pub struct Configuration {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct NodeConfig {
     pub address: String,
-    pub pub_key: String,
+    pub public_key: String,
     //FIXME: dev only
     pub private_key: String,
 }

@@ -14,13 +14,15 @@ impl MessagePool {
         }
     }
 
+    pub(crate) fn contains(&self, hash: &HashType) -> bool {
+        self.pending_messages.contains_key(hash)
+    }
+
     pub(super) fn add_message(&mut self, msg: EphemeraMessage) -> anyhow::Result<()> {
         let msg_hash = msg.hash_with_default_hasher()?;
 
-        if self.pending_messages.contains_key(&msg_hash) {
-            anyhow::bail!("Message already in pool: {}", msg_hash.base58());
-        }
-        log::debug!("Adding message to pool: {}", msg_hash.base58());
+        log::debug!("Adding message to pool: {}", msg_hash);
+
         self.pending_messages.insert(msg_hash, msg);
 
         log::debug!("Message pool size: {:?}", self.pending_messages.len());

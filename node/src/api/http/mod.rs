@@ -1,12 +1,12 @@
+pub(crate) mod query;
+pub(crate) mod submit;
+
 use actix_web::{dev::Server, web::Data, App, HttpServer};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::EphemeraExternalApi;
 use crate::config::HttpConfig;
-
-pub(crate) mod query;
-pub(crate) mod submit;
 
 /// Starts the HTTP server.
 pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> anyhow::Result<Server> {

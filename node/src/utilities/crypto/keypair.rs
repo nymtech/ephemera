@@ -14,8 +14,8 @@ pub enum KeyPairError {
     PrivateKey(String),
     #[error("Invalid public key")]
     PublicKey,
-    #[error("Unable to deserialize keypair: '{}'", .0)]
-    Deserialization(String),
+    #[error("Unable to deserialize keypair")]
+    DecodingError(#[from] libp2p_identity::DecodingError),
 }
 
 pub trait EphemeraPublicKey {

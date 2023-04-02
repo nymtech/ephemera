@@ -6,6 +6,7 @@ use futures::FutureExt;
 use futures::Stream;
 use futures_timer::Delay;
 use lru::LruCache;
+use thiserror::Error;
 
 use crate::block::message_pool::MessagePool;
 use crate::block::producer::BlockProducer;
@@ -15,6 +16,16 @@ use crate::broadcast::signing::BlockSigner;
 use crate::config::BlockConfig;
 use crate::utilities::crypto::Certificate;
 use crate::utilities::hash::HashType;
+
+pub(crate) type Result<T> = std::result::Result<T, BlockManagerError>;
+
+#[derive(Error, Debug)]
+pub(crate) enum BlockManagerError {
+    #[error("Message is already in pool: {0}")]
+    DuplicateMessage(String),
+    #[error("{0}")]
+    Internal(#[from] anyhow::Error),
+}
 
 pub(crate) struct BlockManager {
     pub(super) config: BlockConfig,
@@ -37,8 +48,18 @@ pub(crate) struct BlockManager {
 }
 
 impl BlockManager {
-    pub(crate) async fn on_new_message(&mut self, msg: EphemeraMessage) -> anyhow::Result<()> {
-        self.message_pool.add_message(msg)
+    pub(crate) async fn on_new_message(&mut self, msg: EphemeraMessage) -> Result<()> {
+        let message_hash = msg.hash_with_default_hasher()?;
+
+        if self.message_pool.contains(&message_hash) {
+            return Err(BlockManagerError::DuplicateMessage(
+                message_hash.to_string(),
+            ));
+        }
+
+        self.message_pool.add_message(msg)?;
+
+        Ok(())
     }
 
     pub(crate) fn on_block(
