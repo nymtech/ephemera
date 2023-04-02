@@ -38,6 +38,7 @@ impl ApiCmdProcessor {
                 // 1. Ask application to decide if we should accept this message.
                 match ephemera.application.check_tx(*sm.clone()) {
                     Ok(true) => {
+                        log::trace!("Application accepted ephemera message: {:?}", sm);
                         // 2. Send to BlockManager to put into memory pool
                         let ephemera_msg: crate::block::types::message::EphemeraMessage =
                             (*sm).try_into()?;
@@ -48,20 +49,24 @@ impl ApiCmdProcessor {
                         {
                             Ok(_) => {
                                 //Gossip to network for other nodes to receive
-                                if let Err(err) = ephemera
+                                match ephemera
                                     .to_network
                                     .send_ephemera_event(EphemeraEvent::EphemeraMessage(
                                         ephemera_msg.into(),
                                     ))
                                     .await
                                 {
-                                    log::error!(
-                                        "Error sending ephemera message to network: {:?}",
-                                        err
-                                    );
-                                    reply.send(Err(err.into())).expect(
-                                        "Error sending SubmitEphemeraMessage response to api",
-                                    );
+                                    Ok(_) => {
+                                        reply.send(Ok(())).expect(
+                                            "Error sending SubmitEphemeraMessage response to api",
+                                        );
+                                    }
+                                    Err(err) => {
+                                        log::error!("Error: {}", err);
+                                        reply.send(Err(api::ApiError::Internal(err))).expect(
+                                            "Error sending SubmitEphemeraMessage response to api",
+                                        );
+                                    }
                                 }
                             }
                             Err(err) => {
@@ -91,7 +96,7 @@ impl ApiCmdProcessor {
                     Err(err) => {
                         log::error!("Application rejected transaction: {:?}", err);
                         reply
-                            .send(Err(api::ApiError::Internal(err.into())))
+                            .send(Err(api::ApiError::Internal(err)))
                             .expect("Error sending SubmitEphemeraMessage response to api");
                     }
                 }
@@ -112,7 +117,7 @@ impl ApiCmdProcessor {
                     }
                     Err(err) => {
                         reply
-                            .send(Err(api::ApiError::Internal(err.into())))
+                            .send(Err(api::ApiError::Internal(err)))
                             .expect("Error sending QueryBlockById response to api");
                     }
                 };
@@ -133,7 +138,7 @@ impl ApiCmdProcessor {
                     }
                     Err(err) => {
                         reply
-                            .send(Err(api::ApiError::Internal(err.into())))
+                            .send(Err(api::ApiError::Internal(err)))
                             .expect("Error sending QueryBlockByHeight response to api");
                     }
                 };
@@ -155,7 +160,7 @@ impl ApiCmdProcessor {
                     }
                     Err(err) => {
                         reply
-                            .send(Err(api::ApiError::Internal(err.into())))
+                            .send(Err(api::ApiError::Internal(err)))
                             .expect("Error sending QueryLastBlock response to api");
                     }
                 };
@@ -179,7 +184,7 @@ impl ApiCmdProcessor {
                     }
                     Err(err) => {
                         reply
-                            .send(Err(api::ApiError::Internal(err.into())))
+                            .send(Err(api::ApiError::Internal(err)))
                             .expect("Error sending QueryBlockSignatures response to api");
                     }
                 };
@@ -202,7 +207,7 @@ impl ApiCmdProcessor {
                         log::error!("Error sending QueryDht to network: {:?}", err);
 
                         reply
-                            .send(Err(api::ApiError::Internal(err.into())))
+                            .send(Err(api::ApiError::Internal(err)))
                             .expect("Error sending QueryDht response to api");
                     }
                 }
@@ -216,7 +221,7 @@ impl ApiCmdProcessor {
                     log::error!("Error sending StoreInDht to network: {:?}", err);
 
                     reply
-                        .send(Err(api::ApiError::Internal(err.into())))
+                        .send(Err(api::ApiError::Internal(err)))
                         .expect("Error sending StoreInDht response to api");
                 } else {
                     reply

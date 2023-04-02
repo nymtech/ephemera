@@ -6,9 +6,8 @@ use serde::{Deserialize, Serialize};
 pub use ed25519::{Ed25519Keypair, Ed25519PublicKey};
 pub use keypair::{EphemeraKeypair, EphemeraPublicKey, KeyPairError};
 
-use crate::codec::Encode;
+use crate::codec::{Encode, EphemeraEncoder};
 use crate::utilities::encoding::Encoder;
-use crate::utilities::EphemeraEncoder;
 
 pub mod ed25519;
 pub mod key_manager;
@@ -55,7 +54,7 @@ impl Display for Signature {
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq, PartialOrd, Ord, Deserialize, Serialize)]
-pub struct Certificate {
+pub(crate) struct Certificate {
     pub(crate) signature: Signature,
     pub(crate) public_key: PublicKey,
 }

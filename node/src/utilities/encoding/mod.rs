@@ -46,13 +46,3 @@ pub trait Decode {
     /// Decodes a message from a vector of bytes
     fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output>;
 }
-
-pub fn to_hex<T: AsRef<[u8]>>(data: T) -> String {
-    array_bytes::bytes2hex("", data.as_ref())
-}
-
-pub fn from_base58<T: AsRef<[u8]>>(data: T) -> anyhow::Result<Vec<u8>> {
-    bs58::decode(data.as_ref())
-        .into_vec()
-        .map_err(|_| anyhow::anyhow!("Invalid base58 string"))
-}

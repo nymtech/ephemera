@@ -199,9 +199,8 @@ mod test {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use crate::crypto::Keypair;
+    use crate::crypto::{EphemeraKeypair, Keypair};
     use crate::network::peer::{PeerId, ToPeerId};
-    use crate::utilities::EphemeraKeypair;
 
     use super::*;
 

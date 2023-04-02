@@ -6,7 +6,7 @@ use tokio::sync::broadcast::Receiver;
 use tokio::sync::Mutex;
 
 use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
-use ephemera::api::{ApiError, EphemeraExternalApi};
+use ephemera::api::{types, ApiError, EphemeraExternalApi};
 use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
 
 use crate::contract::MixnodeToReward;
@@ -229,17 +229,14 @@ where
             .expect("Ephemera access not set")
             .key_pair;
 
+        let label = self.epoch.current_epoch_numer().to_string();
         let data = serde_json::to_vec(&rewards)?;
+        let raw_message = types::RawApiEphemeraMessage::new(label, data);
 
-        let signature = keypair.sign(&data)?;
-        let pub_key = keypair.public_key();
+        let certificate = types::ApiCertificate::prepare(keypair, &raw_message)?;
+        let signed_message = ApiEphemeraMessage::new(raw_message, certificate);
 
-        let api_signature = ephemera::api::types::ApiCertificate::new(signature, pub_key);
-
-        let epoch_nr = self.epoch.current_epoch_numer().to_string();
-        let api_signed_message = ApiEphemeraMessage::new(data, api_signature, epoch_nr);
-
-        Ok(api_signed_message)
+        Ok(signed_message)
     }
 
     //By current assumption, all nodes will try submit their aggregated rewards

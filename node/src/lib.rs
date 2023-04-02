@@ -24,10 +24,6 @@
 //!
 //! Note that it *requires* a blockchain to be present.
 
-pub use crate::core::builder::EphemeraStarter;
-pub use crate::core::ephemera::Ephemera;
-pub use crate::core::shutdown::ShutdownHandle;
-
 pub mod id {
     pub use super::utilities::id::EphemeraId;
 }
@@ -44,16 +40,21 @@ pub mod crypto {
 }
 
 pub mod codec {
-    pub use super::utilities::encoding::{Decode, Encode};
+    pub use super::utilities::encoding::{Decode, Encode, EphemeraEncoder};
 }
 
+pub use crate::core::builder::EphemeraStarter;
+pub use crate::core::ephemera::Ephemera;
+pub use crate::core::shutdown::ShutdownHandle;
+
 pub mod api;
-pub(crate) mod block;
-pub(crate) mod broadcast;
 pub mod cli;
 pub mod config;
-mod core;
 pub mod logging;
+
+mod block;
+mod broadcast;
+mod core;
 mod network;
 mod storage;
 mod utilities;

@@ -8,12 +8,12 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::api::application::{Application, DefaultApplication};
 use crate::api::types::{ApiBlock, ApiEphemeraMessage, RawApiEphemeraMessage};
+use crate::codec::EphemeraEncoder;
 use crate::config::{Configuration, Libp2pConfig, PeerSetting};
 use crate::core::builder::EphemeraStarter;
-use crate::crypto::PublicKey;
+use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
 use crate::network::discovery::{PeerDiscovery, PeerInfo};
 use crate::utilities::encoding::Encoder;
-use crate::utilities::{Ed25519Keypair, EphemeraEncoder, EphemeraKeypair, EphemeraPublicKey};
 
 #[derive(Debug, Clone, Parser)]
 pub struct RunExternalNodeCmd {
@@ -61,11 +61,11 @@ impl RunExternalNodeCmd {
 }
 
 pub struct SignatureVerificationApplication {
-    keypair: Arc<Ed25519Keypair>,
+    keypair: Arc<Keypair>,
 }
 
 impl SignatureVerificationApplication {
-    pub fn new(keypair: Arc<Ed25519Keypair>) -> Self {
+    pub fn new(keypair: Arc<Keypair>) -> Self {
         Self { keypair }
     }
 

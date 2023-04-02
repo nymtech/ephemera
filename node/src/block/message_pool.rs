@@ -59,8 +59,7 @@ impl MessagePool {
 mod test {
     use crate::block::message_pool::MessagePool;
     use crate::block::types::message::EphemeraMessage;
-    use crate::crypto::Keypair;
-    use crate::utilities::EphemeraKeypair;
+    use crate::crypto::{EphemeraKeypair, Keypair};
 
     #[test]
     #[should_panic(expected = "Message already in pool")]

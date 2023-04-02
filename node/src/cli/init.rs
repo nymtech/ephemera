@@ -5,8 +5,7 @@ use crate::config::{
     WsConfig, DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT,
     DEFAULT_PROPOSED_MSG_TOPIC_NAME, DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOTAL_NR_OF_NODES,
 };
-use crate::crypto::{EphemeraPublicKey, Keypair};
-use crate::utilities::EphemeraKeypair;
+use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
 
 #[derive(Debug, Clone, Parser)]
 pub struct InitCmd {

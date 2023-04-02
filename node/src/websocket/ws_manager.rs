@@ -1,10 +1,11 @@
 use anyhow::Result;
 use futures_util::SinkExt;
 use std::net::SocketAddr;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::broadcast;
-use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::WebSocketStream;
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::broadcast,
+};
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::api::types::ApiBlock;
 use crate::block::types::block::Block;
@@ -31,23 +32,23 @@ impl WsConnection {
 
     pub async fn accept_messages(mut self) {
         loop {
-            let msg = self.pending_messages_rx.recv().await;
-            log::trace!("Received message from broadcast channel: {:?}", msg);
-            match msg {
+            match self.pending_messages_rx.recv().await {
                 Ok(msg) => {
                     log::debug!("Sending message to {}", self.address);
-                    match self.socket.send(msg).await {
-                        Ok(_) => {
-                            log::trace!("Sent message to websocket client");
-                        }
-                        Err(e) => {
-                            log::error!("Error sending message to websocket client: {:?}", e);
-                        }
+                    if let Err(err) = self.socket.send(msg).await {
+                        log::error!(
+                            "Error sending message to websocket client: {:?}, dropping connection",
+                            err
+                        );
+                        break;
                     }
                 }
                 Err(e) => {
                     //TODO:: shutdown?
-                    log::error!("Error receiving message from broadcast channel: {:?}", e);
+                    log::error!(
+                        "Error receiving message from broadcast channel: {:?}, dropping connection",
+                        e
+                    );
                     break;
                 }
             }

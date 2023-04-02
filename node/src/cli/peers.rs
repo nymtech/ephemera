@@ -1,7 +1,8 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
+//! This is used to add a peer to the configuration file. Only used for testing purposes.
 
 use clap::Parser;
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 use crate::config::{Configuration, PeerSetting};
 

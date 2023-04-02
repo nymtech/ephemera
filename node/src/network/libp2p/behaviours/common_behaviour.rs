@@ -12,6 +12,7 @@ use libp2p::{gossipsub, noise, request_response, PeerId as Libp2pPeerId, Transpo
 
 use crate::broadcast::RbMsg;
 use crate::config::Libp2pConfig;
+use crate::crypto::Keypair;
 use crate::network::discovery::PeerDiscovery;
 use crate::network::libp2p::behaviours::broadcast_messages::{
     RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
@@ -19,7 +20,6 @@ use crate::network::libp2p::behaviours::broadcast_messages::{
 use crate::network::libp2p::behaviours::rendezvous;
 use crate::network::libp2p::behaviours::rendezvous::RendezvousBehaviour;
 use crate::network::peer::ToPeerId;
-use crate::utilities::crypto::ed25519::Ed25519Keypair;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
@@ -67,7 +67,7 @@ impl From<kad::KademliaEvent> for GroupBehaviourEvent {
 //Peer discovery takes care of locating peers
 pub(crate) fn create_behaviour<P: PeerDiscovery + 'static>(
     libp2p_conf: &Libp2pConfig,
-    keypair: Arc<Ed25519Keypair>,
+    keypair: Arc<Keypair>,
     peer_discovery: P,
 ) -> GroupNetworkBehaviour<P> {
     let ephemera_msg_topic = Topic::new(&libp2p_conf.ephemera_msg_topic_name);
@@ -86,10 +86,7 @@ pub(crate) fn create_behaviour<P: PeerDiscovery + 'static>(
 }
 
 // Configure networking messaging stack(Gossipsub)
-pub(crate) fn create_gossipsub(
-    local_key: Arc<Ed25519Keypair>,
-    topic: &Topic,
-) -> gossipsub::Behaviour {
+pub(crate) fn create_gossipsub(local_key: Arc<Keypair>, topic: &Topic) -> gossipsub::Behaviour {
     let gossipsub_config = gossipsub::ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(5))
         // .message_id_fn(message_id_fn) TODO: Implement message id function, we know better than gossipsub which
@@ -122,9 +119,7 @@ pub(crate) fn create_http_peer_discovery<P: PeerDiscovery + 'static>(
     RendezvousBehaviour::new(peer_discovery)
 }
 
-pub(super) fn create_kademlia(
-    local_key: Arc<Ed25519Keypair>,
-) -> kad::Kademlia<kad::store::MemoryStore> {
+pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::store::MemoryStore> {
     let peer_id = local_key.peer_id();
     let mut cfg = kad::KademliaConfig::default();
     cfg.set_query_timeout(Duration::from_secs(5 * 60));
@@ -136,9 +131,7 @@ pub(super) fn create_kademlia(
 //Tcp protocol for networking
 //Noise protocol for encryption
 //Yamux protocol for multiplexing
-pub(crate) fn create_transport(
-    local_key: Arc<Ed25519Keypair>,
-) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
+pub(crate) fn create_transport(local_key: Arc<Keypair>) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
     let transport = TokioTransport::new(TokioConfig::default().nodelay(true));
     let noise_keypair = noise::Keypair::<noise::X25519Spec>::new()
         .into_authentic(&local_key.0.clone())

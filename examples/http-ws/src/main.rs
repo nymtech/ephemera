@@ -4,7 +4,7 @@ use std::thread;
 use clap::Parser;
 
 use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
-use ephemera::crypto::{Ed25519Keypair, EphemeraKeypair, EphemeraPublicKey};
+use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
 
 use crate::http_client::SignedMessageClient;
 use crate::ws_listener::WsBlockListener;
@@ -49,7 +49,7 @@ async fn main() {
     let signed_msg_data = shared_data.clone();
     let signed_msg_args = args.clone();
     tokio::spawn(async move {
-        let keypair = Ed25519Keypair::generate(None);
+        let keypair = Keypair::generate(None);
         send_signed_messages(keypair, signed_msg_data, signed_msg_args).await;
     });
 
@@ -75,11 +75,7 @@ async fn listen_ws_blocks(shared_data: Arc<Mutex<Data>>, args: Args) {
     listener.listen().await;
 }
 
-async fn send_signed_messages(
-    keypair: Ed25519Keypair,
-    shared_data: Arc<Mutex<Data>>,
-    args: Args,
-) -> ! {
+async fn send_signed_messages(keypair: Keypair, shared_data: Arc<Mutex<Data>>, args: Args) -> ! {
     let http_url = format!("http://{}:{}", args.host, args.http_port);
     println!(
         "Sending signed messages every {} ms\n",
@@ -118,10 +114,11 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
         if !blocks.is_empty() {
             println!("Received nr of blocks: {:?}\n", blocks.len());
         }
+
         for block in blocks {
-            match client.block_by_id(block.header.id.clone()).await {
+            match client.block_by_hash(block.hash()).await {
                 None => {
-                    println!("Block not found: {:?}\n", block.header.id.clone());
+                    println!("Block not found: {:?}\n", block.hash());
                     continue;
                 }
                 Some(http_block) => {
@@ -160,7 +157,7 @@ fn verify_messages_signatures(block: ApiBlock) -> anyhow::Result<()> {
 }
 
 fn compare_blocks(block: &ApiBlock, http_block: &ApiBlock) {
-    println!("Comparing block {}\n", block.header.id);
+    println!("Comparing block {}\n", block.hash());
 
     let ws_block_header = &block.header;
     let http_block_header = &http_block.header;

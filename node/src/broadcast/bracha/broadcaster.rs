@@ -1,19 +1,23 @@
+use lru::LruCache;
 use std::num::NonZeroUsize;
 
-use lru::LruCache;
-
-use crate::block::types::block::Block;
-use crate::broadcast::bracha::quorum::BrachaQuorum;
-use crate::broadcast::MessageType::{Echo, Vote};
-use crate::broadcast::{Command, ProtocolContext, RawRbMsg, Status};
-use crate::config::BroadcastConfig;
-use crate::network::peer::PeerId;
-use crate::utilities::hash::HashType;
+use crate::{
+    block::types::block::Block,
+    broadcast::{
+        bracha::quorum::BrachaQuorum,
+        Command,
+        MessageType::{Echo, Vote},
+        ProtocolContext, RawRbMsg, Status,
+    },
+    config::BroadcastConfig,
+    network::peer::PeerId,
+    utilities::hash::HashType,
+};
 
 pub(crate) struct Broadcaster {
     contexts: LruCache<HashType, ProtocolContext>,
     quorum: BrachaQuorum,
-    peer_id: PeerId,
+    local_peer_id: PeerId,
 }
 
 #[derive(Debug)]
@@ -28,13 +32,13 @@ impl Broadcaster {
         Broadcaster {
             contexts: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             quorum: BrachaQuorum::new(config),
-            peer_id,
+            local_peer_id: peer_id,
         }
     }
 
     pub(crate) async fn new_broadcast(&mut self, block: Block) -> anyhow::Result<ProtocolResponse> {
         log::debug!("Starting protocol for new block {}", block);
-        let rb_msg = RawRbMsg::new(block, self.peer_id);
+        let rb_msg = RawRbMsg::new(block, self.local_peer_id);
 
         log::debug!("New broadcast message: {:?}", rb_msg.id);
         self.handle(rb_msg).await
@@ -58,37 +62,36 @@ impl Broadcaster {
         Ok(())
     }
 
+    // on receiving <v> from leader:
+    // if echo == true:
+    // send <echo, v> to all parties
+    // echo = false
+    //
+    // on receiving <echo, v> from n-f distinct parties:
+    // if vote == true:
+    // send <vote, v> to all parties
+    // vote = false
     async fn process_echo(&mut self, rb_msg: RawRbMsg) -> anyhow::Result<ProtocolResponse> {
-        // on receiving <v> from leader:
-        // if echo == true:
-        // send <echo, v> to all parties
-        // echo = false
-        //
-        // on receiving <echo, v> from n-f distinct parties:
-        // if vote == true:
-        // send <vote, v> to all parties
-        // vote = false
-
         let block = rb_msg.get_block();
         let hash = block.hash_with_default_hasher()?;
         let ctx = self
             .contexts
-            .get_or_insert_mut(hash, || ProtocolContext::new(hash, self.peer_id));
+            .get_or_insert_mut(hash, || ProtocolContext::new(hash, self.local_peer_id));
 
-        if self.peer_id != rb_msg.original_sender {
+        if self.local_peer_id != rb_msg.original_sender {
             ctx.add_echo(rb_msg.original_sender);
         }
 
         //if echo = true:
         if !ctx.echoed() {
             //echo = false
-            ctx.add_echo(self.peer_id);
+            ctx.add_echo(self.local_peer_id);
 
             //send <echo, v> to all parties
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: Some(rb_msg.echo_reply(self.peer_id, block.clone())),
+                protocol_reply: Some(rb_msg.echo_reply(self.local_peer_id, block.clone())),
             });
         }
 
@@ -102,12 +105,12 @@ impl Broadcaster {
         {
             log::trace!("Prepare completed for {:?}", rb_msg.id);
 
-            ctx.add_vote(self.peer_id);
+            ctx.add_vote(self.local_peer_id);
 
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: Some(rb_msg.vote_reply(self.peer_id, block.clone())),
+                protocol_reply: Some(rb_msg.vote_reply(self.local_peer_id, block.clone())),
             });
         }
 
@@ -118,22 +121,21 @@ impl Broadcaster {
         })
     }
 
+    // on receiving <vote, v> from f+1 distinct parties:
+    // if vote == true:
+    // send <vote, v> to all parties
+    // vote = false
+    //
+    // on receiving <vote, v> from n-f distinct parties:
+    // deliver v
     async fn process_vote(&mut self, rb_msg: RawRbMsg) -> anyhow::Result<ProtocolResponse> {
-        // on receiving <vote, v> from f+1 distinct parties:
-        // if vote == true:
-        // send <vote, v> to all parties
-        // vote = false
-        //
-        // on receiving <vote, v> from n-f distinct parties:
-        // deliver v
-
         let block = rb_msg.get_block();
         let hash = block.hash_with_default_hasher()?;
         let ctx = self
             .contexts
-            .get_or_insert_mut(hash, || ProtocolContext::new(hash, self.peer_id));
+            .get_or_insert_mut(hash, || ProtocolContext::new(hash, self.local_peer_id));
 
-        if self.peer_id != rb_msg.original_sender {
+        if self.local_peer_id != rb_msg.original_sender {
             ctx.add_vote(rb_msg.original_sender);
         }
 
@@ -145,12 +147,12 @@ impl Broadcaster {
             .is_vote()
         {
             //vote = false
-            ctx.add_vote(self.peer_id);
+            ctx.add_vote(self.local_peer_id);
 
             return Ok(ProtocolResponse {
                 status: Status::Pending,
                 command: Command::Broadcast,
-                protocol_reply: Some(rb_msg.vote_reply(self.peer_id, block.clone())),
+                protocol_reply: Some(rb_msg.vote_reply(self.local_peer_id, block.clone())),
             });
         }
 

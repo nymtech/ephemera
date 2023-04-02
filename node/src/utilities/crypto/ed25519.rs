@@ -1,7 +1,7 @@
+use crate::crypto::EphemeraKeypair;
 use crate::network::peer::{PeerId, ToPeerId};
 use crate::utilities::crypto::keypair::KeyPairError;
 use crate::utilities::crypto::{EphemeraPublicKey, Signature};
-use crate::utilities::EphemeraKeypair;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 

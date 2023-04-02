@@ -4,13 +4,11 @@ use std::sync::Arc;
 
 use lru::LruCache;
 
-use crate::block::types::block::{Block, RawBlock};
-use crate::crypto::Keypair;
-use crate::utilities::crypto::ed25519::Ed25519Keypair;
-use crate::utilities::crypto::Certificate;
-use crate::utilities::crypto::EphemeraPublicKey;
-use crate::utilities::encoding::Encode;
-use crate::utilities::hash::HashType;
+use crate::{
+    block::types::block::{Block, RawBlock},
+    crypto::Keypair,
+    utilities::{crypto::Certificate, crypto::EphemeraPublicKey, encoding::Encode, hash::HashType},
+};
 
 pub(crate) struct BlockSigner {
     /// All signatures of the last blocks that we received from the network(+ our own)
@@ -20,7 +18,7 @@ pub(crate) struct BlockSigner {
 }
 
 impl BlockSigner {
-    pub fn new(keypair: Arc<Ed25519Keypair>) -> Self {
+    pub fn new(keypair: Arc<Keypair>) -> Self {
         Self {
             verified_signatures: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             signing_keypair: keypair,
@@ -85,9 +83,8 @@ impl BlockSigner {
 mod test {
     use crate::block::types::block::RawBlockHeader;
     use crate::block::types::message::{EphemeraMessage, UnsignedEphemeraMessage};
+    use crate::crypto::EphemeraKeypair;
     use crate::network::peer::ToPeerId;
-    use crate::utilities::crypto::ed25519::Ed25519Keypair;
-    use crate::utilities::EphemeraKeypair;
 
     use super::*;
 
@@ -116,7 +113,7 @@ mod test {
         assert!(signer.verify_block(&modified_block, &certificate).is_err());
     }
 
-    fn new_block(keypair: &Ed25519Keypair) -> Block {
+    fn new_block(keypair: &Keypair) -> Block {
         let peer_id = keypair.public_key().peer_id();
 
         let raw_ephemera_message =

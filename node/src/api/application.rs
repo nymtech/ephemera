@@ -28,17 +28,17 @@ pub struct DefaultApplication;
 /// Default application which doesn't do any validation.
 impl Application for DefaultApplication {
     fn check_tx(&self, tx: ApiEphemeraMessage) -> anyhow::Result<bool> {
-        log::info!("ApplicationPlaceholder::check_tx: {tx:?}");
+        log::trace!("ApplicationPlaceholder::check_tx: {tx:?}");
         Ok(true)
     }
 
     fn check_block(&self, block: &ApiBlock) -> anyhow::Result<bool> {
-        log::info!("ApplicationPlaceholder::accept_block: {block:?}");
+        log::trace!("ApplicationPlaceholder::accept_block: {block:?}");
         Ok(true)
     }
 
     fn deliver_block(&self, block: ApiBlock) -> anyhow::Result<()> {
-        log::info!("ApplicationPlaceholder::deliver_block: {block:?}");
+        log::trace!("ApplicationPlaceholder::deliver_block: {block:?}");
         Ok(())
     }
 }

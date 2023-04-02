@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+use crate::codec::EphemeraEncoder;
+use crate::crypto::Keypair;
 use crate::{
     block::types::block::Block,
     block::types::message::EphemeraMessage,
@@ -15,9 +17,7 @@ use crate::{
     utilities::{
         crypto::{Certificate, Signature},
         encoding::{Decoder, Encoder, EphemeraDecoder},
-        id::EphemeraId,
         time::EphemeraTime,
-        EphemeraEncoder,
     },
 };
 
@@ -34,12 +34,12 @@ pub struct ApiEphemeraMessage {
 }
 
 impl ApiEphemeraMessage {
-    pub fn new(data: Vec<u8>, signature: ApiCertificate, label: String) -> Self {
+    pub fn new(raw_message: RawApiEphemeraMessage, certificate: ApiCertificate) -> Self {
         Self {
-            timestamp: EphemeraTime::now(),
-            label,
-            data,
-            signature,
+            timestamp: raw_message.timestamp,
+            label: raw_message.label,
+            data: raw_message.data,
+            signature: certificate,
         }
     }
 }
@@ -96,11 +96,8 @@ pub struct ApiCertificate {
 }
 
 impl ApiCertificate {
-    pub fn new(signature: Signature, public_key: PublicKey) -> Self {
-        Self {
-            signature,
-            public_key,
-        }
+    pub fn prepare<D: Encode>(key_pair: &Keypair, data: &D) -> anyhow::Result<Self> {
+        Certificate::prepare(key_pair, data).map(|c| c.into())
     }
 }
 
@@ -155,7 +152,6 @@ impl Encode for RawApiEphemeraMessage {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ApiBlockHeader {
-    pub id: EphemeraId,
     pub timestamp: u64,
     pub creator: PeerId,
     pub height: u64,
@@ -178,6 +174,10 @@ impl ApiBlock {
 
     pub fn message_count(&self) -> usize {
         self.messages.len()
+    }
+
+    pub fn hash(&self) -> String {
+        self.header.hash.clone()
     }
 }
 
@@ -205,7 +205,6 @@ impl From<Block> for ApiBlock {
     fn from(block: Block) -> Self {
         Self {
             header: ApiBlockHeader {
-                id: Default::default(),
                 timestamp: block.header.timestamp,
                 creator: block.header.creator,
                 height: block.header.height,

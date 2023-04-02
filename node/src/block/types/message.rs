@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::codec::Decode;
+use crate::codec::{Decode, EphemeraEncoder};
 use crate::utilities::encoding::{Decoder, EphemeraDecoder};
 use crate::utilities::hash::{HashType, Hasher};
 use crate::{
@@ -10,7 +10,6 @@ use crate::{
     utilities::encoding::Encoder,
     utilities::hash::{EphemeraHash, EphemeraHasher},
     utilities::time::EphemeraTime,
-    utilities::EphemeraEncoder,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]

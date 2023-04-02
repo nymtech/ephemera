@@ -44,8 +44,7 @@ impl BlockProducer {
 
 #[cfg(test)]
 mod test {
-    use crate::crypto::Keypair;
-    use crate::utilities::EphemeraKeypair;
+    use crate::crypto::{EphemeraKeypair, Keypair};
 
     use super::*;
 

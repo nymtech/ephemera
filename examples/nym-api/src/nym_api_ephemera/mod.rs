@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 
 use ephemera::api::EphemeraExternalApi;
 use ephemera::config::Configuration;
-use ephemera::crypto::{Ed25519Keypair, EphemeraKeypair, Keypair};
+use ephemera::crypto::{EphemeraKeypair, Keypair};
 use ephemera::{EphemeraStarter, ShutdownHandle};
 use metrics::MetricsCollector;
 
@@ -97,7 +97,7 @@ impl NymApi {
 
     async fn create_rewards_manager(
         args: Args,
-        key_pair: Ed25519Keypair,
+        key_pair: Keypair,
         storage: Arc<Mutex<Storage<MetricsStorageType>>>,
         ephemera_api: EphemeraExternalApi,
     ) -> RewardManager<V2> {
@@ -151,7 +151,7 @@ impl NymApi {
         )))
     }
 
-    fn read_nym_api_keypair(ephemera_config: &Configuration) -> anyhow::Result<Ed25519Keypair> {
+    fn read_nym_api_keypair(ephemera_config: &Configuration) -> anyhow::Result<Keypair> {
         let key_pair = bs58::decode(&ephemera_config.node.private_key).into_vec()?;
         let key_pair = Keypair::from_raw_vec(key_pair)?;
         Ok(key_pair)

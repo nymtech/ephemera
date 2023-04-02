@@ -152,10 +152,9 @@ impl EphemeraExternalApi {
             return Err(ApiError::Internal(err.into()));
         }
         rcv.await.map_err(|e| {
-            ApiError::Internal(
-                anyhow::Error::msg(format!("Failed to receive response from Ephemera: {:?}", e))
-                    .into(),
-            )
+            ApiError::Internal(anyhow::Error::msg(format!(
+                "Failed to receive response from Ephemera: {e:?}"
+            )))
         })?
     }
 }

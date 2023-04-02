@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use serde::{Deserialize, Serialize};
 
-use crate::codec::Decode;
+use crate::codec::{Decode, EphemeraEncoder};
 use crate::utilities::encoding::{Decoder, EphemeraDecoder};
 use crate::utilities::hash::{HashType, Hasher};
 use crate::{
@@ -14,7 +14,6 @@ use crate::{
         encoding::{Encode, Encoder},
         hash::{EphemeraHash, EphemeraHasher},
         time::EphemeraTime,
-        EphemeraEncoder,
     },
 };
 

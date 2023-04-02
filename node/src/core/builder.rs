@@ -4,37 +4,43 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::api::application::Application;
-use crate::api::{http, ApiListener, EphemeraExternalApi};
-use crate::block::builder::BlockManagerBuilder;
-use crate::block::manager::BlockManager;
-use crate::broadcast::bracha::broadcaster::Broadcaster;
-use crate::config::Configuration;
-use crate::core::api_cmd::ApiCmdProcessor;
-use crate::core::shutdown::{Shutdown, ShutdownHandle, ShutdownManager};
-use crate::network::discovery::PeerDiscovery;
-use crate::network::libp2p::ephemera_sender::EphemeraToNetworkSender;
-use crate::network::libp2p::network_sender::NetCommunicationReceiver;
-use crate::network::libp2p::swarm_network::SwarmNetwork;
-use crate::network::peer::{PeerId, ToPeerId};
 #[cfg(feature = "rocksdb_storage")]
 use crate::storage::rocksdb::RocksDbStorage;
 #[cfg(feature = "sqlite_storage")]
 use crate::storage::sqlite::SqliteStorage;
 use crate::storage::EphemeraDatabase;
-use crate::utilities::crypto::key_manager::KeyManager;
-use crate::utilities::Ed25519Keypair;
-use crate::websocket::ws_manager::{WsManager, WsMessageBroadcaster};
-use crate::Ephemera;
+use crate::{
+    api::application::Application,
+    api::{http, ApiListener, EphemeraExternalApi},
+    block::{builder::BlockManagerBuilder, manager::BlockManager},
+    broadcast::bracha::broadcaster::Broadcaster,
+    config::Configuration,
+    core::{
+        api_cmd::ApiCmdProcessor,
+        shutdown::{Shutdown, ShutdownHandle, ShutdownManager},
+    },
+    crypto::Keypair,
+    network::{
+        discovery::PeerDiscovery,
+        libp2p::{
+            ephemera_sender::EphemeraToNetworkSender, network_sender::NetCommunicationReceiver,
+            swarm_network::SwarmNetwork,
+        },
+        peer::{PeerId, ToPeerId},
+    },
+    utilities::crypto::key_manager::KeyManager,
+    websocket::ws_manager::{WsManager, WsMessageBroadcaster},
+    Ephemera,
+};
 
 #[derive(Clone)]
 pub(crate) struct NodeInfo {
     pub(crate) peer_id: PeerId,
-    pub(crate) keypair: Arc<Ed25519Keypair>,
+    pub(crate) keypair: Arc<Keypair>,
 }
 
 impl NodeInfo {
-    pub(crate) fn new(peer_id: PeerId, keypair: Arc<Ed25519Keypair>) -> Self {
+    pub(crate) fn new(peer_id: PeerId, keypair: Arc<Keypair>) -> Self {
         Self { peer_id, keypair }
     }
 }
