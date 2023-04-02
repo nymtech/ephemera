@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::anyhow;
 
-use ephemera::config::Configuration;
+use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
 
 pub(crate) type PeerId = String;

@@ -1,11 +1,10 @@
 use clap::Parser;
 
 use ephemera::cli::{Cli, Subcommand};
-use ephemera::logging;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    logging::init_logging();
+    pretty_env_logger::init();
 
     let cli = Cli::parse();
     match cli.subcommand {

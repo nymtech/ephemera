@@ -16,7 +16,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use ephemera::config::Configuration;
+use ephemera::configuration::Configuration;
 
 use crate::contract::http::{get_epoch, get_nym_apis, submit_reward};
 use crate::epoch::{Epoch, EpochInfo};

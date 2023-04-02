@@ -5,9 +5,9 @@ use async_trait::async_trait;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::Mutex;
 
-use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
-use ephemera::api::{types, ApiError, EphemeraExternalApi};
 use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
+use ephemera::ephemera_api;
+use ephemera::ephemera_api::{ApiBlock, ApiEphemeraMessage, ApiError, EphemeraExternalApi};
 
 use crate::contract::MixnodeToReward;
 use crate::epoch::Epoch;
@@ -231,9 +231,9 @@ where
 
         let label = self.epoch.current_epoch_numer().to_string();
         let data = serde_json::to_vec(&rewards)?;
-        let raw_message = types::RawApiEphemeraMessage::new(label, data);
+        let raw_message = ephemera_api::RawApiEphemeraMessage::new(label, data);
 
-        let certificate = types::ApiCertificate::prepare(keypair, &raw_message)?;
+        let certificate = ephemera_api::ApiCertificate::prepare(keypair, &raw_message)?;
         let signed_message = ApiEphemeraMessage::new(raw_message, certificate);
 
         Ok(signed_message)

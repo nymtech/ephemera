@@ -1,6 +1,5 @@
-use ephemera::api::application::Application;
-use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
-use ephemera::config::Configuration;
+use ephemera::configuration::Configuration;
+use ephemera::ephemera_api::{ApiBlock, ApiEphemeraMessage, Application};
 
 use crate::contract::MixnodeToReward;
 use crate::peers::NymApiEphemeraPeerInfo;

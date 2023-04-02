@@ -3,8 +3,8 @@ use std::thread;
 
 use clap::Parser;
 
-use ephemera::api::types::{ApiBlock, ApiEphemeraMessage};
 use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
+use ephemera::ephemera_api::{ApiBlock, ApiEphemeraMessage};
 
 use crate::http_client::SignedMessageClient;
 use crate::ws_listener::WsBlockListener;

@@ -1,5 +1,5 @@
 use clap::Parser;
-use ephemera::config::Configuration;
+use ephemera::configuration::Configuration;
 use tokio::signal::unix::{signal, SignalKind};
 
 use nym_api::contract::SmartContract;

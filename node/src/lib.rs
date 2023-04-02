@@ -24,8 +24,21 @@
 //!
 //! Note that it *requires* a blockchain to be present.
 
-pub mod id {
-    pub use super::utilities::id::EphemeraId;
+pub use crate::core::builder::EphemeraStarter;
+pub use crate::core::ephemera::Ephemera;
+pub use crate::core::shutdown::ShutdownHandle;
+
+pub mod ephemera_api {
+    pub use crate::api::{
+        ApiError,
+        application::{
+            Application, DefaultApplication,
+        },
+        EphemeraExternalApi,
+        types::{
+            ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage,
+        },
+    };
 }
 
 pub mod peer_discovery {
@@ -34,8 +47,8 @@ pub mod peer_discovery {
 
 pub mod crypto {
     pub use super::utilities::crypto::{
-        Ed25519Keypair, Ed25519PublicKey, EphemeraKeypair, EphemeraPublicKey, KeyPairError,
-        Keypair, PublicKey,
+        Ed25519Keypair, Ed25519PublicKey, EphemeraKeypair, EphemeraPublicKey, Keypair,
+        KeyPairError, PublicKey,
     };
 }
 
@@ -43,15 +56,15 @@ pub mod codec {
     pub use super::utilities::encoding::{Decode, Encode, EphemeraEncoder};
 }
 
-pub use crate::core::builder::EphemeraStarter;
-pub use crate::core::ephemera::Ephemera;
-pub use crate::core::shutdown::ShutdownHandle;
+pub mod configuration {
+    pub use super::config::Configuration;
+}
 
-pub mod api;
 pub mod cli;
-pub mod config;
-pub mod logging;
 
+mod config;
+mod logging;
+mod api;
 mod block;
 mod broadcast;
 mod core;

@@ -5,10 +5,10 @@ use tokio::sync::oneshot::Receiver;
 use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 
-use ephemera::api::EphemeraExternalApi;
-use ephemera::config::Configuration;
+use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, Keypair};
 use ephemera::{EphemeraStarter, ShutdownHandle};
+use ephemera::ephemera_api::EphemeraExternalApi;
 use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;

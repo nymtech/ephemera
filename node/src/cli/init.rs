@@ -2,10 +2,21 @@ use clap::Parser;
 
 use crate::config::{
     BlockConfig, BroadcastConfig, Configuration, DbConfig, HttpConfig, Libp2pConfig, NodeConfig,
-    WsConfig, DEFAULT_HEARTBEAT_INTERVAL_SEC, DEFAULT_LISTEN_ADDRESS, DEFAULT_LISTEN_PORT,
-    DEFAULT_PROPOSED_MSG_TOPIC_NAME, DEFAULT_QUORUM_THRESHOLD_COUNT, DEFAULT_TOTAL_NR_OF_NODES,
+    WsConfig,
 };
 use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
+
+//network settings
+const DEFAULT_LISTEN_ADDRESS: &str = "/ip4/127.0.0.1/tcp/";
+const DEFAULT_LISTEN_PORT: &str = "3000";
+
+//libp2p settings
+const DEFAULT_PROPOSED_MSG_TOPIC_NAME: &str = "nym-ephemera-proposed";
+const DEFAULT_HEARTBEAT_INTERVAL_SEC: u64 = 1;
+
+//protocol settings
+const DEFAULT_QUORUM_THRESHOLD_COUNT: usize = 1;
+const DEFAULT_TOTAL_NR_OF_NODES: usize = 1;
 
 #[derive(Debug, Clone, Parser)]
 pub struct InitCmd {
@@ -76,7 +87,7 @@ impl InitCmd {
             },
         };
         if let Err(err) = configuration.try_create(&self.node) {
-            eprintln!("Error creating configuration file: {err:?}",);
+            eprintln!("Error creating configuration file: {err:?}", );
         }
     }
 }

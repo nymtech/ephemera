@@ -4,9 +4,9 @@
 //!
 //! This API is also available over HTTP.
 
-pub mod application;
+pub(crate) mod application;
 pub(crate) mod http;
-pub mod types;
+pub(crate) mod types;
 
 use std::fmt::Display;
 use thiserror::Error;

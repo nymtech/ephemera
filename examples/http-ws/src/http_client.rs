@@ -2,9 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use reqwest::{IntoUrl, StatusCode, Url};
 
-use ephemera::api::types;
-
 use ephemera::crypto::Keypair;
+use ephemera::ephemera_api;
 
 use crate::Data;
 
@@ -21,7 +20,7 @@ impl SignedMessageClient {
         }
     }
 
-    pub(crate) async fn send_message(&mut self, msg: types::ApiEphemeraMessage) {
+    pub(crate) async fn send_message(&mut self, msg: ephemera_api::ApiEphemeraMessage) {
         let path = format!("{}{}", self.http, "ephemera/submit_message");
         let client: reqwest::Client = Default::default();
         match client.post(&path).json(&msg).send().await {
@@ -34,7 +33,7 @@ impl SignedMessageClient {
         }
     }
 
-    pub(crate) async fn block_by_hash(&self, hash: String) -> Option<types::ApiBlock> {
+    pub(crate) async fn block_by_hash(&self, hash: String) -> Option<ephemera_api::ApiBlock> {
         let path = format!("{}{}{}", self.http, "ephemera/block/", hash);
         let client: reqwest::Client = Default::default();
         match client.get(&path).send().await {
@@ -42,7 +41,7 @@ impl SignedMessageClient {
                 if res.status() == StatusCode::NOT_FOUND {
                     return None;
                 }
-                let block: types::ApiBlock = res.json().await.unwrap();
+                let block: ephemera_api::ApiBlock = res.json().await.unwrap();
                 Some(block)
             }
             Err(err) => {
@@ -56,10 +55,10 @@ impl SignedMessageClient {
         &self,
         keypair: Arc<Keypair>,
         label: String,
-    ) -> types::ApiEphemeraMessage {
-        let raw_message = types::RawApiEphemeraMessage::new(label, "Message".as_bytes().to_vec());
-        let certificate = types::ApiCertificate::prepare(&keypair, &raw_message).unwrap();
+    ) -> ephemera_api::ApiEphemeraMessage {
+        let raw_message = ephemera_api::RawApiEphemeraMessage::new(label, "Message".as_bytes().to_vec());
+        let certificate = ephemera_api::ApiCertificate::prepare(&keypair, &raw_message).unwrap();
 
-        types::ApiEphemeraMessage::new(raw_message, certificate)
+        ephemera_api::ApiEphemeraMessage::new(raw_message, certificate)
     }
 }

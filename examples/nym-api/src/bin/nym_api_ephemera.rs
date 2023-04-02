@@ -46,10 +46,9 @@
 use clap::Parser;
 use tokio::signal::unix::{signal, SignalKind};
 
-use ephemera::config::Configuration;
-use ephemera::logging::init_logging;
+use ephemera::configuration::Configuration;
 use nym_api::nym_api_ephemera::NymApi;
-use nym_api::Args;
+use nym_api::{Args, init_logging};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

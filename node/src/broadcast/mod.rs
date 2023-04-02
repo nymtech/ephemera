@@ -32,11 +32,12 @@
 //! - It doesn't verify the other peers authenticity.
 //!   Also this can be a task for an upstream layer(gossip...) which handles networking and peers relationship.
 
+//TODO: Describe/analyze how the system behaves when new block is produced while previous one is still being processed.
+
 use std::collections::HashSet;
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::utilities::hash::HashType;
 use crate::{
     block::types::block::Block,
     network::peer::PeerId,
@@ -44,6 +45,7 @@ use crate::{
     utilities::id::{EphemeraId, EphemeraIdentifier},
     utilities::time::EphemeraTime,
 };
+use crate::utilities::hash::HashType;
 
 pub(crate) mod bracha;
 pub(crate) mod signing;

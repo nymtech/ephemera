@@ -5,7 +5,7 @@ use crate::utilities::hash::{EphemeraHash, EphemeraHasher};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub type EphemeraId = UuidEphemeraIdentifier;
+pub(crate) type EphemeraId = UuidEphemeraIdentifier;
 
 pub(crate) trait EphemeraIdentifier: ToString {
     type Identifier;
