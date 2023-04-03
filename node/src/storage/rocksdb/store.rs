@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::block::types::block::Block;
-use crate::storage::rocksdb::{block_height_key, block_id_key, last_block_key, signatures_key};
+use crate::storage::rocksdb::{block_hash_key, block_height_key, certificates_key, last_block_key};
 use rocksdb::{TransactionDB, WriteBatchWithTransaction};
 
 use crate::utilities::crypto::Certificate;
@@ -18,16 +18,15 @@ impl DbStore {
     pub(crate) fn store_block(
         &self,
         block: &Block,
-        signatures: Vec<Certificate>,
+        certificates: Vec<Certificate>,
     ) -> anyhow::Result<()> {
         log::debug!("Storing block: {}", block.header);
+        log::debug!("Storing block certificates: {}", certificates.len());
+
         let hash_str = block.header.hash.to_string();
-        let block_id_key = block_id_key(&hash_str);
-        log::trace!("Block id key: {}", block_id_key);
 
-        let signatures_key = signatures_key(&hash_str);
-        log::trace!("Block signatures key: {}", signatures_key);
-
+        let block_id_key = block_hash_key(&hash_str);
+        let certificates_key = certificates_key(&hash_str);
         let height_key = block_height_key(&block.header.height);
 
         // Check UNIQUE constraints
@@ -50,8 +49,8 @@ impl DbStore {
         batch.put(block_id_key.as_bytes(), block_bytes);
 
         // Store block signatures
-        let signatures_bytes = serde_json::to_vec(&signatures)?;
-        batch.put(signatures_key.as_bytes(), signatures_bytes);
+        let certificate_bytes = serde_json::to_vec(&certificates)?;
+        batch.put(certificates_key.as_bytes(), certificate_bytes);
 
         self.connection.write(batch)?;
         Ok(())

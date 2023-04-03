@@ -7,8 +7,8 @@ use tokio::task::JoinHandle;
 
 use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, Keypair};
-use ephemera::{EphemeraStarter, ShutdownHandle};
 use ephemera::ephemera_api::EphemeraExternalApi;
+use ephemera::{EphemeraStarter, ShutdownHandle};
 use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;

@@ -18,25 +18,27 @@ impl DbStore {
     pub(crate) fn store_block(
         &mut self,
         block: &Block,
-        signatures: Vec<Certificate>,
+        certificates: Vec<Certificate>,
     ) -> Result<()> {
         log::debug!("Storing block: {}", block.header);
 
-        let id = block.header.hash.to_string();
+        let hash = block.header.hash.to_string();
         let height = block.header.height;
         let block_bytes = serde_json::to_vec::<Block>(block).map_err(|e| anyhow::anyhow!(e))?;
-        let signatures_bytes = serde_json::to_vec(&signatures).map_err(|e| anyhow::anyhow!(e))?;
+        let certificates_bytes =
+            serde_json::to_vec(&certificates).map_err(|e| anyhow::anyhow!(e))?;
 
         let tx = self.connection.transaction()?;
         {
             let mut statement = tx.prepare_cached(
-                "INSERT INTO blocks (block_id, height, block) VALUES (?1, ?2, ?3)",
+                "INSERT INTO blocks (block_hash, height, block) VALUES (?1, ?2, ?3)",
             )?;
-            statement.execute(params![&id, &height, &block_bytes,])?;
+            statement.execute(params![&hash, &height, &block_bytes,])?;
 
-            let mut statement =
-                tx.prepare_cached("INSERT INTO signatures (block_id, signatures) VALUES (?1, ?2)")?;
-            statement.execute(params![&id, &signatures_bytes,])?;
+            let mut statement = tx.prepare_cached(
+                "INSERT INTO block_certificates (block_hash, certificates) VALUES (?1, ?2)",
+            )?;
+            statement.execute(params![&hash, &certificates_bytes,])?;
         }
 
         tx.commit()?;

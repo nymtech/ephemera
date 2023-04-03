@@ -14,9 +14,9 @@ fn main() {
     let db = rocksdb::DB::open_default(db_path).unwrap();
 
     println!("Available prefixes for get command:");
-    println!("  - block_id:");
+    println!("  - block_hash:");
     println!("  - block_height:");
-    println!("  - signatures:");
+    println!("  - block_certificates:");
     println!("  - last_block");
 
     let mut repl = Repl::builder()

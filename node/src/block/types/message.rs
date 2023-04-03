@@ -81,7 +81,7 @@ impl RawEphemeraMessage {
         Self {
             timestamp: EphemeraTime::now(),
             label,
-            data
+            data,
         }
     }
 }

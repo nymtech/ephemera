@@ -267,6 +267,7 @@ export RUST_BACKTRACE=full
 build() {
   echo "Building ephemera..."
   cargo build --release --features "rocksdb_storage"
+#  cargo build --release --features "sqlite_storage" --no-default-features
 }
 
 create_cluster() {

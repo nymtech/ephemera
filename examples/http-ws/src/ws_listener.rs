@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 
+use ephemera::ephemera_api::ApiBlock;
 use futures::StreamExt;
 use reqwest::{IntoUrl, Url};
-use ephemera::ephemera_api::ApiBlock;
 
 use crate::Data;
 

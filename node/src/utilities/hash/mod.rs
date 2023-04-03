@@ -2,6 +2,7 @@ use blake2::{Blake2b, Digest};
 use digest::consts::U32;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
+use std::str::FromStr;
 
 pub type Hasher = Blake2bHasher;
 
@@ -15,6 +16,17 @@ impl HashType {
 
     pub(crate) fn base58(&self) -> String {
         bs58::encode(self.0).into_string()
+    }
+}
+
+impl FromStr for HashType {
+    type Err = bs58::decode::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = bs58::decode(s).into_vec()?;
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&bytes);
+        Ok(Self(hash))
     }
 }
 

@@ -15,20 +15,20 @@ impl DbQuery {
         Ok(query)
     }
 
-    pub(crate) fn get_block_by_hash(&self, block_id: String) -> anyhow::Result<Option<Block>> {
-        log::trace!("Getting block by id: {}", block_id);
+    pub(crate) fn get_block_by_hash(&self, block_hash: String) -> anyhow::Result<Option<Block>> {
+        log::trace!("Getting block by hash: {}", block_hash);
 
         let mut stmt = self
             .connection
-            .prepare_cached("SELECT block FROM blocks WHERE block_id = ?1")?;
+            .prepare_cached("SELECT block FROM blocks WHERE block_hash = ?1")?;
         let block = stmt
-            .query_row(params![block_id], Self::map_block())
+            .query_row(params![block_hash], Self::map_block())
             .optional()?;
 
         if let Some(block) = &block {
             log::trace!("Found block: {}", block.header);
         } else {
-            log::trace!("Block not found: {}", block_id);
+            log::trace!("Block not found: {}", block_hash);
         };
 
         Ok(block)
@@ -71,32 +71,32 @@ impl DbQuery {
         Ok(block)
     }
 
-    pub(crate) fn get_block_signatures(
+    pub(crate) fn get_block_certificates(
         &self,
-        block_id: String,
+        block_hash: String,
     ) -> anyhow::Result<Option<Vec<Certificate>>> {
-        log::trace!("Getting block signatures by block id {}", block_id);
+        log::trace!("Getting block certificates by block hash {}", block_hash);
 
         let mut stmt = self
             .connection
-            .prepare_cached("SELECT signatures FROM signatures where block_id = ?1")?;
+            .prepare_cached("SELECT certificates FROM block_certificates where block_hash = ?1")?;
 
         let signatures = stmt
-            .query_row(params![block_id], |row| {
-                let signatures: Vec<u8> = row.get(0)?;
-                let signatures =
-                    serde_json::from_slice::<Vec<Certificate>>(&signatures).map_err(|e| {
-                        log::error!("Error deserializing block: {}", e);
+            .query_row(params![block_hash], |row| {
+                let certificates: Vec<u8> = row.get(0)?;
+                let certificates = serde_json::from_slice::<Vec<Certificate>>(&certificates)
+                    .map_err(|e| {
+                        log::error!("Error deserializing certificates: {}", e);
                         rusqlite::Error::InvalidQuery {}
                     })?;
-                Ok(signatures)
+                Ok(certificates)
             })
             .optional()?;
 
         if signatures.is_some() {
-            log::trace!("Found block {} signatures", block_id);
+            log::trace!("Found block {} certificates", block_hash);
         } else {
-            log::trace!("Signatures not found");
+            log::trace!("Certificates not found");
         };
 
         Ok(signatures)

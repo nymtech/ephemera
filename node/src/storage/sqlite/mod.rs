@@ -67,7 +67,7 @@ impl EphemeraDatabase for SqliteStorage {
     }
 
     fn get_block_certificates(&self, block_id: String) -> anyhow::Result<Option<Vec<Certificate>>> {
-        self.db_query.get_block_signatures(block_id)
+        self.db_query.get_block_certificates(block_id)
     }
 
     fn store_block(&mut self, block: &Block, signatures: Vec<Certificate>) -> anyhow::Result<()> {

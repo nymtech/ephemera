@@ -143,6 +143,11 @@ impl Block {
         Ok(certificate)
     }
 
+    pub(crate) fn verify(&self, certificate: &Certificate) -> anyhow::Result<bool> {
+        let raw_block: RawBlock = self.clone().into();
+        certificate.verify(&raw_block)
+    }
+
     pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<HashType> {
         let raw_block: RawBlock = self.clone().into();
         raw_block.hash_with_default_hasher()

@@ -3,8 +3,9 @@ use std::thread;
 
 use clap::Parser;
 
+use ephemera::codec::Encode;
 use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
-use ephemera::ephemera_api::{ApiBlock, ApiEphemeraMessage};
+use ephemera::ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage};
 
 use crate::http_client::SignedMessageClient;
 use crate::ws_listener::WsBlockListener;
@@ -118,20 +119,32 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
         for block in blocks {
             match client.block_by_hash(block.hash()).await {
                 None => {
-                    println!("Block not found: {:?}\n", block.hash());
+                    println!("Block not found by hash: {:?}\n", block.hash());
                     continue;
                 }
                 Some(http_block) => {
+                    println!("Block found by hash: {:?}\n", block.hash());
                     compare_blocks(&block, &http_block);
+
+                    println!("Verifying block signature...");
+
+                    println!("Verifying messages signatures");
+                    if verify_messages_signatures(block.clone()).is_ok() {
+                        println!("All messages signatures are valid");
+                    } else {
+                        println!("Some messages signatures are invalid");
+                    }
+
+                    match client.block_certificates(block.hash()).await {
+                        None => {
+                            println!("Block certificates not found by hash: {:?}\n", block.hash());
+                        }
+                        Some(certificates) => {
+                            println!("Block certificates found by hash: {:?}\n", block.hash());
+                            verify_block_certificates(&block, certificates).unwrap();
+                        }
+                    }
                 }
-            }
-
-            //TODO: verify all signatures
-            println!("Verifying block signature... TODO");
-
-            println!("Verifying messages signatures");
-            if verify_messages_signatures(block).is_ok() {
-                println!("All messages signatures are valid");
             }
 
             println!();
@@ -143,14 +156,39 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
 }
 
 fn verify_messages_signatures(block: ApiBlock) -> anyhow::Result<()> {
+    println!(
+        "Verifying messages signatures: {:?}\n",
+        block.messages.len()
+    );
     for message in block.messages {
         let signature = message.signature.clone();
+        let message: RawApiEphemeraMessage = message.into();
+        let data = message.encode()?;
 
-        if !signature
-            .public_key
-            .verify(&message.data, &signature.signature)
-        {
+        if !signature.public_key.verify(&data, &signature.signature) {
             anyhow::bail!("Signature verification failed");
+        }
+    }
+    Ok(())
+}
+
+fn verify_block_certificates(
+    block: &ApiBlock,
+    certificates: Vec<ApiCertificate>,
+) -> anyhow::Result<()> {
+    println!("Verifying block certificates: {:?}\n", certificates.len());
+    for certificate in certificates {
+        match block.verify(&certificate) {
+            Ok(valid) => {
+                if valid {
+                    println!("Certificate is valid");
+                } else {
+                    println!("Certificate is invalid");
+                }
+            }
+            Err(err) => {
+                println!("Certificate verification failed: {:?}", err);
+            }
         }
     }
     Ok(())

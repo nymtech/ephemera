@@ -165,7 +165,7 @@ impl ApiCmdProcessor {
                     }
                 };
             }
-            ApiCmd::QueryBlockSignatures(block_id, reply) => {
+            ApiCmd::QueryBlockCertificates(block_id, reply) => {
                 match ephemera
                     .storage
                     .lock()

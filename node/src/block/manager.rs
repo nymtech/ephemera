@@ -1,6 +1,6 @@
-use std::{task, time};
 use std::pin::Pin;
 use std::task::Poll::Pending;
+use std::{task, time};
 
 use futures::FutureExt;
 use futures::Stream;
@@ -159,6 +159,7 @@ impl Stream for BlockManager {
                 let previous_block_header = self.last_accepted_block.header.clone();
                 let new_height = previous_block_header.height + 1;
                 let pending_messages = self.message_pool.get_messages();
+
                 let result = match self
                     .block_producer
                     .produce_block(new_height, pending_messages)
@@ -176,6 +177,7 @@ impl Stream for BlockManager {
                             .block_signer
                             .sign_block(&block, &hash)
                             .expect("Failed to sign block");
+
                         task::Poll::Ready(Some((block, certificate)))
                     }
                     Err(err) => {
@@ -234,9 +236,11 @@ mod test {
                 .unwrap();
 
         manager.on_new_message(message.clone()).await.unwrap();
-        assert_matches!(manager.on_new_message(message).await, Err(BlockManagerError::DuplicateMessage(_)));
+        assert_matches!(
+            manager.on_new_message(message).await,
+            Err(BlockManagerError::DuplicateMessage(_))
+        );
     }
-
 
     #[test]
     fn test_accept_valid_block() {

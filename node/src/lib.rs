@@ -30,14 +30,9 @@ pub use crate::core::shutdown::ShutdownHandle;
 
 pub mod ephemera_api {
     pub use crate::api::{
-        ApiError,
-        application::{
-            Application, DefaultApplication,
-        },
-        EphemeraExternalApi,
-        types::{
-            ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage,
-        },
+        application::{Application, DefaultApplication},
+        types::{ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage},
+        ApiError, EphemeraExternalApi,
     };
 }
 
@@ -47,8 +42,8 @@ pub mod peer_discovery {
 
 pub mod crypto {
     pub use super::utilities::crypto::{
-        Ed25519Keypair, Ed25519PublicKey, EphemeraKeypair, EphemeraPublicKey, Keypair,
-        KeyPairError, PublicKey,
+        Ed25519Keypair, Ed25519PublicKey, EphemeraKeypair, EphemeraPublicKey, KeyPairError,
+        Keypair, PublicKey,
     };
 }
 
@@ -62,12 +57,12 @@ pub mod configuration {
 
 pub mod cli;
 
-mod config;
-mod logging;
 mod api;
 mod block;
 mod broadcast;
+mod config;
 mod core;
+mod logging;
 mod network;
 mod storage;
 mod utilities;

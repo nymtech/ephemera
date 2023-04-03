@@ -14,23 +14,23 @@ pub(crate) async fn health() -> impl Responder {
 
 #[utoipa::path(
 responses(
-(status = 200, description = "GET block by id"),
+(status = 200, description = "GET block by hash"),
 (status = 404, description = "Block not found"),
 (status = 500, description = "Server failed to process request")),
-params(("id", description = "Block id")),
+params(("hash", description = "Block hash")),
 )]
-#[get("/ephemera/block/{id}")]
-pub(crate) async fn block_by_id(
-    id: web::Path<String>,
+#[get("/ephemera/block/{hash}")]
+pub(crate) async fn block_by_hash(
+    hash: web::Path<String>,
     api: web::Data<EphemeraExternalApi>,
 ) -> impl Responder {
-    log::debug!("GET /ephemera/block/{id}",);
+    log::debug!("GET /ephemera/block/{hash}",);
 
-    match api.get_block_by_id(id.into_inner()).await {
+    match api.get_block_by_id(hash.into_inner()).await {
         Ok(Some(block)) => HttpResponse::Ok().json(block),
         Ok(_) => HttpResponse::NotFound().json("Block not found"),
         Err(err) => {
-            log::error!("Failed to get block by id: {err}",);
+            log::error!("Failed to get block by hash: {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
@@ -39,21 +39,21 @@ pub(crate) async fn block_by_id(
 #[utoipa::path(
 responses(
 (status = 200, description = "Get block signatures"),
-(status = 404, description = "Signatures not found"),
+(status = 404, description = "Certificates not found"),
 (status = 500, description = "Server failed to process request")),
-params(("id", description = "Block id")),
+params(("hash", description = "Block hash")),
 )]
-#[get("/ephemera/block/signatures/{id}")]
-pub(crate) async fn block_signatures(
-    id: web::Path<String>,
+#[get("/ephemera/block/certificates/{hash}")]
+pub(crate) async fn block_certificates(
+    hash: web::Path<String>,
     api: web::Data<EphemeraExternalApi>,
 ) -> impl Responder {
-    let id = id.into_inner();
-    log::debug!("GET /ephemera/block/signatures/{id}");
+    let id = hash.into_inner();
+    log::debug!("GET /ephemera/block/certificates/{id}");
 
-    match api.get_block_signatures(id.clone()).await {
+    match api.get_block_certificates(id.clone()).await {
         Ok(Some(signatures)) => HttpResponse::Ok().json(signatures),
-        Ok(_) => HttpResponse::NotFound().json("Signatures not found"),
+        Ok(_) => HttpResponse::NotFound().json("Certificates not found"),
         Err(err) => {
             log::error!("Failed to get signatures {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")

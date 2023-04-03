@@ -23,11 +23,11 @@ pub enum ApiError {
     ApplicationRejectedMessage,
     #[error("Duplicate message")]
     DuplicateMessage,
+    #[error("Invalid block hash: {0}")]
+    InvalidBlockHash(#[from] bs58::decode::Error),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
-
-//TODO: perhaps strict types for responses
 
 pub(crate) type DhtKV = (Vec<u8>, Vec<u8>);
 
@@ -40,7 +40,7 @@ pub(crate) enum ApiCmd {
     QueryBlockByHeight(u64, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
     QueryBlockById(String, oneshot::Sender<Result<Option<ApiBlock>, ApiError>>),
     QueryLastBlock(oneshot::Sender<Result<ApiBlock, ApiError>>),
-    QueryBlockSignatures(
+    QueryBlockCertificates(
         String,
         oneshot::Sender<Result<Option<Vec<ApiCertificate>>, ApiError>>,
     ),
@@ -57,7 +57,7 @@ impl Display for ApiCmd {
             ApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})",),
             ApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})",),
             ApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
-            ApiCmd::QueryBlockSignatures(id, _) => write!(f, "QueryBlockSignatures{id}"),
+            ApiCmd::QueryBlockCertificates(id, _) => write!(f, "QueryBlockSignatures{id}"),
             ApiCmd::QueryDht(_, _) => {
                 write!(f, "QueryDht")
             }
@@ -112,12 +112,12 @@ impl EphemeraExternalApi {
     }
 
     /// Returns signatures for given block id
-    pub async fn get_block_signatures(
+    pub async fn get_block_certificates(
         &self,
-        block_id: String,
+        block_hash: String,
     ) -> Result<Option<Vec<ApiCertificate>>, ApiError> {
-        log::trace!("get_block_by_height({block_id})",);
-        self.send_and_wait_response(|tx| ApiCmd::QueryBlockSignatures(block_id, tx))
+        log::trace!("get_block_certificates({})", block_hash);
+        self.send_and_wait_response(|tx| ApiCmd::QueryBlockCertificates(block_hash, tx))
             .await
     }
 

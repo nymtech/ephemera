@@ -87,7 +87,7 @@ impl InitCmd {
             },
         };
         if let Err(err) = configuration.try_create(&self.node) {
-            eprintln!("Error creating configuration file: {err:?}", );
+            eprintln!("Error creating configuration file: {err:?}",);
         }
     }
 }

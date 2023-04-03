@@ -87,6 +87,12 @@ impl Certificate {
             public_key,
         }
     }
+
+    pub(crate) fn verify<D: Encode>(&self, data: &D) -> anyhow::Result<bool> {
+        let data_bytes = data.encode()?;
+        let valid = self.public_key.verify(&data_bytes, &self.signature);
+        Ok(valid)
+    }
 }
 
 impl Encode for Certificate {

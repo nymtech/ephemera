@@ -1,18 +1,21 @@
+//! # Api Types
+//!
 //! This module contains all the types that are used in the API.
-//! Basically they are public version of the same types used internally.
+//! Basically they are public versions of the same types used internally.
 //! But it seems like a good idea to keep external and internal types separate.
 
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-use crate::codec::EphemeraEncoder;
-use crate::crypto::Keypair;
 use crate::{
-    block::types::block::Block,
-    block::types::message::EphemeraMessage,
-    codec::{Decode, Encode},
-    crypto::PublicKey,
+    api::ApiError,
+    block::{
+        types::block::BlockHeader,
+        types::{block::Block, message::EphemeraMessage},
+    },
+    codec::{Decode, Encode, EphemeraEncoder},
+    crypto::{Keypair, PublicKey},
     network::peer::PeerId,
     utilities::{
         crypto::{Certificate, Signature},
@@ -99,6 +102,11 @@ impl ApiCertificate {
     pub fn prepare<D: Encode>(key_pair: &Keypair, data: &D) -> anyhow::Result<Self> {
         Certificate::prepare(key_pair, data).map(|c| c.into())
     }
+
+    pub fn verify<D: Encode>(&self, data: &D) -> anyhow::Result<bool> {
+        let certificate: Certificate = (self.clone()).into();
+        Certificate::verify(&certificate, data)
+    }
 }
 
 impl From<Certificate> for ApiCertificate {
@@ -179,6 +187,12 @@ impl ApiBlock {
     pub fn hash(&self) -> String {
         self.header.hash.clone()
     }
+
+    pub fn verify(&self, certificate: &ApiCertificate) -> Result<bool, ApiError> {
+        let block: Block = self.clone().try_into()?;
+        let valid = block.verify(&(certificate.clone()).into())?;
+        Ok(valid)
+    }
 }
 
 /// Raw block represents all the data what will be signed
@@ -216,6 +230,27 @@ impl From<Block> for ApiBlock {
                 .map(|signed_message| signed_message.into())
                 .collect(),
         }
+    }
+}
+
+impl TryFrom<ApiBlock> for Block {
+    type Error = ApiError;
+
+    fn try_from(api_block: ApiBlock) -> Result<Self, ApiError> {
+        let messages: Vec<EphemeraMessage> = api_block
+            .messages
+            .into_iter()
+            .map(|message| message.into())
+            .collect::<Vec<EphemeraMessage>>();
+        Ok(Self {
+            header: BlockHeader {
+                timestamp: api_block.header.timestamp,
+                creator: api_block.header.creator,
+                height: api_block.header.height,
+                hash: api_block.header.hash.parse()?,
+            },
+            messages,
+        })
     }
 }
 

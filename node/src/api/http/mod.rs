@@ -16,8 +16,8 @@ pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> anyhow::Resu
         App::new()
             .app_data(Data::new(api.clone()))
             .service(query::health)
-            .service(query::block_by_id)
-            .service(query::block_signatures)
+            .service(query::block_by_hash)
+            .service(query::block_certificates)
             .service(query::block_by_height)
             .service(query::last_block)
             .service(submit::submit_message)
@@ -37,8 +37,8 @@ fn swagger_ui() -> SwaggerUi {
     #[openapi(
         paths(
             query::health,
-            query::block_by_id,
-            query::block_signatures,
+            query::block_by_hash,
+            query::block_certificates,
             query::block_by_height,
             query::last_block,
             submit::submit_message

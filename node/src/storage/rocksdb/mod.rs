@@ -18,9 +18,9 @@ pub(crate) struct RocksDbStorage {
 }
 
 const PREFIX_LAST_BLOCK_KEY: &str = "last_block";
-const PREFIX_BLOCK_ID: &str = "block_id";
+const PREFIX_BLOCK_HASH: &str = "block_hash";
 const PREFIX_BLOCK_HEIGHT: &str = "block_height";
-const PREFIX_SIGNATURES: &str = "signatures";
+const PREFIX_CERTIFICATES: &str = "block_certificates";
 
 impl RocksDbStorage {
     pub fn open(db_conf: DbConfig) -> anyhow::Result<Self> {
@@ -46,7 +46,7 @@ impl RocksDbStorage {
 
 impl EphemeraDatabase for RocksDbStorage {
     fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_block_by_id(block_id)
+        self.db_query.get_block_by_hash(block_id)
     }
 
     fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
@@ -58,16 +58,16 @@ impl EphemeraDatabase for RocksDbStorage {
     }
 
     fn get_block_certificates(&self, block_id: String) -> anyhow::Result<Option<Vec<Certificate>>> {
-        self.db_query.get_block_signatures(block_id)
+        self.db_query.get_block_certificates(block_id)
     }
 
-    fn store_block(&mut self, block: &Block, signatures: Vec<Certificate>) -> anyhow::Result<()> {
-        self.db_store.store_block(block, signatures)
+    fn store_block(&mut self, block: &Block, certificates: Vec<Certificate>) -> anyhow::Result<()> {
+        self.db_store.store_block(block, certificates)
     }
 }
 
-fn block_id_key(block_id: &str) -> String {
-    format!("{PREFIX_BLOCK_ID}:{block_id}")
+fn block_hash_key(block_hash: &str) -> String {
+    format!("{PREFIX_BLOCK_HASH}:{block_hash}")
 }
 
 fn block_height_key(height: &u64) -> String {
@@ -78,6 +78,6 @@ fn last_block_key() -> String {
     PREFIX_LAST_BLOCK_KEY.to_string()
 }
 
-fn signatures_key(block_id: &str) -> String {
-    format!("{PREFIX_SIGNATURES}:{PREFIX_BLOCK_ID}:{block_id}",)
+fn certificates_key(block_hash: &str) -> String {
+    format!("{PREFIX_CERTIFICATES}:{block_hash}",)
 }
