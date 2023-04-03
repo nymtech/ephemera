@@ -1,5 +1,6 @@
 use actix_web::{get, web, HttpResponse, Responder};
 
+use crate::api::types::Health;
 use crate::api::EphemeraExternalApi;
 
 #[utoipa::path(
@@ -9,7 +10,9 @@ responses(
 #[get("/ephemera/health")]
 pub(crate) async fn health() -> impl Responder {
     log::debug!("GET /ephemera/health");
-    HttpResponse::Ok().json("OK")
+    HttpResponse::Ok().json(Health {
+        status: "OK".to_string(),
+    })
 }
 
 #[utoipa::path(
@@ -93,18 +96,13 @@ responses(
 //Need to use plural(blocks), otherwise overlaps with block_by_id route
 #[get("/ephemera/blocks/last")]
 pub(crate) async fn last_block(api: web::Data<EphemeraExternalApi>) -> impl Responder {
-    log::debug!("GET /ephemera/block/last");
+    log::debug!("GET /ephemera/blocks/last");
 
-    let response = match api.get_last_block().await {
-        Ok(block) => {
-            log::debug!("Found block: {:?}", block);
-            HttpResponse::Ok().json(block)
-        }
+    match api.get_last_block().await {
+        Ok(block) => HttpResponse::Ok().json(block),
         Err(err) => {
             log::error!("Failed to get block {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
-    };
-    log::info!("Response: {:?}", response);
-    response
+    }
 }

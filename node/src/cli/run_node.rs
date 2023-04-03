@@ -107,7 +107,7 @@ impl PeerDiscovery for DummyPeerDiscovery {
     }
 
     fn get_poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(60)
+        std::time::Duration::from_secs(60 * 60 * 24)
     }
 }
 
@@ -152,6 +152,6 @@ impl PeerDiscovery for ConfigPeers {
     }
 
     fn get_poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(60)
+        std::time::Duration::from_secs(60 * 60 * 24)
     }
 }

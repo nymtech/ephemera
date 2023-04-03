@@ -5,6 +5,7 @@ members = [
     "tools/rocksdb-repl",
     "examples/http-ws",
     "examples/nym-api",
+    "examples/cluster-http-api",
 ]
 
 [profile.release]

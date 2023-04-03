@@ -1,3 +1,4 @@
+pub(crate) mod client;
 pub(crate) mod query;
 pub(crate) mod submit;
 
@@ -43,7 +44,12 @@ fn swagger_ui() -> SwaggerUi {
             query::last_block,
             submit::submit_message
         ),
-        components(schemas(types::ApiBlock, types::ApiEphemeraMessage, types::ApiCertificate))
+        components(schemas(
+            types::ApiBlock,
+            types::ApiEphemeraMessage,
+            types::ApiCertificate,
+            types::Health
+        ))
     )]
     struct ApiDoc;
     SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-doc/openapi.json", ApiDoc::openapi())

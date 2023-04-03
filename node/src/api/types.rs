@@ -4,8 +4,9 @@
 //! Basically they are public versions of the same types used internally.
 //! But it seems like a good idea to keep external and internal types separate.
 
-use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
@@ -142,6 +143,12 @@ impl RawApiEphemeraMessage {
             data,
         }
     }
+
+    pub fn sign(&self, keypair: &Keypair) -> anyhow::Result<ApiEphemeraMessage> {
+        let certificate = Certificate::prepare(keypair, &self)?;
+        let message = ApiEphemeraMessage::new(self.clone(), certificate.into());
+        Ok(message)
+    }
 }
 
 impl Decode for RawApiEphemeraMessage {
@@ -153,6 +160,12 @@ impl Decode for RawApiEphemeraMessage {
 }
 
 impl Encode for RawApiEphemeraMessage {
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Encoder::encode(self)
+    }
+}
+
+impl Encode for &RawApiEphemeraMessage {
     fn encode(&self) -> anyhow::Result<Vec<u8>> {
         Encoder::encode(self)
     }
@@ -208,6 +221,7 @@ impl ApiRawBlock {
     }
 }
 
+//FIXME
 impl From<&Block> for &ApiBlock {
     fn from(block: &Block) -> Self {
         let api_block: ApiBlock = block.clone().into();
@@ -255,16 +269,6 @@ impl TryFrom<ApiBlock> for Block {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiKeypair {
-    pub public_key: String,
-    pub private_key: String,
-}
-
-impl ApiKeypair {
-    pub fn new(public_key: String, private_key: String) -> Self {
-        Self {
-            public_key,
-            private_key,
-        }
-    }
+pub struct Health {
+    pub(crate) status: String,
 }

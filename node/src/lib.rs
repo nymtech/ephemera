@@ -31,7 +31,8 @@ pub use crate::core::shutdown::ShutdownHandle;
 pub mod ephemera_api {
     pub use crate::api::{
         application::{Application, DefaultApplication},
-        types::{ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage},
+        http::client::{EphemeraHttpClient, Error},
+        types::{ApiBlock, ApiCertificate, ApiEphemeraMessage, Health, RawApiEphemeraMessage},
         ApiError, EphemeraExternalApi,
     };
 }

@@ -8,6 +8,7 @@ use libp2p::{
     gossipsub::{self, IdentTopic as Topic},
     request_response, Multiaddr, Swarm,
 };
+use tokio::task::JoinHandle;
 
 use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
@@ -79,12 +80,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         // Spawn rendezvous behaviour outside of swarm event loop.
         // It would look better if it were integrated into libp2p architecture.
         // Maybe some good ideas will come up in the future.
-        let mut rendezvous_handle = self
-            .swarm
-            .behaviour_mut()
-            .rendezvous_behaviour
-            .spawn()
-            .await?;
+        let mut rendezvous_handle = self.start_peer_discovery().await?;
 
         loop {
             tokio::select! {
@@ -109,6 +105,14 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 }
             }
         }
+    }
+
+    async fn start_peer_discovery(&mut self) -> anyhow::Result<JoinHandle<()>> {
+        self.swarm
+            .behaviour_mut()
+            .rendezvous_behaviour
+            .spawn()
+            .await
     }
 
     async fn process_ephemera_events(&mut self, event: EphemeraEvent) {
@@ -275,7 +279,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     async fn process_rendezvous_event(&mut self, event: rendezvous::Event) -> anyhow::Result<()> {
         match event {
             rendezvous::Event::PeersUpdated => {
-                log::info!(
+                log::trace!(
                     "Peers updated: {:?}",
                     self.swarm.behaviour().rendezvous_behaviour.peer_ids_ref()
                 );

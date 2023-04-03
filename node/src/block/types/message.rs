@@ -1,15 +1,15 @@
 use serde::{Deserialize, Serialize};
 
-use crate::codec::{Decode, EphemeraEncoder};
-use crate::utilities::encoding::{Decoder, EphemeraDecoder};
-use crate::utilities::hash::{HashType, Hasher};
 use crate::{
-    codec::Encode,
-    crypto::Keypair,
-    utilities::crypto::Certificate,
-    utilities::encoding::Encoder,
-    utilities::hash::{EphemeraHash, EphemeraHasher},
-    utilities::time::EphemeraTime,
+    codec::{Decode, Encode, EphemeraEncoder},
+    utilities::{
+        crypto::Certificate,
+        encoding::Encoder,
+        encoding::{Decoder, EphemeraDecoder},
+        hash::{EphemeraHash, EphemeraHasher},
+        hash::{HashType, Hasher},
+        time::EphemeraTime,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
@@ -31,12 +31,6 @@ impl EphemeraMessage {
             data: raw_message.data,
             certificate,
         }
-    }
-
-    pub(crate) fn signed(label: String, data: Vec<u8>, keypair: &Keypair) -> anyhow::Result<Self> {
-        let raw_message = RawEphemeraMessage::new(label, data);
-        let certificate = Certificate::prepare(keypair, &raw_message)?;
-        Ok(Self::new(raw_message, certificate))
     }
 
     pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<HashType> {
