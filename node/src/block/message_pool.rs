@@ -60,16 +60,19 @@ mod test {
     use crate::block::message_pool::MessagePool;
     use crate::block::types::message::EphemeraMessage;
     use crate::crypto::{EphemeraKeypair, Keypair};
+    use crate::ephemera_api::RawApiEphemeraMessage;
 
     #[test]
     fn test_add_remove() {
-        let message =
-            EphemeraMessage::signed("label1".to_string(), vec![0], &Keypair::generate(None))
-                .unwrap();
+        let keypair = Keypair::generate(None);
+
+        let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
+        let signed_message = message.sign(&keypair).expect("Failed to sign message");
+        let signed_message: EphemeraMessage = signed_message.into();
 
         let mut pool = MessagePool::new();
-        pool.add_message(message.clone()).unwrap();
-        pool.remove_messages(&[message]).unwrap();
+        pool.add_message(signed_message.clone()).unwrap();
+        pool.remove_messages(&[signed_message]).unwrap();
 
         assert_eq!(pool.get_messages().len(), 0);
     }

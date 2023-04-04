@@ -2,14 +2,15 @@
 
 use clap::Parser;
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use crate::config::{Configuration, PeerSetting};
 
 #[derive(Debug, Clone, Parser)]
 pub struct AddPeerCmd {
     #[clap(short, long)]
-    name: String,
+    node: String,
+    #[clap(long)]
+    pub application: String,
     #[clap(short, long)]
     address: String,
     #[clap(short, long)]
@@ -19,27 +20,29 @@ pub struct AddPeerCmd {
 impl AddPeerCmd {
     pub fn execute(self) {
         log::info!("Add peer command executed");
-        match Configuration::try_load_from_home_dir(&self.name) {
+        let path =
+            Configuration::ephemera_config_file_application(&self.application, &self.node).unwrap();
+        match Configuration::try_load(path) {
             Ok(mut configuration) => {
                 let duplicate_name = configuration.libp2p.peers.iter().any(|peer| {
-                    if peer.name == self.name {
+                    if peer.name == self.node {
                         return true;
                     }
                     false
                 });
 
                 if duplicate_name {
-                    log::error!("Peer with name '{}' already exists", self.name);
+                    log::error!("Peer with name '{}' already exists", self.node);
                     return;
                 }
 
                 configuration.libp2p.peers.push(PeerSetting {
-                    name: self.name.clone(),
+                    name: self.node.clone(),
                     address: self.address,
                     pub_key: self.pub_key,
                 });
 
-                if let Err(e) = configuration.try_update(self.name.as_str()) {
+                if let Err(e) = configuration.try_update_root(self.node.as_str()) {
                     log::error!("Error saving configuration: {}", e);
                 }
             }
@@ -53,12 +56,14 @@ impl AddPeerCmd {
 #[derive(Debug, Clone, Parser)]
 pub struct AddLocalPeersCmd {
     #[arg(long)]
-    ephemera_root_dir: String,
+    application: String,
 }
 
 impl AddLocalPeersCmd {
     pub fn execute(self) {
-        let root_path = PathBuf::from(self.ephemera_root_dir.as_str());
+        let root_path = Configuration::ephemera_root_dir_application(&self.application).unwrap();
+        log::info!("Root path: {:?}", root_path);
+
         let root_dir = std::fs::read_dir(root_path).unwrap();
 
         let mut configs = HashMap::new();
@@ -71,7 +76,7 @@ impl AddLocalPeersCmd {
                 let entry = entry.unwrap();
                 let path = entry.path();
                 let node_dir = path.file_name().unwrap().to_str().unwrap();
-                let conf = Configuration::try_load_from_home_dir(node_dir)
+                let conf = Configuration::try_load_application(&self.application, node_dir)
                     .unwrap_or_else(|_| panic!("Error loading configuration for node {node_dir}"));
                 configs.insert(String::from(node_dir), conf);
             });
@@ -98,7 +103,7 @@ impl AddLocalPeersCmd {
         }
 
         for (node_name, conf) in configs {
-            if let Err(e) = conf.try_update(&node_name) {
+            if let Err(e) = conf.try_update_application(&node_name, &self.application) {
                 log::error!("Error saving configuration: {}", e);
             }
         }

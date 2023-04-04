@@ -22,6 +22,8 @@ const DEFAULT_TOTAL_NR_OF_NODES: usize = 1;
 pub struct InitCmd {
     #[arg(long, default_value = "default")]
     pub node: String,
+    #[clap(long)]
+    pub application: String,
     #[clap(long, default_value = DEFAULT_LISTEN_ADDRESS)]
     pub address: String,
     #[clap(long, default_value = DEFAULT_LISTEN_PORT)]
@@ -48,8 +50,10 @@ pub struct InitCmd {
 
 impl InitCmd {
     pub fn execute(self) {
-        if Configuration::try_load_from_home_dir(&self.node).is_ok() {
-            panic!("Configuration file already exists: {}", self.node);
+        let path =
+            Configuration::ephemera_config_file_application(&self.application, &self.node).unwrap();
+        if path.exists() {
+            panic!("Configuration already exists: {}", path.display());
         }
 
         let keypair = Keypair::generate(None);
@@ -86,7 +90,7 @@ impl InitCmd {
                 creation_interval_sec: self.block_creation_interval_sec,
             },
         };
-        if let Err(err) = configuration.try_create(&self.node) {
+        if let Err(err) = configuration.try_create_with_application(&self.application, &self.node) {
             eprintln!("Error creating configuration file: {err:?}",);
         }
     }

@@ -73,7 +73,7 @@ impl SmartContract {
         log::info!("Starting smart contract");
 
         let mut storage: Storage<ContractStorageType> =
-            Storage::new(args.db_path, migrations::migrations::runner());
+            Storage::init(args.db_path, migrations::migrations::runner());
 
         let epoch = Self::get_epoch(args.epoch_duration_seconds, &mut storage);
         log::info!("Epoch info: {epoch}");

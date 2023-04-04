@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, Keypair};
 use ephemera::ephemera_api::EphemeraExternalApi;
-use ephemera::{EphemeraStarter, ShutdownHandle};
+use ephemera::{Ephemera, EphemeraStarter, ShutdownHandle};
 use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;
@@ -45,17 +45,8 @@ impl NymApi {
         let key_pair = Self::read_nym_api_keypair(&ephemera_config)?;
         let storage = Self::open_nym_api_storage(&args);
 
-        //APPLICATION(ABCI) for Ephemera
-        let rewards_ephemera_application =
-            RewardsEphemeraApplication::new(ephemera_config.clone())?;
-        let peer_discovery = HttpPeerDiscovery::new(args.smart_contract_url.clone());
-
         //EPHEMERA
-        let ephemera_builder = EphemeraStarter::new(ephemera_config.clone())?;
-        let ephemera_builder = ephemera_builder.with_application(rewards_ephemera_application);
-        let ephemera_builder = ephemera_builder.with_peer_discovery(peer_discovery);
-        let ephemera = ephemera_builder.init_tasks().await?;
-
+        let ephemera = Self::init_ephemera(&args, ephemera_config).await?;
         let mut ephemera_handle = ephemera.handle();
 
         //METRICS
@@ -86,6 +77,27 @@ impl NymApi {
 
         log::info!("Shut down complete");
         Ok(())
+    }
+
+    async fn init_ephemera(
+        args: &Args,
+        ephemera_config: Configuration,
+    ) -> anyhow::Result<Ephemera<RewardsEphemeraApplication>> {
+        log::info!("Initializing ephemera ...");
+
+        //Application for Ephemera
+        let rewards_ephemera_application =
+            RewardsEphemeraApplication::init(ephemera_config.clone())?;
+
+        //Peer discovery for Ephemera
+        let peer_discovery = HttpPeerDiscovery::new(args.smart_contract_url.clone());
+
+        //EPHEMERA
+        let ephemera_builder = EphemeraStarter::new(ephemera_config.clone())?;
+        let ephemera_builder = ephemera_builder.with_application(rewards_ephemera_application);
+        let ephemera_builder = ephemera_builder.with_peer_discovery(peer_discovery);
+        let ephemera = ephemera_builder.init_tasks().await?;
+        Ok(ephemera)
     }
 
     fn create_metrics_collector(
@@ -145,7 +157,7 @@ impl NymApi {
     }
 
     fn open_nym_api_storage(args: &Args) -> Arc<Mutex<Storage<MetricsStorageType>>> {
-        Arc::new(Mutex::new(Storage::new(
+        Arc::new(Mutex::new(Storage::init(
             args.metrics_db_path.clone(),
             migrations::migrations::runner(),
         )))

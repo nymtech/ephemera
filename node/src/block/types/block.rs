@@ -175,7 +175,6 @@ impl Decode for Block {
     }
 }
 
-/// Raw block represents all the data what will be signed
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct RawBlock {
     pub(crate) header: RawBlockHeader,

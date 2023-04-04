@@ -161,7 +161,7 @@ fn verify_messages_signatures(block: ApiBlock) -> anyhow::Result<()> {
         block.messages.len()
     );
     for message in block.messages {
-        let signature = message.signature.clone();
+        let signature = message.certificate.clone();
         let message: RawApiEphemeraMessage = message.into();
         let data = message.encode()?;
 
@@ -187,7 +187,7 @@ fn verify_block_certificates(
                 }
             }
             Err(err) => {
-                println!("Certificate verification failed: {:?}", err);
+                println!("Certificate verification failed: {err:?}",);
             }
         }
     }

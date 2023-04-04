@@ -15,8 +15,15 @@ pub(crate) struct RewardsEphemeraApplication {
 }
 
 impl RewardsEphemeraApplication {
-    pub(crate) fn new(ephemera_config: Configuration) -> anyhow::Result<Self> {
-        let peer_info = NymApiEphemeraPeerInfo::from_ephemera_dev_cluster_conf(&ephemera_config)?;
+    pub(crate) fn init(ephemera_config: Configuration) -> anyhow::Result<Self> {
+        let peer_info =
+            match NymApiEphemeraPeerInfo::from_ephemera_dev_cluster_conf(&ephemera_config) {
+                Ok(info) => info,
+                Err(err) => {
+                    log::error!("Failed to load peers info: {}", err);
+                    return Err(err);
+                }
+            };
         let app_config = RewardsEphemeraApplicationConfig {
             peers_rewards_threshold: peer_info.get_peers_count() as u64,
         };

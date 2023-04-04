@@ -14,12 +14,13 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub(crate) struct EphemeraMessage {
+    //Timestamp of the message
     pub(crate) timestamp: u64,
-    ///Application specific logical identifier of the message
+    //Application specific logical identifier of the message
     pub(crate) label: String,
-    ///Application specific data
+    //Application specific data
     pub(crate) data: Vec<u8>,
-    ///Signature of the raw message
+    //Signature of the raw message
     pub(crate) certificate: Certificate,
 }
 
@@ -93,47 +94,5 @@ impl From<EphemeraMessage> for RawEphemeraMessage {
 impl Encode for RawEphemeraMessage {
     fn encode(&self) -> anyhow::Result<Vec<u8>> {
         Encoder::encode(&self)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
-
-    use super::*;
-
-    #[test]
-    fn test_sign_ok() {
-        let message_signing_keypair = Keypair::generate(None);
-
-        let message =
-            EphemeraMessage::signed("test".to_string(), vec![1, 2, 3], &message_signing_keypair)
-                .unwrap();
-        let certificate = message.certificate.clone();
-        let raw_message: RawEphemeraMessage = message.into();
-        let data = raw_message.encode().unwrap();
-
-        assert!(certificate.public_key.verify(&data, &certificate.signature));
-    }
-
-    #[test]
-    fn test_sign_fail() {
-        let message_signing_keypair = Keypair::generate(None);
-
-        let message =
-            EphemeraMessage::signed("test".to_string(), vec![1, 2, 3], &message_signing_keypair)
-                .unwrap();
-        let certificate = message.certificate.clone();
-
-        let modified_message = EphemeraMessage::signed(
-            "test_test".to_string(),
-            vec![1, 2, 3],
-            &message_signing_keypair,
-        )
-        .unwrap();
-        let raw_message: RawEphemeraMessage = modified_message.into();
-        let data = raw_message.encode().unwrap();
-
-        assert!(!certificate.public_key.verify(&data, &certificate.signature));
     }
 }

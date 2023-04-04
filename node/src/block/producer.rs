@@ -45,6 +45,7 @@ impl BlockProducer {
 #[cfg(test)]
 mod test {
     use crate::crypto::{EphemeraKeypair, Keypair};
+    use crate::ephemera_api::RawApiEphemeraMessage;
 
     use super::*;
 
@@ -54,13 +55,19 @@ mod test {
 
         let mut block_producer = BlockProducer::new(peer_id);
 
-        let message1 =
-            EphemeraMessage::signed("label1".to_string(), vec![0], &Keypair::generate(None))
-                .unwrap();
-        let message2 =
-            EphemeraMessage::signed("label2".to_string(), vec![1], &Keypair::generate(None))
-                .unwrap();
-        let messages = vec![message1.clone(), message2.clone()];
+        let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
+        let signed_message = message
+            .sign(&Keypair::generate(None))
+            .expect("Failed to sign message");
+        let signed_message1: EphemeraMessage = signed_message.into();
+
+        let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
+        let signed_message = message
+            .sign(&Keypair::generate(None))
+            .expect("Failed to sign message");
+        let signed_message2: EphemeraMessage = signed_message.into();
+
+        let messages = vec![signed_message1.clone(), signed_message2.clone()];
 
         let block = block_producer.produce_block(1, messages).unwrap();
 
@@ -69,14 +76,14 @@ mod test {
         assert_eq!(block.messages.len(), 2);
 
         //Nondeterministic because of timestamp
-        match message1.cmp(&message2) {
+        match signed_message1.cmp(&signed_message2) {
             std::cmp::Ordering::Less => {
-                assert_eq!(block.messages[0], message1);
-                assert_eq!(block.messages[1], message2);
+                assert_eq!(block.messages[0], signed_message1);
+                assert_eq!(block.messages[1], signed_message2);
             }
             std::cmp::Ordering::Greater => {
-                assert_eq!(block.messages[0], message2);
-                assert_eq!(block.messages[1], message1);
+                assert_eq!(block.messages[0], signed_message2);
+                assert_eq!(block.messages[1], signed_message1);
             }
             _ => panic!("Messages are equal"),
         }

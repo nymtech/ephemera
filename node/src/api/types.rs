@@ -1,8 +1,13 @@
 //! # Api Types
 //!
 //! This module contains all the types that are used in the API.
-//! Basically they are public versions of the same types used internally.
-//! But it seems like a good idea to keep external and internal types separate.
+//!
+//! ## Types
+//!
+//! - ApiEphemeraMessage
+//! - ApiBlock
+//! - ApiCertificate
+//! - Health
 
 use std::fmt::Display;
 
@@ -11,10 +16,7 @@ use utoipa::ToSchema;
 
 use crate::{
     api::ApiError,
-    block::{
-        types::block::BlockHeader,
-        types::{block::Block, message::EphemeraMessage},
-    },
+    block::types::{block::Block, block::BlockHeader, message::EphemeraMessage},
     codec::{Decode, Encode, EphemeraEncoder},
     crypto::{Keypair, PublicKey},
     network::peer::PeerId,
@@ -25,6 +27,10 @@ use crate::{
     },
 };
 
+/// # Ephemera message.
+///
+/// An ApiEphemeraMessage submitted to an Ephemera node will be gossiped to other nodes.
+/// And should be eventually included in a Ephemera block.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiEphemeraMessage {
     /// The timestamp of the message.
@@ -34,7 +40,7 @@ pub struct ApiEphemeraMessage {
     /// The data of the message. It is application specific.
     pub data: Vec<u8>,
     /// The signature of the message. It implements Default trait instead of using Option.
-    pub signature: ApiCertificate,
+    pub certificate: ApiCertificate,
 }
 
 impl ApiEphemeraMessage {
@@ -43,7 +49,7 @@ impl ApiEphemeraMessage {
             timestamp: raw_message.timestamp,
             label: raw_message.label,
             data: raw_message.data,
-            signature: certificate,
+            certificate: certificate,
         }
     }
 }
@@ -74,56 +80,7 @@ impl From<ApiEphemeraMessage> for EphemeraMessage {
             timestamp: message.timestamp,
             label: message.label,
             data: message.data,
-            certificate: message.signature.into(),
-        }
-    }
-}
-
-impl From<EphemeraMessage> for ApiEphemeraMessage {
-    fn from(ephemera_message: EphemeraMessage) -> Self {
-        Self {
-            timestamp: ephemera_message.timestamp,
-            label: ephemera_message.label,
-            data: ephemera_message.data,
-            signature: ApiCertificate {
-                signature: ephemera_message.certificate.signature,
-                public_key: ephemera_message.certificate.public_key,
-            },
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiCertificate {
-    pub signature: Signature,
-    pub public_key: PublicKey,
-}
-
-impl ApiCertificate {
-    pub fn prepare<D: Encode>(key_pair: &Keypair, data: &D) -> anyhow::Result<Self> {
-        Certificate::prepare(key_pair, data).map(|c| c.into())
-    }
-
-    pub fn verify<D: Encode>(&self, data: &D) -> anyhow::Result<bool> {
-        let certificate: Certificate = (self.clone()).into();
-        Certificate::verify(&certificate, data)
-    }
-}
-
-impl From<Certificate> for ApiCertificate {
-    fn from(signature: Certificate) -> Self {
-        Self {
-            signature: signature.signature,
-            public_key: signature.public_key,
-        }
-    }
-}
-
-impl From<ApiCertificate> for Certificate {
-    fn from(value: ApiCertificate) -> Self {
-        Certificate {
-            signature: value.signature,
-            public_key: value.public_key,
+            certificate: message.certificate.into(),
         }
     }
 }
@@ -179,6 +136,16 @@ pub struct ApiBlockHeader {
     pub hash: String,
 }
 
+impl Display for ApiBlockHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ApiBlockHeader(timestamp: {}, creator: {}, height: {}, hash: {})",
+            self.timestamp, self.creator, self.height, self.hash,
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiBlock {
     pub header: ApiBlockHeader,
@@ -208,7 +175,17 @@ impl ApiBlock {
     }
 }
 
-/// Raw block represents all the data what will be signed
+impl Display for ApiBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ApiBlock(header: {}, message_count: {})",
+            self.header,
+            self.message_count()
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ApiRawBlock {
     pub(crate) header: ApiBlockHeader,
@@ -218,6 +195,60 @@ pub struct ApiRawBlock {
 impl ApiRawBlock {
     pub fn new(header: ApiBlockHeader, messages: Vec<ApiEphemeraMessage>) -> Self {
         Self { header, messages }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiCertificate {
+    pub signature: Signature,
+    pub public_key: PublicKey,
+}
+
+impl ApiCertificate {
+    pub fn prepare<D: Encode>(key_pair: &Keypair, data: &D) -> anyhow::Result<Self> {
+        Certificate::prepare(key_pair, data).map(|c| c.into())
+    }
+
+    pub fn verify<D: Encode>(&self, data: &D) -> anyhow::Result<bool> {
+        let certificate: Certificate = (self.clone()).into();
+        Certificate::verify(&certificate, data)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct Health {
+    pub(crate) status: String,
+}
+
+impl From<EphemeraMessage> for ApiEphemeraMessage {
+    fn from(ephemera_message: EphemeraMessage) -> Self {
+        Self {
+            timestamp: ephemera_message.timestamp,
+            label: ephemera_message.label,
+            data: ephemera_message.data,
+            certificate: ApiCertificate {
+                signature: ephemera_message.certificate.signature,
+                public_key: ephemera_message.certificate.public_key,
+            },
+        }
+    }
+}
+
+impl From<Certificate> for ApiCertificate {
+    fn from(signature: Certificate) -> Self {
+        Self {
+            signature: signature.signature,
+            public_key: signature.public_key,
+        }
+    }
+}
+
+impl From<ApiCertificate> for Certificate {
+    fn from(value: ApiCertificate) -> Self {
+        Certificate {
+            signature: value.signature,
+            public_key: value.public_key,
+        }
     }
 }
 
@@ -268,7 +299,42 @@ impl TryFrom<ApiBlock> for Block {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct Health {
-    pub(crate) status: String,
+#[cfg(test)]
+mod test {
+    use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
+
+    use super::*;
+
+    #[test]
+    fn test_sign_ok() {
+        let message_signing_keypair = Keypair::generate(None);
+
+        let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
+        let signed_message = message
+            .sign(&message_signing_keypair)
+            .expect("Failed to sign message");
+
+        let certificate = signed_message.certificate;
+
+        assert!(certificate
+            .public_key
+            .verify(&message.encode().unwrap(), &certificate.signature));
+    }
+
+    #[test]
+    fn test_sign_fail() {
+        let message_signing_keypair = Keypair::generate(None);
+
+        let message = RawApiEphemeraMessage::new("test1".to_string(), vec![1, 2, 3]);
+        let signed_message = message
+            .sign(&message_signing_keypair)
+            .expect("Failed to sign message");
+
+        let certificate = signed_message.certificate;
+
+        let modified_message = RawApiEphemeraMessage::new("test2".to_string(), vec![1, 2, 3]);
+        assert!(!certificate
+            .public_key
+            .verify(&modified_message.encode().unwrap(), &certificate.signature));
+    }
 }

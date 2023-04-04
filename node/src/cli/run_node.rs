@@ -70,7 +70,7 @@ impl SignatureVerificationApplication {
     }
 
     pub(crate) fn verify_message(&self, msg: ApiEphemeraMessage) -> anyhow::Result<()> {
-        let signature = msg.signature.clone();
+        let signature = msg.certificate.clone();
         let raw_message: RawApiEphemeraMessage = msg.into();
         let encoded_message = Encoder::encode(&raw_message)?;
         if self.keypair.verify(&encoded_message, &signature.signature) {

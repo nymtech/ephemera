@@ -20,7 +20,7 @@ pub struct NymApi {}
 
 impl NymApi {
     pub async fn run(args: Args) {
-        let storage = Arc::new(Mutex::new(Storage::new(
+        let storage = Arc::new(Mutex::new(Storage::init(
             args.metrics_db_path.clone(),
             migrations::migrations::runner(),
         )));

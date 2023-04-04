@@ -122,6 +122,7 @@ where
 
     //opens database and spawns dependent tasks
     pub async fn init_tasks(self) -> anyhow::Result<Ephemera<A>> {
+        log::info!("Initializing ephemera tasks...");
         cfg_if::cfg_if! {
             if #[cfg(feature = "sqlite_storage")] {
                 let starter = self.connect_sqlite().await?;

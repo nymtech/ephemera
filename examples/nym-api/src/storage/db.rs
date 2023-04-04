@@ -25,7 +25,7 @@ pub struct Storage<T> {
 }
 
 impl<T> Storage<T> {
-    pub fn new(db_path: String, migrations: Runner) -> Self {
+    pub fn init(db_path: String, migrations: Runner) -> Self {
         let db_file = PathBuf::from(db_path.clone());
         if db_file.exists() {
             log::info!("Removing previous database file: {}", db_file.display());

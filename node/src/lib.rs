@@ -56,6 +56,10 @@ pub mod configuration {
     pub use super::config::Configuration;
 }
 
+pub mod helpers {
+    pub use super::logging::{init_logging, init_logging_with_directives};
+}
+
 pub mod cli;
 
 mod api;

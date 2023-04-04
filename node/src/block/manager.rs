@@ -203,7 +203,9 @@ mod test {
 
     use assert_matches::assert_matches;
 
+    
     use crate::crypto::{EphemeraKeypair, Keypair};
+    use crate::ephemera_api::RawApiEphemeraMessage;
     use crate::network::peer::{PeerId, ToPeerId};
 
     use super::*;
@@ -212,15 +214,15 @@ mod test {
     async fn test_add_message() {
         let keypair: Arc<Keypair> = Keypair::generate(None).into();
         let peer_id = keypair.public_key().peer_id();
-        let mut manager = block_manager(keypair, peer_id);
+        let mut manager = block_manager(keypair.clone(), peer_id);
 
-        let message =
-            EphemeraMessage::signed("label1".to_string(), vec![0], &Keypair::generate(None))
-                .unwrap();
+        let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
+        let signed_message = message.sign(&keypair).expect("Failed to sign message");
+        let signed_message: EphemeraMessage = signed_message.into();
 
-        let hash = message.hash_with_default_hasher().unwrap();
+        let hash = signed_message.hash_with_default_hasher().unwrap();
 
-        manager.on_new_message(message).await.unwrap();
+        manager.on_new_message(signed_message).await.unwrap();
 
         assert!(manager.message_pool.contains(&hash));
     }
@@ -229,15 +231,18 @@ mod test {
     async fn test_add_duplicate_message() {
         let keypair: Arc<Keypair> = Keypair::generate(None).into();
         let peer_id = keypair.public_key().peer_id();
-        let mut manager = block_manager(keypair, peer_id);
+        let mut manager = block_manager(keypair.clone(), peer_id);
 
-        let message =
-            EphemeraMessage::signed("label1".to_string(), vec![0], &Keypair::generate(None))
-                .unwrap();
+        let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
+        let signed_message = message.sign(&keypair).expect("Failed to sign message");
+        let signed_message: EphemeraMessage = signed_message.into();
 
-        manager.on_new_message(message.clone()).await.unwrap();
+        manager
+            .on_new_message(signed_message.clone())
+            .await
+            .unwrap();
         assert_matches!(
-            manager.on_new_message(message).await,
+            manager.on_new_message(signed_message).await,
             Err(BlockManagerError::DuplicateMessage(_))
         );
     }
