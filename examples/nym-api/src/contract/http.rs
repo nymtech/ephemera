@@ -102,7 +102,7 @@ pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>)
 }
 
 async fn ping_health(node_id: usize) -> bool {
-    let url = format!("http://127.0.0.1:700{node_id}/ephemera/health",);
+    let url = format!("http://127.0.0.1:700{node_id}/ephemera/node/health",);
     log::info!("Pinging health endpoint at {}", url);
     let response = HTTP_CLIENT.get(url).send().await;
 

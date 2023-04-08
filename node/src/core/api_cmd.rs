@@ -2,6 +2,8 @@ use std::num::NonZeroUsize;
 
 use lru::LruCache;
 
+use crate::crypto::EphemeraKeypair;
+use crate::ephemera_api::ApiEphemeraConfig;
 use crate::{
     api::{
         self,
@@ -228,6 +230,23 @@ impl ApiCmdProcessor {
                         .send(Ok(()))
                         .expect("Error sending StoreInDht response to api");
                 }
+            }
+            ApiCmd::EphemeraConfig(reply) => {
+                let node_info = ephemera.node_info.clone();
+                let api_config = ApiEphemeraConfig {
+                    protocol_address: node_info.protocol_address(),
+                    api_address: node_info.api_address_http(),
+                    websocket_address: node_info.ws_address_ws(),
+                    public_key: node_info.keypair.public_key().to_string(),
+                    block_producer: node_info.initial_config.block.producer,
+                    block_creation_interval_sec: node_info
+                        .initial_config
+                        .block
+                        .creation_interval_sec,
+                };
+                reply
+                    .send(Ok(api_config))
+                    .expect("Error sending EphemeraConfig response to api");
             }
         }
         Ok(())

@@ -9,6 +9,7 @@ use crate::block::manager::BlockManager;
 use crate::block::types::block::Block;
 use crate::broadcast::bracha::broadcaster::{Broadcaster, ProtocolResponse};
 use crate::broadcast::RbMsg;
+
 use crate::core::api_cmd::ApiCmdProcessor;
 use crate::core::builder::{EphemeraHandle, NodeInfo};
 use crate::core::shutdown::ShutdownManager;
@@ -19,6 +20,7 @@ use crate::utilities::crypto::Certificate;
 use crate::websocket::ws_manager::WsMessageBroadcaster;
 
 pub struct Ephemera<A: Application> {
+    /// Node info
     pub(crate) node_info: NodeInfo,
 
     /// Block manager responsibility includes:
@@ -167,9 +169,7 @@ impl<A: Application> Ephemera<A> {
                 }
             }
             NetworkEvent::PeersUpdated(peers) => {
-                if let Err(err) = self.broadcaster.topology_updated(peers).await {
-                    log::error!("Error updating broadcaster topology: {:?}", err);
-                }
+                self.broadcaster.topology_updated(peers);
             }
             NetworkEvent::QueryDhtResponse { key, value } => {
                 match self.api_cmd_processor.dht_query_cache.pop(&key) {
@@ -259,7 +259,7 @@ impl<A: Application> Ephemera<A> {
             }) => {
                 //Send protocol response to network
                 log::trace!("Broadcasting block to network: {:?}", rp);
-                let certificate = self.block_manager.sign_block(rp.get_block())?;
+                let certificate = self.block_manager.sign_block(rp.block_ref())?;
                 let rb_msg = RbMsg::new(rp, certificate);
                 self.to_network
                     .send_ephemera_event(EphemeraEvent::ProtocolMessage(rb_msg.into()))

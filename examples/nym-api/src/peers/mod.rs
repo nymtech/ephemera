@@ -59,8 +59,7 @@ impl NymApiEphemeraPeerInfo {
 
         let home_path = dirs::home_dir()
             .ok_or(anyhow!("Failed to get home dir"))?
-            .join(".ephemera")
-            .join("nym-api");
+            .join(".ephemera");
         let home_dir = std::fs::read_dir(home_path)?;
 
         let mut peers = HashMap::new();
@@ -79,10 +78,11 @@ impl NymApiEphemeraPeerInfo {
 
                 log::info!("Loading config for node {}", node_name);
 
-                let conf = Configuration::try_load_application("nym-api", node_name)
+                let conf = Configuration::try_load_from_home_dir(node_name)
                     .unwrap_or_else(|_| panic!("Error loading configuration for node {node_name}"));
 
                 let node_info = conf.node;
+                let libp2p_info = conf.libp2p;
 
                 let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
                 let keypair = Keypair::from_raw_vec(keypair).unwrap();
@@ -91,7 +91,7 @@ impl NymApiEphemeraPeerInfo {
 
                 let peer = NymPeer::new(
                     peer_id.clone(),
-                    node_info.address.clone(),
+                    format!("/ip4/{}/tcp/{}", node_info.ip, libp2p_info.port),
                     keypair.public_key(),
                     peer_id.clone(),
                 );

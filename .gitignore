@@ -11,3 +11,6 @@ cluster
 *.sqlite
 
 .DS_Store
+
+scripts/aws*
+scripts/aws/ephemera.zip

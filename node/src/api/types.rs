@@ -8,6 +8,7 @@
 //! - ApiBlock
 //! - ApiCertificate
 //! - Health
+//! - ApiEphemeraConfig
 
 use std::fmt::Display;
 
@@ -49,7 +50,7 @@ impl ApiEphemeraMessage {
             timestamp: raw_message.timestamp,
             label: raw_message.label,
             data: raw_message.data,
-            certificate: certificate,
+            certificate,
         }
     }
 }
@@ -218,6 +219,16 @@ impl ApiCertificate {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct Health {
     pub(crate) status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiEphemeraConfig {
+    pub protocol_address: String,
+    pub api_address: String,
+    pub websocket_address: String,
+    pub public_key: String,
+    pub block_producer: bool,
+    pub block_creation_interval_sec: u64,
 }
 
 impl From<EphemeraMessage> for ApiEphemeraMessage {

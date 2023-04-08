@@ -1,6 +1,7 @@
+use std::net::SocketAddr;
+
 use anyhow::Result;
 use futures_util::SinkExt;
-use std::net::SocketAddr;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::broadcast,
@@ -9,7 +10,6 @@ use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::api::types::ApiBlock;
 use crate::block::types::block::Block;
-use crate::config::WsConfig;
 
 pub struct WsConnection {
     socket: WebSocketStream<TcpStream>,
@@ -79,18 +79,18 @@ impl WsMessageBroadcaster {
 
 pub(crate) struct WsManager {
     pub(crate) listener: Option<TcpListener>,
-    pub(crate) config: WsConfig,
+    pub(crate) ws_address: String,
     pub(crate) pending_messages_tx: broadcast::Sender<Message>,
     _pending_messages_rcv: broadcast::Receiver<Message>,
 }
 
 impl WsManager {
-    pub(crate) fn new(config: WsConfig) -> (WsManager, WsMessageBroadcaster) {
+    pub(crate) fn new(address: String) -> (WsManager, WsMessageBroadcaster) {
         let (pending_messages_tx, _pending_messages_rcv) = broadcast::channel(1000);
         let ws_message_broadcast = WsMessageBroadcaster::new(pending_messages_tx.clone());
         let manager = WsManager {
             listener: None,
-            config,
+            ws_address: address,
             pending_messages_tx,
             _pending_messages_rcv,
         };
@@ -98,11 +98,8 @@ impl WsManager {
     }
 
     pub(crate) async fn listen(&mut self) -> Result<()> {
-        let listener = TcpListener::bind(&self.config.ws_address).await?;
-        log::info!(
-            "Listening for websocket connections on {}",
-            self.config.ws_address
-        );
+        let listener = TcpListener::bind(&self.ws_address).await?;
+        log::info!("Listening for websocket connections on {}", self.ws_address);
         self.listener = Some(listener);
         Ok(())
     }

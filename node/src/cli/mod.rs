@@ -22,3 +22,27 @@ pub enum Subcommand {
     GenerateKeypair(crypto::GenerateKeypairCmd),
     UpdateConfig(config::UpdateConfigCmd),
 }
+
+impl Cli {
+    pub async fn execute(self) -> anyhow::Result<()> {
+        match self.subcommand {
+            Subcommand::Init(init) => {
+                init.execute();
+            }
+            Subcommand::AddPeer(add_peer) => {
+                add_peer.execute();
+            }
+            Subcommand::AddLocalPeers(add_local_peers) => {
+                add_local_peers.execute();
+            }
+            Subcommand::RunNode(run_node) => run_node.execute().await?,
+            Subcommand::GenerateKeypair(gen_keypair) => {
+                gen_keypair.execute();
+            }
+            Subcommand::UpdateConfig(update_config) => {
+                update_config.execute();
+            }
+        }
+        Ok(())
+    }
+}

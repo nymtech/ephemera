@@ -1,9 +1,11 @@
+use std::fmt::Display;
+
+use serde::{Deserialize, Serialize};
+
 use crate::crypto::EphemeraKeypair;
 use crate::network::peer::{PeerId, ToPeerId};
 use crate::utilities::crypto::keypair::KeyPairError;
 use crate::utilities::crypto::{EphemeraPublicKey, Signature};
-use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 
 // Internally uses libp2p for now
 pub struct Ed25519Keypair(pub(crate) libp2p::identity::Keypair);
@@ -24,6 +26,16 @@ impl Ed25519PublicKey {
 impl Ed25519Keypair {
     pub(crate) fn inner(&self) -> &libp2p::identity::Keypair {
         &self.0
+    }
+}
+
+impl Display for Ed25519Keypair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Public key: {}, Secret key: .........",
+            self.public_key().to_base58()
+        )
     }
 }
 

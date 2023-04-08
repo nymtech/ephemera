@@ -1,96 +1,84 @@
 use clap::Parser;
 
 use crate::config::{
-    BlockConfig, BroadcastConfig, Configuration, DbConfig, HttpConfig, Libp2pConfig, NodeConfig,
-    WsConfig,
+    BlockConfig, Configuration, DbConfig, HttpConfig, Libp2pConfig, NodeConfig, WsConfig,
 };
-use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
+use crate::crypto::{EphemeraKeypair, Keypair};
 
 //network settings
-const DEFAULT_LISTEN_ADDRESS: &str = "/ip4/127.0.0.1/tcp/";
+const DEFAULT_LISTEN_ADDRESS: &str = "127.0.0.1";
 const DEFAULT_LISTEN_PORT: &str = "3000";
 
 //libp2p settings
-const DEFAULT_PROPOSED_MSG_TOPIC_NAME: &str = "nym-ephemera-proposed";
+const DEFAULT_MESSAGES_TOPIC_NAME: &str = "nym-ephemera-proposed";
 const DEFAULT_HEARTBEAT_INTERVAL_SEC: u64 = 1;
-
-//protocol settings
-const DEFAULT_QUORUM_THRESHOLD_COUNT: usize = 1;
-const DEFAULT_TOTAL_NR_OF_NODES: usize = 1;
 
 #[derive(Debug, Clone, Parser)]
 pub struct InitCmd {
     #[arg(long, default_value = "default")]
-    pub node: String,
-    #[clap(long)]
-    pub application: String,
+    pub node_name: String,
     #[clap(long, default_value = DEFAULT_LISTEN_ADDRESS)]
-    pub address: String,
+    pub ip: String,
     #[clap(long, default_value = DEFAULT_LISTEN_PORT)]
-    pub port: u16,
-    #[clap(long, default_value_t = DEFAULT_QUORUM_THRESHOLD_COUNT)]
-    pub quorum_threshold_count: usize,
-    #[clap(long, default_value_t = DEFAULT_TOTAL_NR_OF_NODES)]
-    pub total_nr_of_nodes: usize,
+    pub protocol_port: u16,
     #[clap(long)]
-    pub rocksdb_path: String,
+    pub websocket_port: u16,
     #[clap(long)]
-    pub sqlite_path: String,
-    #[clap(long)]
-    pub ws_address: String,
-    #[clap(long)]
-    pub network_client_listener_address: String,
-    #[clap(long)]
-    pub http_server_address: String,
+    pub http_api_port: u16,
     #[clap(long, default_value_t = true)]
     pub block_producer: bool,
-    #[clap(long, default_value_t = 15)]
+    #[clap(long, default_value_t = 30)]
     pub block_creation_interval_sec: u64,
 }
 
 impl InitCmd {
     pub fn execute(self) {
-        let path =
-            Configuration::ephemera_config_file_application(&self.application, &self.node).unwrap();
-        if path.exists() {
-            panic!("Configuration already exists: {}", path.display());
+        if Configuration::try_load_from_home_dir(&self.node_name).is_ok() {
+            panic!("Configuration file already exists: {}", self.node_name);
         }
 
+        let path = Configuration::ephemera_root_dir()
+            .unwrap()
+            .join(&self.node_name);
+        println!("Creating ephemera node in: {:?}", path);
+
+        let db_dir = path.join("db");
+        let rocksdb_path = db_dir.join("rocksdb");
+        let sqlite_path = db_dir.join("ephemera.sqlite");
+        std::fs::create_dir_all(&rocksdb_path).unwrap();
+        std::fs::File::create(&sqlite_path).unwrap();
+
         let keypair = Keypair::generate(None);
-        let public_key = keypair.public_key().to_base58();
         let private_key = keypair.to_base58();
 
         let configuration = Configuration {
             node: NodeConfig {
-                address: format!("{}{}", self.address, self.port),
-                public_key,
+                ip: self.ip,
                 private_key,
             },
-            broadcast: BroadcastConfig {
-                cluster_size: self.total_nr_of_nodes,
-            },
             libp2p: Libp2pConfig {
-                ephemera_msg_topic_name: DEFAULT_PROPOSED_MSG_TOPIC_NAME.to_string(),
+                port: self.protocol_port,
+                ephemera_msg_topic_name: DEFAULT_MESSAGES_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
                 peers: vec![],
             },
             storage: DbConfig {
-                rocket_path: self.rocksdb_path,
-                sqlite_path: self.sqlite_path,
+                rocket_path: rocksdb_path.as_os_str().to_str().unwrap().to_string(),
+                sqlite_path: sqlite_path.as_os_str().to_str().unwrap().to_string(),
                 create_if_not_exists: true,
             },
             websocket: WsConfig {
-                ws_address: self.ws_address,
+                port: self.websocket_port,
             },
             http: HttpConfig {
-                address: self.http_server_address,
+                port: self.http_api_port,
             },
             block: BlockConfig {
                 producer: self.block_producer,
                 creation_interval_sec: self.block_creation_interval_sec,
             },
         };
-        if let Err(err) = configuration.try_create_with_application(&self.application, &self.node) {
+        if let Err(err) = configuration.try_create_root_dir(&self.node_name) {
             eprintln!("Error creating configuration file: {err:?}",);
         }
     }

@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 
 use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::RbMsg;
-use crate::config::{Libp2pConfig, NodeConfig};
+use crate::codec::Encode;
 use crate::core::builder::NodeInfo;
 use crate::network::discovery::PeerDiscovery;
 use crate::network::libp2p::behaviours::broadcast_messages::RbMsgResponse;
@@ -28,17 +28,15 @@ use crate::network::libp2p::network_sender::{
 };
 
 pub struct SwarmNetwork<P: PeerDiscovery + 'static> {
-    libp2p_conf: Libp2pConfig,
-    node_conf: NodeConfig,
+    node_info: NodeInfo,
     swarm: Swarm<GroupNetworkBehaviour<P>>,
     from_ephemera_rcv: EphemeraToNetworkReceiver,
     to_ephemera_tx: NetCommunicationSender,
+    ephemera_msg_topic: Topic,
 }
 
 impl<P: PeerDiscovery> SwarmNetwork<P> {
     pub(crate) fn new(
-        libp2p_conf: Libp2pConfig,
-        node_conf: NodeConfig,
         node_info: NodeInfo,
         peer_discovery: P,
     ) -> (
@@ -50,18 +48,24 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         let (to_ephemera_tx, to_ephemera_rcv) = EphemeraNetworkCommunication::init();
 
         let local_key = node_info.keypair.clone();
-        let peer_id = node_info.peer_id.0;
+        let peer_id = node_info.peer_id;
+        let ephemera_msg_topic =
+            Topic::new(&node_info.initial_config.libp2p.ephemera_msg_topic_name);
 
         let transport = create_transport(local_key.clone());
-        let behaviour = create_behaviour(&libp2p_conf, local_key, peer_discovery);
-        let swarm = Swarm::with_tokio_executor(transport, behaviour, peer_id);
+        let behaviour = create_behaviour(
+            local_key,
+            ephemera_msg_topic.clone(),
+            peer_discovery,
+        );
+        let swarm = Swarm::with_tokio_executor(transport, behaviour, peer_id.into());
 
         let network = SwarmNetwork {
-            libp2p_conf,
-            node_conf,
+            node_info,
             swarm,
             from_ephemera_rcv,
             to_ephemera_tx,
+            ephemera_msg_topic,
         };
 
         (network, to_ephemera_rcv, from_ephemera_tx)
@@ -69,7 +73,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
 
     pub(crate) fn listen(&mut self) -> anyhow::Result<()> {
         let address =
-            Multiaddr::from_str(self.node_conf.address.as_str()).expect("Invalid multi-address");
+            Multiaddr::from_str(&self.node_info.protocol_address()).expect("Invalid multi-address");
         self.swarm.listen_on(address.clone())?;
 
         log::info!("Listening on {address:?}");
@@ -116,11 +120,9 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     }
 
     async fn process_ephemera_events(&mut self, event: EphemeraEvent) {
-        //FIXME:keep it around instead of create it every time
-        let ephemera_msg_topic = Topic::new(&self.libp2p_conf.ephemera_msg_topic_name);
         match event {
             EphemeraEvent::EphemeraMessage(em) => {
-                self.send_ephemera_message(*em, &ephemera_msg_topic).await;
+                self.send_ephemera_message(*em).await;
             }
             EphemeraEvent::ProtocolMessage(pm) => {
                 self.send_protocol_message(*pm).await;
@@ -279,11 +281,12 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     async fn process_rendezvous_event(&mut self, event: rendezvous::Event) -> anyhow::Result<()> {
         match event {
             rendezvous::Event::PeersUpdated => {
-                log::trace!(
+                log::info!(
                     "Peers updated: {:?}",
                     self.swarm.behaviour().rendezvous_behaviour.peer_ids_ref()
                 );
                 let new_peers = self.swarm.behaviour().rendezvous_behaviour.peers();
+                log::info!("New peers: {:?}", new_peers);
 
                 let kademlia = &mut self.swarm.behaviour_mut().kademlia;
 
@@ -318,10 +321,16 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                         log::trace!("Bootstrap: {:?}", bt);
                     }
                     kad::QueryResult::GetClosestPeers(gcp) => {
-                        log::debug!("GetClosestPeers: {:?}", gcp);
-                        //TODO: we need also to make sure that we hve enough peers
+                        log::info!("GetClosestPeers: {:?}", gcp);
+                        //TODO: we need also to make sure that we have enough peers
+                        // (Repeat if not enough, may neee to wait network to stabilize)
+
+                        //TODO: kad seems to get multiple responses for single query
                         match gcp {
                             Ok(cp) => {
+                                if cp.peers.is_empty() {
+                                    return Ok(());
+                                }
                                 let previous_peer_ids = self
                                     .swarm
                                     .behaviour()
@@ -340,6 +349,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
 
                                 let new_peer_ids =
                                     self.swarm.behaviour().rendezvous_behaviour.peer_ids();
+
                                 self.to_ephemera_tx
                                     .send_network_event(NetworkEvent::PeersUpdated(new_peer_ids))
                                     .await?;
@@ -398,7 +408,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 bucket_range,
                 old_peer,
             } => {
-                log::debug!("Routing updated: peer:{:?}, is_new_peer:{:?}, addresses:{:?}, bucket_range:{:?}, old_peer:{:?}",
+                log::info!("Routing updated: peer:{:?}, is_new_peer:{:?}, addresses:{:?}, bucket_range:{:?}, old_peer:{:?}",
                     peer, is_new_peer, addresses, bucket_range, old_peer);
 
                 let query_id = self
@@ -546,20 +556,12 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         }
     }
 
-    async fn send_ephemera_message(&mut self, msg: EphemeraMessage, topic: &Topic) {
+    async fn send_ephemera_message(&mut self, msg: EphemeraMessage) {
         log::trace!("Sending Ephemera message: {:?}", msg);
-        self.send_message(msg, topic).await;
-    }
-
-    async fn send_message<T: serde::Serialize>(&mut self, msg: T, topic: &Topic) {
-        match serde_json::to_vec(&msg) {
+        match msg.encode() {
             Ok(vec) => {
-                if let Err(err) = self
-                    .swarm
-                    .behaviour_mut()
-                    .gossipsub
-                    .publish(topic.clone(), vec)
-                {
+                let topic = self.ephemera_msg_topic.clone();
+                if let Err(err) = self.swarm.behaviour_mut().gossipsub.publish(topic, vec) {
                     log::error!("Error publishing message: {}", err);
                 }
             }

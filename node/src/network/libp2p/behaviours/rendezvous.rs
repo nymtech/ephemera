@@ -1,15 +1,15 @@
 use std::collections::HashMap;
-
 use std::task::{Context, Poll};
 
-use crate::network::discovery::{PeerDiscovery, PeerInfo};
-use crate::network::peer::{Peer, PeerId};
 use libp2p::swarm::{
     dummy, ConnectionId, FromSwarm, NetworkBehaviour, NetworkBehaviourAction, PollParameters,
     THandlerInEvent, THandlerOutEvent,
 };
 use libp2p::Multiaddr;
 use tokio::task::JoinHandle;
+
+use crate::network::discovery::{PeerDiscovery, PeerInfo};
+use crate::network::peer::{Peer, PeerId};
 
 pub(crate) struct RendezvousBehaviour<P: PeerDiscovery> {
     peers: HashMap<PeerId, Peer>,
@@ -112,8 +112,15 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for RendezvousBehaviour<P> {
             self.previous_peers = previous_peers;
 
             for peer_info in peers {
-                let peer: Peer = peer_info.try_into().unwrap();
-                self.peers.insert(peer.peer_id, peer);
+                log::info!("Discovered peer {}", peer_info);
+                match <PeerInfo as TryInto<Peer>>::try_into(peer_info) {
+                    Ok(peer) => {
+                        self.peers.insert(peer.peer_id, peer);
+                    }
+                    Err(err) => {
+                        log::error!("Error while converting peer info to peer: {}", err);
+                    }
+                }
             }
             return Poll::Ready(NetworkBehaviourAction::GenerateEvent(Event::PeersUpdated));
         }

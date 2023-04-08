@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rocksdb = "0.20.1"
+rocksdb = { version = "0.20.1" }
 easy-repl = "0.2.1"
 clap = { version = "4.0.32", features = ["derive"] }

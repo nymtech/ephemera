@@ -42,6 +42,8 @@ impl PeerDiscovery for HttpPeerDiscovery {
                 Ok::<PeerInfo, anyhow::Error>(peer_info)
             })
             .collect();
+
+        log::info!("Sending peers: {peers:?}");
         discovery_channel.send(peers)?;
         Ok(())
     }

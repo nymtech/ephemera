@@ -9,7 +9,6 @@ use thiserror::Error;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Configuration {
     pub node: NodeConfig,
-    pub broadcast: BroadcastConfig,
     pub libp2p: Libp2pConfig,
     pub storage: DbConfig,
     pub websocket: WsConfig,
@@ -19,19 +18,14 @@ pub struct Configuration {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct NodeConfig {
-    pub address: String,
-    pub public_key: String,
+    pub ip: String,
     //FIXME: dev only
     pub private_key: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct BroadcastConfig {
-    pub cluster_size: usize,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Libp2pConfig {
+    pub port: u16,
     pub ephemera_msg_topic_name: String,
     pub heartbeat_interval_sec: u64,
     pub peers: Vec<PeerSetting>,
@@ -54,13 +48,13 @@ pub struct DbConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct WsConfig {
     /// Address to listen on for WebSocket API requests
-    pub ws_address: String,
+    pub port: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct HttpConfig {
     /// Address to listen on for HTTP API requests
-    pub address: String,
+    pub port: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -120,18 +114,6 @@ impl Configuration {
             .map_err(|e| ConfigurationError::Other(e.to_string()))
     }
 
-    pub fn try_load_application(application: &str, node_name: &str) -> Result<Configuration> {
-        let file_path = Configuration::ephemera_config_file_application(application, node_name)?;
-        let config = config::Config::builder()
-            .add_source(config::File::from(file_path))
-            .build()
-            .map_err(|e| ConfigurationError::Other(e.to_string()))?;
-
-        config
-            .try_deserialize()
-            .map_err(|e| ConfigurationError::Other(e.to_string()))
-    }
-
     pub fn try_create_root_dir(&self, node_name: &str) -> Result<()> {
         let conf_path = Configuration::ephemera_node_dir(node_name)?;
         if !conf_path.exists() {
@@ -139,23 +121,6 @@ impl Configuration {
         }
 
         let file_path = Configuration::ephemera_config_file_root(node_name)?;
-        if file_path.exists() {
-            return Err(ConfigurationError::ConfigurationFileExists(
-                file_path.to_str().unwrap().to_string(),
-            ));
-        }
-
-        self.write(file_path)?;
-        Ok(())
-    }
-
-    pub fn try_create_with_application(&self, application: &str, node_name: &str) -> Result<()> {
-        let conf_path = Configuration::ephemera_node_dir(application)?.join(node_name);
-        if !conf_path.exists() {
-            std::fs::create_dir_all(conf_path)?;
-        }
-
-        let file_path = Configuration::ephemera_config_file_application(application, node_name)?;
         if file_path.exists() {
             return Err(ConfigurationError::ConfigurationFileExists(
                 file_path.to_str().unwrap().to_string(),
@@ -181,42 +146,13 @@ impl Configuration {
         Ok(())
     }
 
-    pub fn try_update_application(&self, node_name: &str, application: &str) -> Result<()> {
-        let file_path = Configuration::ephemera_config_file_application(application, node_name)?;
-        if !file_path.exists() {
-            log::error!(
-                "Configuration file does not exist {}",
-                file_path.to_str().unwrap()
-            );
-            return Err(ConfigurationError::ConfigurationFileDoesNotExists(
-                file_path.to_str().unwrap().to_string(),
-            ));
-        }
-        self.write(file_path)?;
-        Ok(())
-    }
-
     pub fn ephemera_config_file_root(node_name: &str) -> Result<PathBuf> {
         Ok(Self::ephemera_node_dir(node_name)?.join(EPHEMERA_CONFIG_FILE))
     }
 
-    pub fn ephemera_config_file_application(application: &str, node_name: &str) -> Result<PathBuf> {
-        Ok(Self::ephemera_node_dir(application)?
-            .join(node_name)
-            .join(EPHEMERA_CONFIG_FILE))
-    }
-
-    fn ephemera_root_dir() -> Result<PathBuf> {
+    pub fn ephemera_root_dir() -> Result<PathBuf> {
         dirs::home_dir()
             .map(|home| home.join(EPHEMERA_DIR_NAME))
-            .ok_or(ConfigurationError::Other(
-                "Could not find home directory".to_string(),
-            ))
-    }
-
-    pub(crate) fn ephemera_root_dir_application(application: &str) -> Result<PathBuf> {
-        dirs::home_dir()
-            .map(|home| home.join(EPHEMERA_DIR_NAME).join(application))
             .ok_or(ConfigurationError::Other(
                 "Could not find home directory".to_string(),
             ))

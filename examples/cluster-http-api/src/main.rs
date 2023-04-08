@@ -1,9 +1,6 @@
-use std::time::Duration;
-
 use clap::Parser;
-
 use ephemera::crypto::EphemeraKeypair;
-use ephemera::helpers::{init_logging_with_directives};
+use ephemera::helpers::init_logging_with_directives;
 
 mod cluster;
 mod node;
@@ -16,16 +13,10 @@ mod util;
 struct Args {
     /// Ephemera cluster size
     #[clap(long)]
-    nr_of_nodes: u64,
+    nr_of_nodes: usize,
     /// Messages submitting frequency in ms
     #[clap(long, default_value_t = 3000)]
     messages_post_frequency_ms: u64,
-    /// Block query frequency in sec
-    #[clap(long, default_value_t = 30)]
-    block_query_frequency_sec: u64,
-    /// Block production interval in sec
-    #[clap(long)]
-    node_block_production_interval: u64,
 }
 
 //1. Submit messages to different nodes
@@ -50,17 +41,14 @@ async fn main() {
 
     let mut cluster = cluster::Cluster::new(args.clone(), nodes, keypair);
 
-    let messages_interval = Duration::from_millis(args.messages_post_frequency_ms);
-    let blocks_by_height_interval = Duration::from_secs(args.block_query_frequency_sec);
-
     let mut submit_messages_handle = cluster
-        .submit_messages_to_all_nodes_at_the_same_interval(messages_interval)
+        .submit_messages_to_an_randoms_burst_and_wait(10)
         .await
         .unwrap();
-    let mut query_blocks_by_height_handle = cluster
-        .query_blocks_by_height(blocks_by_height_interval)
-        .await
-        .unwrap();
+
+    let mut query_blocks_by_height_handle = cluster.query_blocks_by_height().await.unwrap();
+
+    let mut query_block_hashes_handle = cluster.query_blocks_by_hash().await.unwrap();
 
     tokio::select! {
         _ = &mut submit_messages_handle => {
@@ -68,6 +56,9 @@ async fn main() {
         }
         _ = &mut query_blocks_by_height_handle => {
             log::info!("Query blocks by height task exited");
+        }
+        _ = &mut query_block_hashes_handle => {
+            log::info!("Query blocks by hash task exited");
         }
     }
 

@@ -15,7 +15,7 @@ use tokio::sync::{
     oneshot,
 };
 
-use crate::api::types::{ApiBlock, ApiCertificate, ApiEphemeraMessage};
+use crate::api::types::{ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage};
 
 #[derive(Error, Debug)]
 pub enum ApiError {
@@ -46,6 +46,7 @@ pub(crate) enum ApiCmd {
     ),
     QueryDht(Vec<u8>, oneshot::Sender<Result<Option<DhtKV>, ApiError>>),
     StoreInDht(Vec<u8>, Vec<u8>, oneshot::Sender<Result<(), ApiError>>),
+    EphemeraConfig(oneshot::Sender<Result<ApiEphemeraConfig, ApiError>>),
 }
 
 impl Display for ApiCmd {
@@ -63,6 +64,9 @@ impl Display for ApiCmd {
             }
             ApiCmd::StoreInDht(_, _, _) => {
                 write!(f, "StoreInDht")
+            }
+            ApiCmd::EphemeraConfig(_) => {
+                write!(f, "EphemeraConfig")
             }
         }
     }
@@ -132,6 +136,11 @@ impl EphemeraExternalApi {
         log::trace!("store_in_dht()");
         self.send_and_wait_response(|tx| ApiCmd::StoreInDht(key, value, tx))
             .await
+    }
+
+    pub async fn get_node_config(&self) -> Result<ApiEphemeraConfig, ApiError> {
+        log::trace!("get_node_config()");
+        self.send_and_wait_response(ApiCmd::EphemeraConfig).await
     }
 
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers

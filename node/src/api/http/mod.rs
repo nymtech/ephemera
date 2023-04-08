@@ -1,17 +1,18 @@
-pub(crate) mod client;
-pub(crate) mod query;
-pub(crate) mod submit;
-
+use actix_web::http::KeepAlive;
 use actix_web::{dev::Server, web::Data, App, HttpServer};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::EphemeraExternalApi;
-use crate::config::HttpConfig;
+use crate::core::builder::NodeInfo;
+
+pub(crate) mod client;
+pub(crate) mod query;
+pub(crate) mod submit;
 
 /// Starts the HTTP server.
-pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> anyhow::Result<Server> {
-    print_startup_messages(config.clone());
+pub(crate) fn init(node_info: &NodeInfo, api: EphemeraExternalApi) -> anyhow::Result<Server> {
+    print_startup_messages(node_info);
 
     let server = HttpServer::new(move || {
         App::new()
@@ -21,10 +22,12 @@ pub(crate) fn init(config: HttpConfig, api: EphemeraExternalApi) -> anyhow::Resu
             .service(query::block_certificates)
             .service(query::block_by_height)
             .service(query::last_block)
+            .service(query::get_node_config)
             .service(submit::submit_message)
             .service(swagger_ui())
     })
-    .bind(config.address)?
+    .keep_alive(KeepAlive::Os)
+    .bind((node_info.ip.as_str(), node_info.initial_config.http.port))?
     .run();
     Ok(server)
 }
@@ -42,13 +45,15 @@ fn swagger_ui() -> SwaggerUi {
             query::block_certificates,
             query::block_by_height,
             query::last_block,
+            query::get_node_config,
             submit::submit_message
         ),
         components(schemas(
             types::ApiBlock,
             types::ApiEphemeraMessage,
             types::ApiCertificate,
-            types::Health
+            types::Health,
+            types::ApiEphemeraConfig,
         ))
     )]
     struct ApiDoc;
@@ -57,11 +62,9 @@ fn swagger_ui() -> SwaggerUi {
 
 /// Prints messages saying which ports HTTP is running on, and some helpful pointers
 /// to the Swagger UI and OpenAPI spec.
-fn print_startup_messages(config: HttpConfig) {
-    log::info!("Server running on http://{}", config.address);
-    log::info!("Swagger UI: http://{}/swagger-ui/", config.address);
-    log::info!(
-        "OpenAPI spec is at: http://{}/api-doc/openapi.json",
-        config.address
-    );
+fn print_startup_messages(info: &NodeInfo) {
+    let http_root = info.api_address_http();
+    log::info!("Server running on {}", http_root);
+    log::info!("Swagger UI: {}/swagger-ui/", http_root);
+    log::info!("OpenAPI spec is at: {}/api-doc/openapi.json", http_root);
 }

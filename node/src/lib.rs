@@ -32,7 +32,10 @@ pub mod ephemera_api {
     pub use crate::api::{
         application::{Application, DefaultApplication},
         http::client::{EphemeraHttpClient, Error},
-        types::{ApiBlock, ApiCertificate, ApiEphemeraMessage, Health, RawApiEphemeraMessage},
+        types::{
+            ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, Health,
+            RawApiEphemeraMessage,
+        },
         ApiError, EphemeraExternalApi,
     };
 }

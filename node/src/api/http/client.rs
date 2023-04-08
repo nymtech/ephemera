@@ -1,11 +1,13 @@
+use std::time::Duration;
+
 use thiserror::Error;
 
 use crate::api::types::Health;
-use crate::ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraMessage};
+use crate::ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage};
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Query failed")]
+    #[error(transparent)]
     Internal(#[from] reqwest::Error),
     #[error("Unexpected response: {status} {body}")]
     UnexpectedResponse {
@@ -32,6 +34,18 @@ impl EphemeraHttpClient {
         Self { client, url }
     }
 
+    /// Create a new client.
+    ///
+    /// # Parameters
+    /// * `url` - The url of the node api endpoint.
+    pub fn new_with_timeout(url: String, timeout_sec: u64) -> Self {
+        let client = reqwest::ClientBuilder::new()
+            .timeout(Duration::from_secs(timeout_sec))
+            .build()
+            .unwrap();
+        Self { client, url }
+    }
+
     /// Get the health of the node.
     ///
     /// # Example
@@ -47,7 +61,7 @@ impl EphemeraHttpClient {
     /// }
     /// ```
     pub async fn health(&self) -> Result<Health> {
-        self.query("ephemera/health").await
+        self.query("ephemera/node/health").await
     }
 
     /// Get the block by hash.
@@ -65,7 +79,7 @@ impl EphemeraHttpClient {
     /// }
     /// ```
     pub async fn get_block_by_hash(&self, hash: &str) -> Result<Option<ApiBlock>> {
-        let url = format!("ephemera/block/{hash}",);
+        let url = format!("ephemera/broadcast/block/{hash}",);
         self.query_optional(&url).await
     }
 
@@ -83,7 +97,7 @@ impl EphemeraHttpClient {
     /// }
     /// ```
     pub async fn get_block_certificates(&self, hash: &str) -> Result<Option<Vec<ApiCertificate>>> {
-        let url = format!("ephemera/block/certificates/{hash}",);
+        let url = format!("ephemera/broadcast/block/certificates/{hash}",);
         self.query_optional(&url).await
     }
 
@@ -100,7 +114,7 @@ impl EphemeraHttpClient {
     ///   Ok(())
     /// }
     pub async fn get_block_by_height(&self, height: u64) -> Result<Option<ApiBlock>> {
-        let url = format!("ephemera/block/height/{height}",);
+        let url = format!("ephemera/broadcast/block/height/{height}",);
         self.query_optional(&url).await
     }
 
@@ -118,7 +132,24 @@ impl EphemeraHttpClient {
     ///    Ok(())
     /// }
     pub async fn get_last_block(&self) -> Result<ApiBlock> {
-        self.query("ephemera/blocks/last").await
+        self.query("ephemera/broadcast/blocks/last").await
+    }
+
+    /// Get the node configuration.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ephemera::ephemera_api::{ApiEphemeraConfig, EphemeraHttpClient};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///    let client = EphemeraHttpClient::new("http://localhost:7000/".to_string());
+    ///    let config = client.get_ephemera_config().await?;
+    ///    Ok(())
+    /// }
+    pub async fn get_ephemera_config(&self) -> Result<ApiEphemeraConfig> {
+        self.query("ephemera/node/config").await
     }
 
     /// Submit a message to the node.

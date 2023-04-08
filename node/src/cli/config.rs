@@ -18,7 +18,7 @@ pub struct UpdateConfigCmd {
 }
 
 impl UpdateConfigCmd {
-    pub async fn execute(self) {
+    pub fn execute(self) {
         let path: PathBuf = self.config_path.clone().into();
         if Configuration::try_load(path.clone()).is_err() {
             println!("Config '{}' does not exist", self.config_path);

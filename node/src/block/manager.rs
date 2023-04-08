@@ -203,7 +203,6 @@ mod test {
 
     use assert_matches::assert_matches;
 
-    
     use crate::crypto::{EphemeraKeypair, Keypair};
     use crate::ephemera_api::RawApiEphemeraMessage;
     use crate::network::peer::{PeerId, ToPeerId};

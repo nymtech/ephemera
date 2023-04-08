@@ -11,7 +11,6 @@ use libp2p::yamux::YamuxConfig;
 use libp2p::{gossipsub, noise, request_response, PeerId as Libp2pPeerId, Transport};
 
 use crate::broadcast::RbMsg;
-use crate::config::Libp2pConfig;
 use crate::crypto::Keypair;
 use crate::network::discovery::PeerDiscovery;
 use crate::network::libp2p::behaviours::broadcast_messages::{
@@ -20,6 +19,7 @@ use crate::network::libp2p::behaviours::broadcast_messages::{
 use crate::network::libp2p::behaviours::rendezvous;
 use crate::network::libp2p::behaviours::rendezvous::RendezvousBehaviour;
 use crate::network::peer::ToPeerId;
+use crate::utilities::hash::{EphemeraHasher, Hasher};
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
@@ -66,12 +66,10 @@ impl From<kad::KademliaEvent> for GroupBehaviourEvent {
 //Gossipsub takes care of message delivery semantics
 //Peer discovery takes care of locating peers
 pub(crate) fn create_behaviour<P: PeerDiscovery + 'static>(
-    libp2p_conf: &Libp2pConfig,
     keypair: Arc<Keypair>,
+    ephemera_msg_topic: Topic,
     peer_discovery: P,
 ) -> GroupNetworkBehaviour<P> {
-    let ephemera_msg_topic = Topic::new(&libp2p_conf.ephemera_msg_topic_name);
-
     let gossipsub = create_gossipsub(keypair.clone(), &ephemera_msg_topic);
     let request_response = create_request_response();
     let rendezvous_behaviour = create_http_peer_discovery(peer_discovery);
@@ -89,8 +87,7 @@ pub(crate) fn create_behaviour<P: PeerDiscovery + 'static>(
 pub(crate) fn create_gossipsub(local_key: Arc<Keypair>, topic: &Topic) -> gossipsub::Behaviour {
     let gossipsub_config = gossipsub::ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(5))
-        // .message_id_fn(message_id_fn) TODO: Implement message id function, we know better than gossipsub which
-        // messages are duplicates
+        .message_id_fn(|msg: &gossipsub::Message| Hasher::digest(&msg.data).into())
         .validation_mode(ValidationMode::Strict)
         .build()
         .expect("Valid config");

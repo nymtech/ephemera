@@ -3,10 +3,19 @@ name = "cluster-http-api"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "cluster-http-api"
+path = "src/main.rs"
+
+[[bin]]
+name = "ephemera-cli"
+path = "bin/ephemera-cli.rs"
+
 [dependencies]
 anyhow = "1.0.69"
 ephemera = { path = "../../node" }
 clap = { version = "4.0.26", features = ["derive"] }
 log = "0.4.14"
+rand = "0.8.5"
 reqwest = { version = "0.11.6", features = ["json"] }
 tokio = { version = "1.0", features = ["net"] }

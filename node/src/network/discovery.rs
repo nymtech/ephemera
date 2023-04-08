@@ -1,4 +1,5 @@
-use std::net::{SocketAddr};
+use std::fmt::Display;
+use std::net::SocketAddr;
 use std::str::FromStr;
 
 use async_trait::async_trait;
@@ -22,6 +23,16 @@ pub struct PeerInfo {
     pub pub_key: PublicKey,
 }
 
+impl Display for PeerInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "name {}, address {}, public key {}",
+            self.name, self.address, self.pub_key
+        )
+    }
+}
+
 impl TryFrom<PeerInfo> for Peer {
     type Error = anyhow::Error;
 
@@ -29,7 +40,7 @@ impl TryFrom<PeerInfo> for Peer {
         let multi_address: Option<Multiaddr> = match Multiaddr::from_str(value.address.as_str()) {
             Ok(multiaddr) => Some(multiaddr),
             Err(err) => {
-                log::trace!("Failed to parse multiaddr: {}", err);
+                log::info!("Failed to parse multiaddr: {}", err);
                 None
             }
         };
@@ -40,11 +51,11 @@ impl TryFrom<PeerInfo> for Peer {
                     let mut multiaddr = Multiaddr::empty();
                     match sa {
                         SocketAddr::V4(v4) => {
-                            multiaddr.push(Protocol::Ip4(v4.ip().clone().into()));
+                            multiaddr.push(Protocol::Ip4(*v4.ip()));
                             multiaddr.push(Protocol::Tcp(v4.port()));
                         }
                         SocketAddr::V6(v6) => {
-                            multiaddr.push(Protocol::Ip6(v6.ip().clone().into()));
+                            multiaddr.push(Protocol::Ip6(*v6.ip()));
                             multiaddr.push(Protocol::Tcp(v6.port()));
                         }
                     }
@@ -52,7 +63,7 @@ impl TryFrom<PeerInfo> for Peer {
                     Some(multiaddr)
                 }
                 Err(err) => {
-                    log::trace!("Failed to parse socket addr: {err}");
+                    log::info!("Failed to parse socket addr: {err}");
                     None
                 }
             }

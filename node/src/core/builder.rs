@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
@@ -35,13 +36,66 @@ use crate::{
 
 #[derive(Clone)]
 pub(crate) struct NodeInfo {
+    pub(crate) ip: String,
+    pub(crate) protocol_port: u16,
+    pub(crate) http_port: u16,
+    pub(crate) ws_port: u16,
     pub(crate) peer_id: PeerId,
     pub(crate) keypair: Arc<Keypair>,
+    pub(crate) initial_config: Configuration,
 }
 
 impl NodeInfo {
-    pub(crate) fn new(peer_id: PeerId, keypair: Arc<Keypair>) -> Self {
-        Self { peer_id, keypair }
+    pub(crate) fn new(config: Configuration) -> anyhow::Result<Self> {
+        let keypair = KeyManager::read_keypair_from_str(&config.node.private_key)?;
+        let peer_id = keypair.peer_id();
+
+        let ip = config.node.ip.clone();
+        let protocol_port = config.libp2p.port;
+        let ws_port = config.websocket.port;
+        let http_port = config.http.port;
+
+        let info = Self {
+            ip,
+            protocol_port,
+            http_port,
+            ws_port,
+            peer_id,
+            keypair,
+            initial_config: config,
+        };
+        Ok(info)
+    }
+
+    pub(crate) fn protocol_address(&self) -> String {
+        format!("/ip4/{}/tcp/{}", self.ip, self.protocol_port)
+    }
+
+    pub(crate) fn api_address_http(&self) -> String {
+        format!("http://{}:{}", self.ip, self.http_port)
+    }
+
+    pub(crate) fn ws_address_ws(&self) -> String {
+        format!("ws://{}:{}", self.ip, self.ws_port)
+    }
+
+    pub(crate) fn ws_address_ip_port(&self) -> String {
+        format!("{}:{}", self.ip, self.ws_port)
+    }
+}
+
+impl Display for NodeInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "NodeInfo {{ ip: {}, protocol_port: {}, http_port: {}, ws_port: {}, peer_id: {}, keypair: {} }}",
+            self.ip,
+            self.protocol_port,
+            self.http_port,
+            self.ws_port,
+            self.peer_id,
+            self.keypair
+        )
     }
 }
 
@@ -55,7 +109,7 @@ pub struct EphemeraHandle {
 
 pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
     config: Configuration,
-    instance_info: NodeInfo,
+    pub(crate) node_info: NodeInfo,
     block_manager_builder: Option<BlockManagerBuilder>,
     block_manager: Option<BlockManager>,
     broadcaster: Broadcaster,
@@ -69,6 +123,7 @@ pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
     api: EphemeraExternalApi,
 }
 
+//TODO: make keypair centrally accessible and coping everywhere(even Arc)
 impl<P, A> EphemeraStarter<P, A>
 where
     P: PeerDiscovery + 'static,
@@ -76,21 +131,18 @@ where
 {
     //Crate pure data structures, no resource allocation nor threads
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
-        let keypair = KeyManager::read_keypair(config.node.private_key.clone())?;
-        let peer_id = keypair.peer_id();
-        log::info!("Local node id: {}", peer_id);
+        let instance_info = NodeInfo::new(config.clone())?;
 
-        let instance_info = NodeInfo::new(peer_id, keypair.clone());
+        let broadcaster = Broadcaster::new(instance_info.peer_id);
 
-        let broadcaster = Broadcaster::new(config.broadcast.clone(), peer_id);
-
-        let block_manager_builder = BlockManagerBuilder::new(config.block.clone(), keypair);
+        let block_manager_builder =
+            BlockManagerBuilder::new(config.block.clone(), instance_info.keypair.clone());
 
         let (api, api_listener) = EphemeraExternalApi::new();
 
         let builder = EphemeraStarter {
             config,
-            instance_info,
+            node_info: instance_info,
             block_manager_builder: Some(block_manager_builder),
             block_manager: None,
             broadcaster,
@@ -183,7 +235,8 @@ where
     }
 
     async fn start_websocket(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
-        let (mut websocket, ws_message_broadcast) = WsManager::new(self.config.websocket.clone());
+        let (mut websocket, ws_message_broadcast) =
+            WsManager::new(self.node_info.ws_address_ip_port());
         self.ws_message_broadcast = Some(ws_message_broadcast);
 
         websocket.listen().await?;
@@ -207,7 +260,7 @@ where
     }
 
     fn start_http(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
-        let http = http::init(self.config.http.clone(), self.api.clone())?;
+        let http = http::init(&self.node_info, self.api.clone())?;
 
         let join_handle = tokio::spawn(async move {
             let server_handle = http.handle();
@@ -232,12 +285,8 @@ where
 
     fn start_network(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
         log::info!("Starting network...{:?}", self.peer_discovery.is_some());
-        let (mut network, from_network, to_network) = SwarmNetwork::new(
-            self.config.libp2p.clone(),
-            self.config.node.clone(),
-            self.instance_info.clone(),
-            self.peer_discovery.take().unwrap(),
-        );
+        let (mut network, from_network, to_network) =
+            SwarmNetwork::new(self.node_info.clone(), self.peer_discovery.take().unwrap());
 
         self.from_network = Some(from_network);
         self.to_network = Some(to_network);
@@ -270,9 +319,9 @@ where
             api: self.api,
             shutdown: shutdown_handle,
         };
-        //TODO: builder pattern needs make sure that all unwraps are safe here
+        //TODO: builder pattern should make (statically) sure that all unwraps are satisfied
         Ephemera {
-            node_info: self.instance_info,
+            node_info: self.node_info,
             block_manager: self.block_manager.unwrap(),
             broadcaster: self.broadcaster,
             from_network: self.from_network.unwrap(),

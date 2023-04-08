@@ -17,16 +17,13 @@ RUN_HELP=$(
   cat <<-EOH
 Runs Ephemera cluster.
 
-  usage:      $0 run [-a] [ephemera|nym-api]
-
-  options:
-    -a        Which application cluster should run
+  usage:      $0 run
 EOH
 )
 
 RUN_NODE_HELP=$(
   cat <<-EOH
-Starts a Ephemera node by its nr. Currently only nym-api instance is supported.
+Starts a Ephemera node by its nr.
 
   usage:      $0 run -n <node nr>
 
@@ -94,18 +91,13 @@ SUBCMD=$1
 
 shift
 
-[[ $SUBCMD == "init" ]] && [[ $# == 1 || $# == 3 ]] && echo "$CLUSTER_HELP" && exit 1
+[[ $SUBCMD == "init" ]] && [[ $# -lt 1 || $# -gt 2 ]] && echo "$CLUSTER_HELP" && exit 1
 
-APPLICATION="nym-api"
 [[ $SUBCMD == "init" ]] && {
-  while getopts :anh opt; do
+  while getopts :nh opt; do
     case $opt in
     n)
       NR_OF_NODES="${2}"
-      shift
-      ;;
-    a)
-      APPLICATION="${3}"
       shift
       ;;
     h)
@@ -236,7 +228,7 @@ echo $#
   done
 }
 
-[[ $SUBCMD == "run_node" ]] && [[ $# -lt 1 || $# -gt 2 ]] && echo "$RUN_NODE_HELP" && exit 1
+[[ $SUBCMD == "run_node" ]] && [[ $# -ne 1 ]] && echo "$RUN_NODE_HELP" && exit 1
 
 [[ $SUBCMD == "run_node" ]] && {
   while getopts :n opt; do
@@ -276,7 +268,7 @@ export RUST_BACKTRACE=1
 build() {
   echo "Building ephemera..."
   cargo build --release --features "rocksdb_storage"
-#  cargo build --release --features "sqlite_storage" --no-default-features
+  #  cargo build --release --features "sqlite_storage" --no-default-features
 }
 
 create_cluster() {
@@ -287,37 +279,24 @@ create_cluster() {
   COUNTER=1
   WS_PORT=6000
   EPHEMERA_PORT=3000
-  HTTP_SERVER_PORT=7000
-  NETWORK_PORT=4000
+  HTTP_API_PORT=7000
   for ((c = 1; c <= NR_OF_NODES; c++)); do
-
-    NETWORK_CLIENT_LISTENER_ADDRESS=/ip4/127.0.0.1/tcp/$NETWORK_PORT
-    WS_ADDRESS=127.0.0.1:$WS_PORT
-    HTTP_SERVER_ADDRESS=127.0.0.1:$HTTP_SERVER_PORT
-
-    NODE_DIR="$EPHEMERA_HOME_DIR"/$APPLICATION/node"$c"
-    DB_PATH="$NODE_DIR"/db
-
-    mkdir -p "$NODE_DIR"/logs
-    mkdir -p "$NODE_DIR"/db
-
     $EPHEMERA init \
-      --node node"$c" \
-      --application "$APPLICATION" \
-      --port $EPHEMERA_PORT \
-      --rocksdb-path "$DB_PATH"/ephemera"$COUNTER".db \
-      --sqlite-path "$DB_PATH"/ephemera"$COUNTER".sqlite \
-      --ws-address "$WS_ADDRESS" \
-      --network-client-listener-address "$NETWORK_CLIENT_LISTENER_ADDRESS" \
-      --http-server-address "$HTTP_SERVER_ADDRESS"
+      --node-name node"$c" \
+      --protocol-port $EPHEMERA_PORT \
+      --websocket-port "$WS_PORT" \
+      --http-api-port "$HTTP_API_PORT"
+
+      NODE_DIR="$EPHEMERA_HOME_DIR"/node"$c"
+      mkdir -p "$NODE_DIR"/logs
 
     COUNTER=$((COUNTER + 1))
     WS_PORT=$((WS_PORT + 1))
-    HTTP_SERVER_PORT=$((HTTP_SERVER_PORT + 1))
+    HTTP_API_PORT=$((HTTP_API_PORT + 1))
     EPHEMERA_PORT=$((EPHEMERA_PORT + 1))
     NETWORK_PORT=$((NETWORK_PORT + 1))
   done
-  $EPHEMERA add-local-peers --application "$APPLICATION"
+  $EPHEMERA add-local-peers
 
   status=$?
   [ $status -eq 0 ] && echo "Successfully created cluster" || echo "Creating cluster failed"
@@ -331,7 +310,7 @@ start_cluster() {
   fi
 
   COUNTER=0
-  for dir in ~/.ephemera/"$APPLICATION"/*/ephemera.toml; do
+  for dir in ~/.ephemera/*/ephemera.toml; do
     if [[ $dir == *"node"* ]]; then
       COUNTER=$((COUNTER + 1))
     fi
@@ -350,7 +329,7 @@ start_cluster() {
   sleep 2
 
   COUNTER=1
-  for d in ~/.ephemera/"$APPLICATION"/*/ephemera.toml; do
+  for d in ~/.ephemera/*/ephemera.toml; do
 
     if [[ $APPLICATION == "nym-api" ]]; then
       run_nym_api_ephemera "$d" "$COUNTER" &
@@ -367,18 +346,23 @@ start_cluster() {
 
 run_node() {
   echo "Starting node $NODE_NR"
-  run_nym_api_ephemera "$EPHEMERA_HOME_DIR"/nym-api/node"$NODE_NR"/ephemera.toml "$NODE_NR"
+  if [[ $APPLICATION == "nym-api" ]]; then
+    run_nym_api_ephemera "$EPHEMERA_HOME_DIR"/"$APPLICATION"/node"$NODE_NR"/ephemera.toml "$NODE_NR" &
+  else
+    run_ephemera "$EPHEMERA_HOME_DIR"/"$APPLICATION"/node"$NODE_NR"/ephemera.toml "$NODE_NR" &
+  fi
+
 }
 
 run_ephemera() {
   d=$1
   NR=$2
 
-  NODE_DIR="$EPHEMERA_HOME_DIR"/ephemera/node"$NR"
+  NODE_DIR="$EPHEMERA_HOME_DIR"/node"$NR"
   LOGS_FILE=$NODE_DIR/logs/ephemera$NR.log
 
   echo "Starting $d"
-  $EPHEMERA run-node --config-file ~/.ephemera/ephemera/node"${NR}"/ephemera.toml >"$LOGS_FILE" 2>&1 &
+  $EPHEMERA run-node --config-file ~/.ephemera/node"${NR}"/ephemera.toml >"$LOGS_FILE" 2>&1 &
 
   echo "$NR":"$!" >>"$PIDS_FILE"
 
@@ -389,17 +373,18 @@ run_nym_api_ephemera() {
   d=$1
   NR=$2
 
-  NODE_DIR="$EPHEMERA_HOME_DIR"/nym-api/node"$NR"
+  NODE_DIR="$EPHEMERA_HOME_DIR"/node"$NR"
 
   EPHEMERA_CONFIG_FILE=$NODE_DIR/ephemera.toml
-  LOGS_FILE=$NODE_DIR/logs/nym-api$NR.log
+  LOGS_FILE=$NODE_DIR/logs/ephemera$NR.log
   METRICS_DB_PATH="$NODE_DIR"/db/metrics"${NR}".sqlite
 
   touch "$LOGS_FILE"
   touch "$METRICS_DB_PATH"
 
   echo "Starting $d"
-  $NYM_API_EPHEMERA --ephemera-config "$EPHEMERA_CONFIG_FILE" \
+  $NYM_API_EPHEMERA \
+    --ephemera-config "$EPHEMERA_CONFIG_FILE" \
     --metrics-db-path "$METRICS_DB_PATH" \
     --smart-contract-url 127.0.0.1:6789 \
     --nym-api-id "$NR" \
@@ -417,7 +402,7 @@ run_reward_contract() {
   CONTRACT_DB_PATH="$REWARD_CONTRACT_DIR"/db/contract.sqlite
   SMART_CONTRACT_URL=127.0.0.1:6789
 
-  EPHEMERA_CONFIG_FILE=$EPHEMERA_HOME_DIR/nym-api/node1/ephemera.toml
+  EPHEMERA_CONFIG_FILE=$EPHEMERA_HOME_DIR/node1/ephemera.toml
 
   mkdir -p "$REWARD_CONTRACT_DIR"/logs
   mkdir -p "$REWARD_CONTRACT_DIR"/db
@@ -454,7 +439,8 @@ stop_node() {
   echo "Stopping node $NODE_NR"
   NODE_PID=$(grep "$NODE_NR:" "$PIDS_FILE" | awk -F ':' '{print $2}')
   echo "Killing $NODE_PID"
-  kill -9 "$NODE_PID"
+  kill -9 "$NODE_PID" &&
+  sed -i '' "/$NODE_PID/d" "$PIDS_FILE"
 }
 
 clear() {
@@ -465,10 +451,10 @@ clear() {
   echo "Clearing cluster all directories and files except configuration."
   for d in ~/.ephemera/*/; do
     echo "Clearing $d"
-    rm -rf "$d"/nym-api/logs/*
-    rm -rf "$d"/nym-api/db/*
-    rm -rf "$d"/ephemera/logs/*
-    rm -rf "$d"/ephemera/db/*
+    rm -rf "$d"/logs/*
+    rm -rf "$d"/db/*
+    rm -rf "$d"/logs/*
+    rm -rf "$d"/db/*
   done
 }
 

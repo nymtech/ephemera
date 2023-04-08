@@ -8,6 +8,12 @@ members = [
     "examples/cluster-http-api",
 ]
 
+default-members = [
+    "node",
+    "examples/nym-api",
+    "examples/cluster-http-api",
+]
+
 [profile.release]
 #By default on Linux and macOS, symbol information is included in the compiled .elf
 strip = true

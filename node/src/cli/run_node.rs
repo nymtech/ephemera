@@ -9,7 +9,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::api::application::{Application, DefaultApplication};
 use crate::api::types::{ApiBlock, ApiEphemeraMessage, RawApiEphemeraMessage};
 use crate::codec::EphemeraEncoder;
-use crate::config::{Configuration, Libp2pConfig, PeerSetting};
+use crate::config::{Configuration, PeerSetting};
 use crate::core::builder::EphemeraStarter;
 use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
 use crate::network::discovery::{PeerDiscovery, PeerInfo};
@@ -31,7 +31,7 @@ impl RunExternalNodeCmd {
         let ephemera = EphemeraStarter::new(conf.clone())
             .unwrap()
             .with_application(DefaultApplication)
-            .with_peer_discovery(ConfigPeers::new(&conf.libp2p))
+            .with_peer_discovery(ConfigPeers::new(&conf))
             .init_tasks()
             .await
             .unwrap();
@@ -113,14 +113,27 @@ impl PeerDiscovery for DummyPeerDiscovery {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ConfigPeers {
-    config: Libp2pConfig,
+    peers: Vec<PeerInfo>,
 }
 
 impl ConfigPeers {
-    pub fn new(config: &Libp2pConfig) -> ConfigPeers {
-        ConfigPeers {
-            config: config.clone(),
+    pub fn new(config: &Configuration) -> ConfigPeers {
+        let mut peers = vec![];
+        for setting in config.libp2p.peers.clone() {
+            peers.push(setting.try_into().unwrap());
         }
+
+        //Construct local peer info
+        let private_key = Keypair::from_base58(config.node.private_key.as_str()).unwrap();
+        let public_key = private_key.public_key().to_base58();
+        let local = PeerSetting {
+            name: "local".to_string(),
+            address: format!("/ip4/{}/tcp/{}", config.node.ip, config.libp2p.port,),
+            pub_key: public_key,
+        };
+        peers.push(local.try_into().unwrap());
+
+        ConfigPeers { peers }
     }
 }
 
@@ -143,11 +156,7 @@ impl PeerDiscovery for ConfigPeers {
         &mut self,
         discovery_channel: UnboundedSender<Vec<PeerInfo>>,
     ) -> anyhow::Result<()> {
-        let mut peers = vec![];
-        for setting in self.config.peers.clone() {
-            peers.push(setting.try_into()?);
-        }
-        discovery_channel.send(peers).unwrap();
+        discovery_channel.send(self.peers.clone()).unwrap();
         Ok(())
     }
 

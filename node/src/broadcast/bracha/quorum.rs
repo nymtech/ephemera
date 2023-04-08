@@ -1,5 +1,4 @@
 use crate::broadcast::{MessageType, ProtocolContext};
-use crate::config::BroadcastConfig;
 
 pub(crate) struct BrachaQuorum {
     pub(crate) cluster_size: usize,
@@ -38,7 +37,16 @@ impl From<MessageType> for BrachaMessageType {
     }
 }
 
+const MAX_FAULTY_RATIO: f64 = 1.0 / 3.0;
+
 impl BrachaQuorum {
+    pub fn new() -> Self {
+        Self {
+            cluster_size: 0,
+            max_faulty_nodes: 0,
+        }
+    }
+
     /// Notify quota about topology change.
     pub(crate) fn update_topology(&mut self, nr_of_peers: usize) {
         //As we don't have strong guarantees/consensus/timing constraints on the
@@ -53,29 +61,16 @@ impl BrachaQuorum {
             self.max_faulty_nodes
         );
     }
-}
-
-const MAX_FAULTY_RATIO: f64 = 1.0 / 3.0;
-
-impl BrachaQuorum {
-    pub fn new(settings: BroadcastConfig) -> Self {
-        let max_faulty_nodes = (settings.cluster_size as f64 * MAX_FAULTY_RATIO).floor() as usize;
-        log::info!(
-            "Bracha quorum: cluster_size: {}, max_faulty_nodes: {}",
-            settings.cluster_size,
-            max_faulty_nodes
-        );
-        BrachaQuorum {
-            cluster_size: settings.cluster_size,
-            max_faulty_nodes,
-        }
-    }
 
     pub(crate) fn check_threshold(
         &self,
         ctx: &ProtocolContext,
         phase: BrachaMessageType,
     ) -> BrachaAction {
+        if self.cluster_size == 0 {
+            return BrachaAction::Ignore;
+        }
+
         match phase {
             BrachaMessageType::Echo => {
                 if ctx.echo.len() > self.cluster_size - self.max_faulty_nodes {
@@ -130,19 +125,20 @@ mod test {
             bracha::quorum::{BrachaAction, BrachaMessageType, BrachaQuorum},
             ProtocolContext,
         },
-        config::BroadcastConfig,
         network::peer::PeerId,
     };
 
     #[test]
     fn test_max_faulty_nodes() {
-        let quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+        let mut quorum = BrachaQuorum::new();
+        quorum.update_topology(10);
         assert_eq!(quorum.max_faulty_nodes, 3);
     }
 
     #[test]
     fn test_vote_threshold_from_n_minus_f_peers() {
-        let quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+        let mut quorum = BrachaQuorum::new();
+        quorum.update_topology(10);
 
         let ctx = ctx_with_nr_echoes(0);
         assert_eq!(
@@ -165,7 +161,8 @@ mod test {
 
     #[test]
     fn test_vote_threshold_from_f_plus_one_peers() {
-        let quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+        let mut quorum = BrachaQuorum::new();
+        quorum.update_topology(10);
 
         let ctx = ctx_with_nr_votes(0, None);
         assert_eq!(
@@ -188,7 +185,8 @@ mod test {
 
     #[test]
     fn test_deliver_threshold_from_n_minus_f_peers() {
-        let quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+        let mut quorum = BrachaQuorum::new();
+        quorum.update_topology(10);
 
         let local_peer_id = PeerId::random();
         let ctx = ctx_with_nr_votes(0, local_peer_id.into());
@@ -212,7 +210,8 @@ mod test {
 
     #[test]
     fn test_change_topology() {
-        let mut quorum = BrachaQuorum::new(BroadcastConfig { cluster_size: 10 });
+        let mut quorum = BrachaQuorum::new();
+        quorum.update_topology(10);
         assert_eq!(quorum.max_faulty_nodes, 3);
 
         quorum.update_topology(13);
@@ -225,6 +224,7 @@ mod test {
             hash: [0; 32].into(),
             echo: Default::default(),
             vote: Default::default(),
+            topology_id: 0,
         };
         for _ in 0..n {
             ctx.echo.insert(PeerId::random());
@@ -238,6 +238,7 @@ mod test {
             hash: [0; 32].into(),
             echo: Default::default(),
             vote: Default::default(),
+            topology_id: 0,
         };
         for _ in 0..n {
             ctx.vote.insert(PeerId::random());

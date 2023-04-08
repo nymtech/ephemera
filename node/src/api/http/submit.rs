@@ -1,7 +1,7 @@
 use actix_web::{post, web, HttpRequest, HttpResponse};
 
 use crate::api::types::ApiEphemeraMessage;
-use crate::api::EphemeraExternalApi;
+use crate::api::{ApiError, EphemeraExternalApi};
 
 #[utoipa::path(
 request_body = ApiSignedMessage,
@@ -20,9 +20,15 @@ pub(crate) async fn submit_message(
 
     match api.send_ephemera_message(message.into_inner()).await {
         Ok(_) => HttpResponse::Ok().json("Message submitted"),
-        Err(err) => {
-            log::error!("Error submitting message: {}", err);
-            HttpResponse::InternalServerError().json("Server failed to process request")
-        }
+        Err(err) => match err {
+            ApiError::DuplicateMessage => {
+                log::debug!("Message already submitted {err:?}");
+                HttpResponse::BadRequest().json("Message already submitted")
+            }
+            _ => {
+                log::error!("Error submitting message: {}", err);
+                HttpResponse::InternalServerError().json("Server failed to process request")
+            }
+        },
     }
 }
