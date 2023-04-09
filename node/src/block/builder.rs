@@ -61,7 +61,7 @@ impl BlockManagerBuilder {
             config: self.config,
             last_blocks,
             last_proposed_block: last_created_block.clone(),
-            last_accepted_block: last_created_block,
+            last_committed_block: last_created_block,
             block_producer: self.block_producer,
             block_signer,
             delay: self.delay,

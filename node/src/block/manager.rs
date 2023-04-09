@@ -14,6 +14,7 @@ use crate::block::types::block::Block;
 use crate::block::types::message::EphemeraMessage;
 use crate::broadcast::signing::BlockSigner;
 use crate::config::BlockConfig;
+use crate::network::peer::{PeerId, ToPeerId};
 use crate::utilities::crypto::Certificate;
 use crate::utilities::hash::HashType;
 
@@ -36,7 +37,7 @@ pub(crate) struct BlockManager {
     pub(super) last_proposed_block: Block,
     /// Last block that we accepted
     /// It's not Option because we always have genesis block
-    pub(super) last_accepted_block: Block,
+    pub(super) last_committed_block: Block,
     /// Block producer. Simple helper that creates blocks
     pub(super) block_producer: BlockProducer,
     /// Message pool. Contains all messages that we received from the network and not included in any block yet
@@ -64,9 +65,18 @@ impl BlockManager {
 
     pub(crate) fn on_block(
         &mut self,
+        sender: &PeerId,
         block: &Block,
         certificate: &Certificate,
     ) -> anyhow::Result<()> {
+        //Block signer should be also its sender
+        let signer_peer_id = certificate.public_key.peer_id();
+        if *sender != signer_peer_id {
+            anyhow::bail!(format!(
+                "Block creator and signer are different: creator = {sender} != {signer_peer_id}",
+            ));
+        }
+
         //Reject blocks with invalid hash
         let hash = block.hash_with_default_hasher()?;
         if block.header.hash != hash {
@@ -101,26 +111,27 @@ impl BlockManager {
     }
 
     /// After a block gets committed, clear up mempool from its messages
-    pub(crate) fn on_block_committed(&mut self, block_hash: &HashType) -> anyhow::Result<()> {
-        if let Some(block) = self.last_blocks.get(block_hash) {
+    pub(crate) fn on_block_committed(&mut self, block: &Block) -> anyhow::Result<()> {
+        let hash = &block.header.hash;
+        if let Some(block) = self.last_blocks.get(hash) {
             if block.header.creator != self.block_producer.peer_id {
-                log::debug!("Not locally created block {block_hash:?}, not cleaning mempool");
+                log::debug!("Not locally created block {hash:?}, not cleaning mempool");
                 return Ok(());
             }
 
             //FIXME...: handle gaps in block heights
-            if self.last_accepted_block.get_hash() != *block_hash {
+            if self.last_committed_block.get_hash() != *hash {
                 log::warn!(
-                    "Received committed block {block_hash} after we created next block, ignoring..."
+                    "Received committed block {hash} after we created next block, ignoring..."
                 );
                 return Ok(());
             }
 
             self.message_pool.remove_messages(&block.messages)?;
-            log::debug!("Mempool cleaned up from block: {:?} messages", block_hash)
+            log::debug!("Mempool cleaned up from block: {:?} messages", block)
         } else {
             //TODO: something to think about
-            log::error!("Block not found: {}", block_hash);
+            log::error!("Block not found: {}", block);
         }
         Ok(())
     }
@@ -134,7 +145,7 @@ impl BlockManager {
     }
 
     pub(crate) fn accept_last_proposed_block(&mut self) {
-        self.last_accepted_block = self.last_proposed_block.clone();
+        self.last_committed_block = self.last_proposed_block.clone();
     }
 }
 
@@ -156,7 +167,7 @@ impl Stream for BlockManager {
         match self.delay.poll_unpin(cx) {
             task::Poll::Ready(_) => {
                 //FIXME...: this all is very loose now, no checking of caps etc
-                let previous_block_header = self.last_accepted_block.header.clone();
+                let previous_block_header = self.last_committed_block.header.clone();
                 let new_height = previous_block_header.height + 1;
                 let pending_messages = self.message_pool.get_messages();
 
@@ -254,9 +265,23 @@ mod test {
         let block = block();
         let certificate = manager.sign_block(&block).unwrap();
 
-        let result = manager.on_block(&block, &certificate);
+        let result = manager.on_block(&peer_id, &block, &certificate);
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reject_invalid_sender() {
+        let keypair: Arc<Keypair> = Keypair::generate(None).into();
+        let peer_id = keypair.public_key().peer_id();
+        let mut manager = block_manager(keypair, peer_id);
+        let block = block();
+        let certificate = manager.sign_block(&block).unwrap();
+
+        let invalid_peer_id = PeerId::from_public_key(&Keypair::generate(None).public_key());
+        let result = manager.on_block(&invalid_peer_id, &block, &certificate);
+
+        assert!(result.is_err());
     }
 
     #[test]
@@ -268,7 +293,7 @@ mod test {
         let certificate = manager.sign_block(&block).unwrap();
 
         block.header.hash = HashType::new([0; 32]);
-        let result = manager.on_block(&block, &certificate);
+        let result = manager.on_block(&peer_id, &block, &certificate);
 
         assert!(result.is_err());
     }
@@ -285,10 +310,10 @@ mod test {
         let fake_certificate = manager.sign_block(&fake_block).unwrap();
         let correct_certificate = manager.sign_block(&correct_block).unwrap();
 
-        let result = manager.on_block(&correct_block, &fake_certificate);
+        let result = manager.on_block(&peer_id, &correct_block, &fake_certificate);
         assert!(result.is_err());
 
-        let result = manager.on_block(&fake_block, &correct_certificate);
+        let result = manager.on_block(&peer_id, &fake_block, &correct_certificate);
         assert!(result.is_err());
     }
 
@@ -306,7 +331,7 @@ mod test {
             },
             last_blocks: LruCache::new(NonZeroUsize::new(10).unwrap()),
             last_proposed_block: genesis_block.clone(),
-            last_accepted_block: genesis_block.clone(),
+            last_committed_block: genesis_block.clone(),
             block_producer: BlockProducer::new(peer_id.clone()),
             message_pool: MessagePool::new(),
             delay: Delay::new(Duration::from_secs(0)),

@@ -98,7 +98,7 @@ impl<A: Application> Ephemera<A> {
                     let hash = new_block.header.hash;
                     let block_creator = &self.node_info.peer_id;
                     let sender = &self.node_info.peer_id;
-                    if self.topology.check_broadcast_message(hash, block_creator, sender){
+                    if self.topology.check_message(hash, block_creator, sender){
 
                         match self.application.check_block(&new_block.clone().into()) {
 
@@ -241,6 +241,8 @@ impl<A: Application> Ephemera<A> {
     async fn process_block_from_network(&mut self, msg: RbMsg) -> anyhow::Result<()> {
         let msg_id = msg.id.clone();
         let block = msg.get_block();
+        let block_creator = &block.header.creator;
+        let sender = &msg.original_sender;
         let hash = block.header.hash;
         log::trace!(
             "Processing broadcast message {:?}[block {:?}] from network",
@@ -248,25 +250,12 @@ impl<A: Application> Ephemera<A> {
             hash
         );
 
-        let block_creator = &block.header.creator;
-        let sender = &msg.original_sender;
-
-        if !self
-            .topology
-            .check_broadcast_message(hash, block_creator, sender)
-        {
+        if !self.topology.check_message(hash, block_creator, sender) {
             return Ok(());
         }
 
-        //Item: PREPARE DOESN'T NEED TO SEND US FULL BLOCK IF IT'S OUR OWN BLOCK.
-        //To improve performance, the other nodes technically don't need to send us block back if we created it.
-        //But for now it's fine.
-
-        //Item: WE COULD POTENTIALLY VERIFY THAT PUBLIC KEY OF SENDER IS IN ALLOW LIST.
-        //Verify that block is signed correctly.
-        //We don't verify if sender's public keys in allow list(assume such a thing for security could exist)
         let certificate = msg.certificate.clone();
-        if let Err(err) = self.block_manager.on_block(block, &certificate) {
+        if let Err(err) = self.block_manager.on_block(sender, block, &certificate) {
             log::error!("Error processing block: {:?}", err);
         }
 
@@ -275,6 +264,7 @@ impl<A: Application> Ephemera<A> {
 
         //Send to local RB protocol
         use crate::broadcast::{Command, Status};
+
         match self.broadcaster.handle(msg.into()).await {
             Ok(ProtocolResponse {
                 status: _,
@@ -312,21 +302,19 @@ impl<A: Application> Ephemera<A> {
                                 .store_block(&block, signatures)
                                 .expect("Error storing block");
 
+                            //BlockManager
+                            if let Err(err) = self.block_manager.on_block_committed(&block) {
+                                log::error!(
+                                    "Error notifying BlockManager about block commit: {:?}",
+                                    err
+                                );
+                            }
+
                             //Application(ABCI)
                             if let Err(err) =
                                 self.application.deliver_block(Into::into(block.clone()))
                             {
                                 log::error!("Error delivering block to ABCI: {:?}", err);
-                            }
-
-                            //BlockManager
-                            if let Err(err) =
-                                self.block_manager.on_block_committed(&block.header.hash)
-                            {
-                                log::error!(
-                                    "Error notifying BlockManager about block commit: {:?}",
-                                    err
-                                );
                             }
 
                             //WS
