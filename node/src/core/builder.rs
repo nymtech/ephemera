@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
+use crate::network::topology::BroadcastTopology;
 #[cfg(feature = "rocksdb_storage")]
 use crate::storage::rocksdb::RocksDbStorage;
 #[cfg(feature = "sqlite_storage")]
@@ -326,6 +327,7 @@ where
             broadcaster: self.broadcaster,
             from_network: self.from_network.unwrap(),
             to_network: self.to_network.unwrap(),
+            topology: BroadcastTopology::new(),
             storage: Arc::new(Mutex::new(self.storage.unwrap())),
             ws_message_broadcast: self.ws_message_broadcast.unwrap(),
             api_listener: self.api_listener,

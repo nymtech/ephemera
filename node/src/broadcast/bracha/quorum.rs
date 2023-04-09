@@ -47,13 +47,12 @@ impl BrachaQuorum {
         }
     }
 
-    /// Notify quota about topology change.
-    pub(crate) fn update_topology(&mut self, nr_of_peers: usize) {
+    pub(crate) fn update_topology_size(&mut self, size: usize) {
         //As we don't have strong guarantees/consensus/timing constraints on the
         //broadcast, we just update topology immediately.
         //Theoretically it can break existing ongoing broadcast but timing chances for it
         //probably are very low.
-        self.cluster_size = nr_of_peers;
+        self.cluster_size = size;
         self.max_faulty_nodes = (self.cluster_size as f64 * MAX_FAULTY_RATIO).floor() as usize;
         log::info!(
             "Bracha quorum: cluster_size: {}, max_faulty_nodes: {}",
@@ -131,14 +130,14 @@ mod test {
     #[test]
     fn test_max_faulty_nodes() {
         let mut quorum = BrachaQuorum::new();
-        quorum.update_topology(10);
+        quorum.update_topology_size(10);
         assert_eq!(quorum.max_faulty_nodes, 3);
     }
 
     #[test]
     fn test_vote_threshold_from_n_minus_f_peers() {
         let mut quorum = BrachaQuorum::new();
-        quorum.update_topology(10);
+        quorum.update_topology_size(10);
 
         let ctx = ctx_with_nr_echoes(0);
         assert_eq!(
@@ -162,7 +161,7 @@ mod test {
     #[test]
     fn test_vote_threshold_from_f_plus_one_peers() {
         let mut quorum = BrachaQuorum::new();
-        quorum.update_topology(10);
+        quorum.update_topology_size(10);
 
         let ctx = ctx_with_nr_votes(0, None);
         assert_eq!(
@@ -186,7 +185,7 @@ mod test {
     #[test]
     fn test_deliver_threshold_from_n_minus_f_peers() {
         let mut quorum = BrachaQuorum::new();
-        quorum.update_topology(10);
+        quorum.update_topology_size(10);
 
         let local_peer_id = PeerId::random();
         let ctx = ctx_with_nr_votes(0, local_peer_id.into());
@@ -211,10 +210,10 @@ mod test {
     #[test]
     fn test_change_topology() {
         let mut quorum = BrachaQuorum::new();
-        quorum.update_topology(10);
+        quorum.update_topology_size(10);
         assert_eq!(quorum.max_faulty_nodes, 3);
 
-        quorum.update_topology(13);
+        quorum.update_topology_size(13);
         assert_eq!(quorum.max_faulty_nodes, 4);
     }
 
@@ -224,7 +223,6 @@ mod test {
             hash: [0; 32].into(),
             echo: Default::default(),
             vote: Default::default(),
-            topology_id: 0,
         };
         for _ in 0..n {
             ctx.echo.insert(PeerId::random());
@@ -238,7 +236,6 @@ mod test {
             hash: [0; 32].into(),
             echo: Default::default(),
             vote: Default::default(),
-            topology_id: 0,
         };
         for _ in 0..n {
             ctx.vote.insert(PeerId::random());

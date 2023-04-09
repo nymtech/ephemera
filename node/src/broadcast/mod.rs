@@ -59,18 +59,15 @@ pub(crate) struct ProtocolContext {
     pub(crate) echo: HashSet<PeerId>,
     /// Peers that sent commit message(this peer included)
     pub(crate) vote: HashSet<PeerId>,
-    /// View of the network for this block
-    pub(crate) topology_id: u64,
 }
 
 impl ProtocolContext {
-    pub(crate) fn new(hash: HashType, local_peer_id: PeerId, topology_id: u64) -> ProtocolContext {
+    pub(crate) fn new(hash: HashType, local_peer_id: PeerId) -> ProtocolContext {
         ProtocolContext {
             local_peer_id,
             hash,
             echo: HashSet::new(),
             vote: HashSet::new(),
-            topology_id,
         }
     }
 

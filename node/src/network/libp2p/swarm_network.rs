@@ -53,11 +53,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             Topic::new(&node_info.initial_config.libp2p.ephemera_msg_topic_name);
 
         let transport = create_transport(local_key.clone());
-        let behaviour = create_behaviour(
-            local_key,
-            ephemera_msg_topic.clone(),
-            peer_discovery,
-        );
+        let behaviour = create_behaviour(local_key, ephemera_msg_topic.clone(), peer_discovery);
         let swarm = Swarm::with_tokio_executor(transport, behaviour, peer_id.into());
 
         let network = SwarmNetwork {

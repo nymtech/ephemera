@@ -6,6 +6,7 @@ use ::libp2p::Multiaddr;
 pub mod discovery;
 pub(crate) mod libp2p;
 pub(crate) mod peer;
+pub(crate) mod topology;
 
 pub struct Address(pub Multiaddr);
 

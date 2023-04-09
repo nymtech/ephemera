@@ -9,12 +9,12 @@ use crate::block::manager::BlockManager;
 use crate::block::types::block::Block;
 use crate::broadcast::bracha::broadcaster::{Broadcaster, ProtocolResponse};
 use crate::broadcast::RbMsg;
-
 use crate::core::api_cmd::ApiCmdProcessor;
 use crate::core::builder::{EphemeraHandle, NodeInfo};
 use crate::core::shutdown::ShutdownManager;
 use crate::network::libp2p::ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender};
 use crate::network::libp2p::network_sender::{NetCommunicationReceiver, NetworkEvent};
+use crate::network::topology::BroadcastTopology;
 use crate::storage::EphemeraDatabase;
 use crate::utilities::crypto::Certificate;
 use crate::websocket::ws_manager::WsMessageBroadcaster;
@@ -37,6 +37,9 @@ pub struct Ephemera<A: Application> {
 
     /// A component which sends messages to network.
     pub(crate) to_network: EphemeraToNetworkSender,
+
+    /// A component which keeps track of network topology over time.
+    pub(crate) topology: BroadcastTopology,
 
     /// A component which has mutable access to database.
     pub(crate) storage: Arc<Mutex<Box<dyn EphemeraDatabase>>>,
@@ -90,22 +93,31 @@ impl<A: Application> Ephemera<A> {
                 // GENERATING NEW BLOCKS
                 Some((new_block, certificate)) = self.block_manager.next() => {
                     log::trace!("New block from block manager: {}", new_block);
-                    match self.application.check_block(&new_block.clone().into()) {
-                        Ok(accept) => {
-                            if accept {
-                                match self.process_new_local_block(new_block, certificate).await {
-                                    Ok(_) => {
-                                        log::debug!("New block processed successfully");
-                                        self.block_manager.accept_last_proposed_block();
-                                    }
-                                    Err(err) => {
-                                        log::error!("Error processing new local block: {:?}", err);
+
+                    // Check if we are in current topology
+                    let hash = new_block.header.hash;
+                    let block_creator = &self.node_info.peer_id;
+                    let sender = &self.node_info.peer_id;
+                    if self.topology.check_broadcast_message(hash, block_creator, sender){
+
+                        match self.application.check_block(&new_block.clone().into()) {
+
+                            Ok(accept) => {
+                                if accept {
+                                    match self.process_new_local_block(new_block, certificate).await {
+                                        Ok(_) => {
+                                            log::debug!("New block processed successfully");
+                                            self.block_manager.accept_last_proposed_block();
+                                        }
+                                        Err(err) => {
+                                            log::error!("Error processing new local block: {:?}", err);
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Err(err) => {
-                            log::error!("Error processing new local block: {:?}", err);
+                            Err(err) => {
+                                log::error!("Error processing new local block: {:?}", err);
+                            }
                         }
                     }
                 }
@@ -169,7 +181,8 @@ impl<A: Application> Ephemera<A> {
                 }
             }
             NetworkEvent::PeersUpdated(peers) => {
-                self.broadcaster.topology_updated(peers);
+                self.broadcaster.topology_updated(peers.len());
+                self.topology.add_snapshot(peers);
             }
             NetworkEvent::QueryDhtResponse { key, value } => {
                 match self.api_cmd_processor.dht_query_cache.pop(&key) {
@@ -230,10 +243,21 @@ impl<A: Application> Ephemera<A> {
         let block = msg.get_block();
         let hash = block.header.hash;
         log::trace!(
-            "Processing message {:?}[block {:?}] from network",
+            "Processing broadcast message {:?}[block {:?}] from network",
             msg_id,
             hash
         );
+
+        let block_creator = &block.header.creator;
+        let sender = &msg.original_sender;
+
+        if !self
+            .topology
+            .check_broadcast_message(hash, block_creator, sender)
+        {
+            return Ok(());
+        }
+
         //Item: PREPARE DOESN'T NEED TO SEND US FULL BLOCK IF IT'S OUR OWN BLOCK.
         //To improve performance, the other nodes technically don't need to send us block back if we created it.
         //But for now it's fine.

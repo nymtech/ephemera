@@ -5,7 +5,7 @@ use lru::LruCache;
 use crate::{
     block::types::block::Block,
     broadcast::{
-        bracha::{quorum::BrachaQuorum, topology::BroadcastTopology},
+        bracha::quorum::BrachaQuorum,
         Command,
         MessageType::{Echo, Vote},
         ProtocolContext, RawRbMsg, Status,
@@ -51,7 +51,6 @@ pub(crate) struct Broadcaster {
     contexts: LruCache<HashType, ProtocolContext>,
     quorum: BrachaQuorum,
     local_peer_id: PeerId,
-    topology: BroadcastTopology,
 }
 
 impl Broadcaster {
@@ -60,7 +59,6 @@ impl Broadcaster {
             contexts: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             quorum: BrachaQuorum::new(),
             local_peer_id: peer_id,
-            topology: BroadcastTopology::new(),
         }
     }
 
@@ -76,15 +74,9 @@ impl Broadcaster {
         let block = rb_msg.block_ref();
         let hash = block.hash_with_default_hasher()?;
 
-        if let Some(err_resp) = self.check_topology(hash, &rb_msg) {
-            return err_resp;
-        }
-
         if !self.contexts.contains(&hash) {
-            self.contexts.put(
-                hash,
-                ProtocolContext::new(hash, self.local_peer_id, self.topology.current_id),
-            );
+            self.contexts
+                .put(hash, ProtocolContext::new(hash, self.local_peer_id));
         }
 
         match rb_msg.message_type.clone() {
@@ -99,76 +91,8 @@ impl Broadcaster {
         }
     }
 
-    pub(crate) fn topology_updated(&mut self, peers: Vec<PeerId>) {
-        log::info!("Topology updated: {:?}", peers);
-        self.quorum.update_topology(peers.len());
-        self.topology.add_snapshot(peers);
-    }
-
-    fn check_topology(
-        &mut self,
-        hash: HashType,
-        rb_msg: &RawRbMsg,
-    ) -> Option<anyhow::Result<ProtocolResponse>> {
-        if !self.contexts.contains(&hash) {
-            //This can happen at startup for example when node is not ready yet(caught up with the network)
-            if self.topology.is_empty() {
-                log::warn!(
-                    "Received message for block {:?} but topology is empty",
-                    hash
-                );
-                return Ok(ProtocolResponse::drop()).into();
-            }
-
-            //Node is excluded from topology for some reason(for example health checks failed)
-            if !self
-                .topology
-                .is_member(self.topology.current_id, &self.local_peer_id)
-            {
-                log::warn!(
-                    "Received message for block {} but current node {} is not part of the current topology",
-                    hash, self.local_peer_id
-                );
-                return Ok(ProtocolResponse::drop()).into();
-            }
-        }
-
-        //Make sure that the sender peer_id and block peer_id are part of the block initial topology
-        //1. If the block is new, the topology is the current one
-        //2. If the block is old, the topology is the one that was used when the block was created
-
-        //It's needed to make sure that
-        //1. The peer is authenticated(part of the network)
-        //2. Block processing is consistent regarding the membership across rounds
-
-        let topology_id = self
-            .contexts
-            .get(&hash)
-            .map(|c| c.topology_id)
-            .unwrap_or_else(|| self.topology.current_id);
-
-        let block_creator_in_topology = self
-            .topology
-            .is_member(topology_id, &rb_msg.block_ref().header.creator);
-
-        if !block_creator_in_topology {
-            log::trace!("Received block {:?} what is created by peer {:?} who is not part of the current topology",
-                hash, rb_msg.block_ref().header.creator);
-
-            return Ok(ProtocolResponse::drop()).into();
-        }
-
-        let sender_in_topology = self
-            .topology
-            .is_member(topology_id, &rb_msg.original_sender);
-
-        if !sender_in_topology {
-            log::trace!("Received message from peer {:?} who is not part of current topology for block {:?}",
-                rb_msg.original_sender, hash);
-
-            return Ok(ProtocolResponse::drop()).into();
-        }
-        None
+    pub(crate) fn topology_updated(&mut self, size: usize) {
+        self.quorum.update_topology_size(size);
     }
 
     async fn process_echo(
@@ -276,7 +200,7 @@ mod tests {
         let block_creator_peer_id = peers[1];
 
         let mut broadcaster = Broadcaster::new(local_peer_id);
-        broadcaster.topology_updated(peers.clone());
+        broadcaster.topology_updated(peers.len());
 
         let (block_hash, block) = create_block(block_creator_peer_id);
 
