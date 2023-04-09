@@ -60,7 +60,7 @@ impl BlockManagerBuilder {
         Ok(BlockManager {
             config: self.config,
             last_blocks,
-            last_proposed_block: last_created_block.clone(),
+            last_produced_block: last_created_block.clone(),
             last_committed_block: last_created_block,
             block_producer: self.block_producer,
             block_signer,

@@ -45,7 +45,7 @@ impl BroadcastTopology {
             .unwrap_or(true)
     }
 
-    pub(crate) fn check_message(
+    pub(crate) fn check_membership(
         &mut self,
         hash: HashType,
         block_creator: &PeerId,
@@ -71,10 +71,7 @@ impl BroadcastTopology {
         //1. The peer is authenticated(part of the network)
         //2. Block processing is consistent regarding the membership across rounds
 
-        let topology_id = *self
-            .block_topologies
-            .get(&hash)
-            .unwrap_or(&self.current_id);
+        let topology_id = *self.block_topologies.get(&hash).unwrap_or(&self.current_id);
 
         //Node is excluded from topology for some reason(for example health checks failed)
         if !self.is_member(self.current_id, message_ender) {

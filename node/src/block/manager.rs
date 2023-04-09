@@ -34,7 +34,7 @@ pub(crate) struct BlockManager {
     pub(super) last_blocks: LruCache<HashType, Block>,
     /// Last block that we created.
     /// It's not Option because we always have genesis block
-    pub(super) last_proposed_block: Block,
+    pub(super) last_produced_block: Block,
     /// Last block that we accepted
     /// It's not Option because we always have genesis block
     pub(super) last_committed_block: Block,
@@ -69,6 +69,12 @@ impl BlockManager {
         block: &Block,
         certificate: &Certificate,
     ) -> anyhow::Result<()> {
+        let hash = block.hash_with_default_hasher()?;
+        if self.last_blocks.contains(&hash) {
+            log::trace!("Block already received, ignoring: {hash}");
+            return Ok(());
+        }
+
         //Block signer should be also its sender
         let signer_peer_id = certificate.public_key.peer_id();
         if *sender != signer_peer_id {
@@ -78,7 +84,6 @@ impl BlockManager {
         }
 
         //Reject blocks with invalid hash
-        let hash = block.hash_with_default_hasher()?;
         if block.header.hash != hash {
             anyhow::bail!(format!(
                 "Block hash mismatch: {:?} != {hash:?}",
@@ -92,11 +97,6 @@ impl BlockManager {
                 "Block signature verification failed: {:?}",
                 block.header.hash
             ));
-        }
-
-        if self.last_blocks.contains(&hash) {
-            log::trace!("Block already received: {}", block.header.hash);
-            return Ok(());
         }
 
         log::debug!("Block received: {}", block.header.hash);
@@ -113,25 +113,25 @@ impl BlockManager {
     /// After a block gets committed, clear up mempool from its messages
     pub(crate) fn on_block_committed(&mut self, block: &Block) -> anyhow::Result<()> {
         let hash = &block.header.hash;
-        if let Some(block) = self.last_blocks.get(hash) {
-            if block.header.creator != self.block_producer.peer_id {
-                log::debug!("Not locally created block {hash:?}, not cleaning mempool");
-                return Ok(());
-            }
 
-            //FIXME...: handle gaps in block heights
-            if self.last_committed_block.get_hash() != *hash {
-                log::warn!(
-                    "Received committed block {hash} after we created next block, ignoring..."
-                );
-                return Ok(());
-            }
+        if self.last_produced_block.header.hash != *hash {
+            log::error!(
+                "Received committed block {hash} which isn't last produced block {}, this is a bug!",
+                self.last_produced_block.header.hash
+            );
+        }
 
-            self.message_pool.remove_messages(&block.messages)?;
-            log::debug!("Mempool cleaned up from block: {:?} messages", block)
-        } else {
-            //TODO: something to think about
-            log::error!("Block not found: {}", block);
+        match self.message_pool.remove_messages(&block.messages) {
+            Ok(_) => {
+                self.last_committed_block = block.to_owned();
+            }
+            Err(e) => {
+                log::error!(
+                    "Mempool cleaning up from block: {:?} messages failed: {}",
+                    block,
+                    e
+                )
+            }
         }
         Ok(())
     }
@@ -142,10 +142,6 @@ impl BlockManager {
 
     pub(crate) fn get_block_signatures(&mut self, hash: &HashType) -> Option<Vec<Certificate>> {
         self.block_signer.get_block_signatures(hash)
-    }
-
-    pub(crate) fn accept_last_proposed_block(&mut self) {
-        self.last_committed_block = self.last_proposed_block.clone();
     }
 }
 
@@ -181,7 +177,7 @@ impl Stream for BlockManager {
                             .expect("Failed to hash block");
 
                         log::debug!("Produced block: {:?}", hash);
-                        self.last_proposed_block = block.clone();
+                        self.last_produced_block = block.clone();
                         self.last_blocks.put(hash, block.clone());
 
                         let certificate = self
@@ -330,7 +326,7 @@ mod test {
                 creation_interval_sec: 0,
             },
             last_blocks: LruCache::new(NonZeroUsize::new(10).unwrap()),
-            last_proposed_block: genesis_block.clone(),
+            last_produced_block: genesis_block.clone(),
             last_committed_block: genesis_block.clone(),
             block_producer: BlockProducer::new(peer_id.clone()),
             message_pool: MessagePool::new(),
