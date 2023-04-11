@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use ::libp2p::multiaddr::Protocol;
 use ::libp2p::Multiaddr;
 
-pub mod discovery;
+pub(crate) mod discovery;
 pub(crate) mod libp2p;
 pub(crate) mod peer;
 pub(crate) mod topology;

@@ -74,7 +74,7 @@ impl BrachaQuorum {
             BrachaMessageType::Echo => {
                 if ctx.echo.len() > self.cluster_size - self.max_faulty_nodes {
                     log::debug!(
-                        "Echo threshold reached: {}/{} for {}",
+                        "Echo threshold reached: Echoed:{} / Threshold:{} for Block:{}",
                         ctx.echo.len(),
                         self.cluster_size - self.max_faulty_nodes,
                         ctx.hash
@@ -89,7 +89,7 @@ impl BrachaQuorum {
                     // f + 1 votes are enough to send our vote
                     if ctx.vote.len() > self.max_faulty_nodes {
                         log::debug!(
-                            "Vote send threshold reached: {}/{} for {}",
+                            "Vote send threshold reached: Voted:{} / Threshold:{} for Block:{}",
                             ctx.vote.len(),
                             self.max_faulty_nodes + 1,
                             ctx.hash
@@ -102,7 +102,7 @@ impl BrachaQuorum {
                     // n-f votes are enough to deliver the value
                     if ctx.vote.len() > self.cluster_size - self.max_faulty_nodes {
                         log::debug!(
-                            "Deliver threshold reached: {}/{} for {}",
+                            "Deliver threshold reached: Voted:{} / Threshold:{} for Block:{}",
                             ctx.vote.len(),
                             self.cluster_size - self.max_faulty_nodes,
                             ctx.hash

@@ -66,6 +66,19 @@ pub struct BlockConfig {
     /// Interval in seconds between block creation
     /// Blocks are "proposed" at this interval.
     pub creation_interval_sec: u64,
+    ///If to create new block if previous one is not committed yet.
+    ///Default is true.
+    pub repeat_last_block: bool,
+}
+
+impl BlockConfig {
+    pub fn new(producer: bool, creation_interval_sec: u64, repeat_last_block: bool) -> Self {
+        BlockConfig {
+            producer,
+            creation_interval_sec,
+            repeat_last_block,
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -164,7 +177,7 @@ impl Configuration {
 
     fn write(&self, file_path: PathBuf) -> Result<()> {
         let config = toml::to_string(&self).map_err(|e| {
-            ConfigurationError::Other(format!("Failed to serialize configuration: {e}",))
+            ConfigurationError::Other(format!("Failed to serialize configuration: {e}", ))
         })?;
 
         let config = format!(

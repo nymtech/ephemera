@@ -1,5 +1,9 @@
-use ephemera::configuration::Configuration;
-use ephemera::ephemera_api::{ApiBlock, ApiEphemeraMessage, Application};
+use ephemera::{
+    configuration::Configuration,
+    ephemera_api::{
+        ApiBlock, ApiEphemeraMessage, Application, CheckBlockResult, RemoveMessages, Result,
+    }
+};
 
 use crate::contract::MixnodeToReward;
 use crate::peers::NymApiEphemeraPeerInfo;
@@ -40,7 +44,7 @@ impl Application for RewardsEphemeraApplication {
     /// Perform validation checks:
     /// - Check that the transaction has a valid signature, we don't want to accept garbage messages
     ///   or messages from unknown peers
-    fn check_tx(&self, tx: ApiEphemeraMessage) -> anyhow::Result<bool> {
+    fn check_tx(&self, tx: ApiEphemeraMessage) -> Result<bool> {
         if serde_json::from_slice::<Vec<MixnodeToReward>>(&tx.data).is_err() {
             log::error!("Message is not a valid Reward message");
             return Ok(false);
@@ -53,7 +57,7 @@ impl Application for RewardsEphemeraApplication {
 
     /// Agree to accept the block if it contains threshold number of transactions
     /// We trust that transactions are valid(checked by check_tx)
-    fn check_block(&self, block: &ApiBlock) -> anyhow::Result<bool> {
+    fn check_block(&self, block: &ApiBlock) -> Result<CheckBlockResult> {
         log::info!("Block message count: {}", block.message_count());
 
         let block_threshold = ((block.message_count() as f64
@@ -62,7 +66,9 @@ impl Application for RewardsEphemeraApplication {
 
         if block_threshold > 100 {
             log::error!("Block threshold is greater than 100%!. We expected only single message from each peer");
-            return Ok(false);
+            return Ok(CheckBlockResult::RejectAndRemoveMessages(
+                RemoveMessages::All,
+            ));
         }
 
         if block_threshold >= self.app_config.peers_rewards_threshold {
@@ -71,15 +77,15 @@ impl Application for RewardsEphemeraApplication {
                 block.header.height,
                 block.header.hash
             );
-            Ok(true)
+            Ok(CheckBlockResult::Accept)
         } else {
             log::debug!("Block rejected: not enough messages");
-            Ok(false)
+            Ok(CheckBlockResult::Reject)
         }
     }
 
     /// It is possible to use this method as a callback to get notified when block is committed
-    fn deliver_block(&self, _block: ApiBlock) -> anyhow::Result<()> {
+    fn deliver_block(&self, _block: ApiBlock) -> Result<()> {
         Ok(())
     }
 }

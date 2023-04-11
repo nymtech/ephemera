@@ -1,13 +1,16 @@
-use std::pin::Pin;
-use std::task::Poll::Pending;
 use std::{task, time};
+use std::num::NonZeroUsize;
+use std::pin::Pin;
+use std::task::Poll::{Pending, Ready};
 
+use anyhow::anyhow;
 use futures::FutureExt;
 use futures::Stream;
 use futures_timer::Delay;
 use lru::LruCache;
 use thiserror::Error;
 
+use crate::api::application::RemoveMessages;
 use crate::block::message_pool::MessagePool;
 use crate::block::producer::BlockProducer;
 use crate::block::types::block::Block;
@@ -24,32 +27,76 @@ pub(crate) type Result<T> = std::result::Result<T, BlockManagerError>;
 pub(crate) enum BlockManagerError {
     #[error("Message is already in pool: {0}")]
     DuplicateMessage(String),
-    #[error("{0}")]
-    Internal(#[from] anyhow::Error),
+    //Just a placeholder for now
+    #[error("BlockManagerError::GeneralError: {0}")]
+    General(#[from] anyhow::Error),
+}
+
+/// It helps to use atomic state management for new blocks.
+pub(crate) struct BlockChainState {
+    pub(crate) last_blocks: LruCache<HashType, Block>,
+    /// Last block that we created.
+    /// It's not Option because we always have genesis block
+    last_produced_block: Option<Block>,
+    /// Last block that we accepted
+    /// It's not Option because we always have genesis block
+    last_committed_block: Block,
+}
+
+impl BlockChainState {
+    pub(crate) fn new(last_committed_block: Block) -> Self {
+        Self {
+            last_blocks: LruCache::new(NonZeroUsize::new(1000).unwrap()),
+            last_produced_block: None,
+            last_committed_block,
+        }
+    }
+
+    fn mark_last_produced_block_as_committed(&mut self) {
+        self.last_committed_block = self
+            .last_produced_block
+            .take()
+            .expect("Block should be present");
+    }
+
+    fn is_last_produced_block(&self, hash: HashType) -> bool {
+        match self.last_produced_block.as_ref() {
+            Some(block) => block.get_hash() == hash,
+            None => false,
+        }
+    }
+
+    fn is_last_produced_block_is_pending(&self) -> bool {
+        self.last_produced_block.is_some()
+    }
+
+    fn next_block_height(&self) -> u64 {
+        self.last_committed_block.get_height() + 1
+    }
+
+    fn remove_last_produced_block(&mut self) -> Block {
+        self.last_produced_block
+            .take()
+            .expect("Block should be present")
+    }
 }
 
 pub(crate) struct BlockManager {
-    pub(super) config: BlockConfig,
-    /// All blocks what we received from the network or created by us
-    pub(super) last_blocks: LruCache<HashType, Block>,
-    /// Last block that we created.
-    /// It's not Option because we always have genesis block
-    pub(super) last_produced_block: Block,
-    /// Last block that we accepted
-    /// It's not Option because we always have genesis block
-    pub(super) last_committed_block: Block,
+    pub(crate) config: BlockConfig,
     /// Block producer. Simple helper that creates blocks
-    pub(super) block_producer: BlockProducer,
+    pub(crate) block_producer: BlockProducer,
     /// Message pool. Contains all messages that we received from the network and not included in any block yet
-    pub(super) message_pool: MessagePool,
+    pub(crate) message_pool: MessagePool,
     /// Delay between block creation attempts.
-    pub(super) delay: Delay,
+    pub(crate) delay: Delay,
     /// Signs and verifies blocks
-    pub(super) block_signer: BlockSigner,
+    pub(crate) block_signer: BlockSigner,
+    /// Atomic state management for new blocks
+    pub(crate) block_chain_state: BlockChainState,
 }
 
 impl BlockManager {
-    pub(crate) async fn on_new_message(&mut self, msg: EphemeraMessage) -> Result<()> {
+    pub(crate) fn on_new_message(&mut self, msg: EphemeraMessage) -> Result<()> {
         let message_hash = msg.hash_with_default_hasher()?;
 
         if self.message_pool.contains(&message_hash) {
@@ -68,9 +115,9 @@ impl BlockManager {
         sender: &PeerId,
         block: &Block,
         certificate: &Certificate,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let hash = block.hash_with_default_hasher()?;
-        if self.last_blocks.contains(&hash) {
+        if self.block_chain_state.last_blocks.contains(&hash) {
             log::trace!("Block already received, ignoring: {hash}");
             return Ok(());
         }
@@ -78,69 +125,90 @@ impl BlockManager {
         //Block signer should be also its sender
         let signer_peer_id = certificate.public_key.peer_id();
         if *sender != signer_peer_id {
-            anyhow::bail!(format!(
-                "Block creator and signer are different: creator = {sender} != {signer_peer_id}",
-            ));
+            return Err(anyhow!(
+                "Block signer is not the sender: {sender:?} != {signer_peer_id:?}",
+            )
+                .into());
         }
 
         //Reject blocks with invalid hash
         if block.header.hash != hash {
-            anyhow::bail!(format!(
-                "Block hash mismatch: {:?} != {hash:?}",
-                block.header.hash,
-            ));
+            return Err(anyhow!("Block hash is invalid: {} != {hash}", block.header.hash).into());
         }
 
         //Verify that block signature is valid
         if self.block_signer.verify_block(block, certificate).is_err() {
-            anyhow::bail!(format!(
-                "Block signature verification failed: {:?}",
-                block.header.hash
-            ));
+            return Err(anyhow!("Block signature is invalid: {hash}").into());
         }
 
         log::debug!("Block received: {}", block.header.hash);
-        self.last_blocks.put(hash, block.to_owned());
+        self.block_chain_state
+            .last_blocks
+            .put(hash, block.to_owned());
         Ok(())
     }
 
-    pub(crate) fn sign_block(&mut self, block: &Block) -> anyhow::Result<Certificate> {
+    pub(crate) fn sign_block(&mut self, block: &Block) -> Result<Certificate> {
         let hash = block.hash_with_default_hasher()?;
         let certificate = self.block_signer.sign_block(block, &hash)?;
         Ok(certificate)
     }
 
+    pub(crate) fn on_application_rejected_block(
+        &mut self,
+        messages_to_remove: RemoveMessages,
+    ) -> Result<()> {
+        let last_produced_block = self.block_chain_state.remove_last_produced_block();
+        match messages_to_remove {
+            RemoveMessages::All => {
+                log::debug!("Removing block messages from pool: all");
+                let messages = last_produced_block
+                    .messages
+                    .into_iter()
+                    .map(Into::into)
+                    .collect::<Vec<_>>();
+                self.message_pool.remove_messages(&messages)?;
+            }
+            RemoveMessages::Selected(messages) => {
+                let messages = messages.into_iter().map(Into::into).collect::<Vec<_>>();
+                self.message_pool.remove_messages(messages.as_slice())?;
+            }
+        };
+        Ok(())
+    }
+
     /// After a block gets committed, clear up mempool from its messages
-    pub(crate) fn on_block_committed(&mut self, block: &Block) -> anyhow::Result<()> {
+    pub(crate) fn on_block_committed(&mut self, block: &Block) -> Result<()> {
         let hash = &block.header.hash;
 
-        if self.last_produced_block.header.hash != *hash {
-            log::error!(
+        if !self.block_chain_state.is_last_produced_block(*hash) {
+            let last_produced_block = self
+                .block_chain_state
+                .last_produced_block
+                .as_ref()
+                .expect("Last produced block should be present");
+            return Err(anyhow!(
                 "Received committed block {hash} which isn't last produced block {}, this is a bug!",
-                self.last_produced_block.header.hash
-            );
+                last_produced_block.get_hash()).into());
         }
 
         match self.message_pool.remove_messages(&block.messages) {
             Ok(_) => {
-                self.last_committed_block = block.to_owned();
+                self.block_chain_state
+                    .mark_last_produced_block_as_committed();
             }
             Err(e) => {
-                log::error!(
-                    "Mempool cleaning up from block: {:?} messages failed: {}",
-                    block,
-                    e
-                )
+                return Err(anyhow!("Failed to remove messages from mempool: {}", e).into());
             }
         }
         Ok(())
     }
 
     pub(crate) fn get_block_by_hash(&mut self, block_id: &HashType) -> Option<Block> {
-        self.last_blocks.get(block_id).cloned()
+        self.block_chain_state.last_blocks.get(block_id).cloned()
     }
 
-    pub(crate) fn get_block_signatures(&mut self, hash: &HashType) -> Option<Vec<Certificate>> {
+    pub(crate) fn get_block_certificates(&mut self, hash: &HashType) -> Option<Vec<Certificate>> {
         self.block_signer.get_block_signatures(hash)
     }
 }
@@ -162,40 +230,44 @@ impl Stream for BlockManager {
 
         match self.delay.poll_unpin(cx) {
             task::Poll::Ready(_) => {
-                //FIXME...: this all is very loose now, no checking of caps etc
-                let previous_block_header = self.last_committed_block.header.clone();
-                let new_height = previous_block_header.height + 1;
-                let pending_messages = self.message_pool.get_messages();
-
-                let result = match self
-                    .block_producer
-                    .produce_block(new_height, pending_messages)
-                {
-                    Ok(block) => {
-                        let hash = block
-                            .hash_with_default_hasher()
-                            .expect("Failed to hash block");
-
-                        log::debug!("Produced block: {:?}", hash);
-                        self.last_produced_block = block.clone();
-                        self.last_blocks.put(hash, block.clone());
-
-                        let certificate = self
-                            .block_signer
-                            .sign_block(&block, &hash)
-                            .expect("Failed to sign block");
-
-                        task::Poll::Ready(Some((block, certificate)))
-                    }
-                    Err(err) => {
-                        log::error!("Error producing block: {:?}", err);
-                        Pending
-                    }
-                };
-
+                //Reset the delay for the next block
                 let interval = self.config.creation_interval_sec;
                 self.delay.reset(time::Duration::from_secs(interval));
-                result
+
+                let is_previous_pending = self.block_chain_state.is_last_produced_block_is_pending();
+                let pending_messages = if is_previous_pending && self.config.repeat_last_block {
+                    let block = self
+                        .block_chain_state
+                        .last_produced_block
+                        .clone()
+                        .expect("Block should be present");
+
+                    //Use only previous block messages but create new block with new timestamp
+                    block.messages
+                } else {
+                    self.message_pool.get_messages()
+                };
+
+                let new_height = self.block_chain_state.next_block_height();
+                let created_block = self
+                    .block_producer
+                    .create_block(new_height, pending_messages);
+
+                if let Ok(block) = created_block {
+                    let hash = block.get_hash();
+                    self.block_chain_state.last_produced_block = Some(block.clone());
+                    self.block_chain_state.last_blocks.put(hash, block.clone());
+
+                    let certificate = self
+                        .block_signer
+                        .sign_block(&block, &hash)
+                        .expect("Failed to sign block");
+
+                    Ready(Some((block, certificate)))
+                } else {
+                    log::error!("Error producing block: {:?}", created_block);
+                    Pending
+                }
             }
             Pending => Pending,
         }
@@ -204,11 +276,11 @@ impl Stream for BlockManager {
 
 #[cfg(test)]
 mod test {
-    use std::num::NonZeroUsize;
     use std::sync::Arc;
     use std::time::Duration;
 
     use assert_matches::assert_matches;
+    use futures_util::StreamExt;
 
     use crate::crypto::{EphemeraKeypair, Keypair};
     use crate::ephemera_api::RawApiEphemeraMessage;
@@ -218,46 +290,34 @@ mod test {
 
     #[tokio::test]
     async fn test_add_message() {
-        let keypair: Arc<Keypair> = Keypair::generate(None).into();
-        let peer_id = keypair.public_key().peer_id();
-        let mut manager = block_manager(keypair.clone(), peer_id);
+        let (mut manager, _) = block_manager_with_defaults();
 
-        let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
-        let signed_message = message.sign(&keypair).expect("Failed to sign message");
-        let signed_message: EphemeraMessage = signed_message.into();
-
+        let signed_message = message("test");
         let hash = signed_message.hash_with_default_hasher().unwrap();
 
-        manager.on_new_message(signed_message).await.unwrap();
+        manager.on_new_message(signed_message).unwrap();
 
         assert!(manager.message_pool.contains(&hash));
     }
 
     #[tokio::test]
     async fn test_add_duplicate_message() {
-        let keypair: Arc<Keypair> = Keypair::generate(None).into();
-        let peer_id = keypair.public_key().peer_id();
-        let mut manager = block_manager(keypair.clone(), peer_id);
+        let (mut manager, _) = block_manager_with_defaults();
 
-        let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
-        let signed_message = message.sign(&keypair).expect("Failed to sign message");
-        let signed_message: EphemeraMessage = signed_message.into();
+        let signed_message = message("test");
 
-        manager
-            .on_new_message(signed_message.clone())
-            .await
-            .unwrap();
+        manager.on_new_message(signed_message.clone()).unwrap();
+
         assert_matches!(
-            manager.on_new_message(signed_message).await,
+            manager.on_new_message(signed_message),
             Err(BlockManagerError::DuplicateMessage(_))
         );
     }
 
     #[test]
     fn test_accept_valid_block() {
-        let keypair: Arc<Keypair> = Keypair::generate(None).into();
-        let peer_id = keypair.public_key().peer_id();
-        let mut manager = block_manager(keypair, peer_id);
+        let (mut manager, peer_id) = block_manager_with_defaults();
+
         let block = block();
         let certificate = manager.sign_block(&block).unwrap();
 
@@ -268,9 +328,8 @@ mod test {
 
     #[test]
     fn test_reject_invalid_sender() {
-        let keypair: Arc<Keypair> = Keypair::generate(None).into();
-        let peer_id = keypair.public_key().peer_id();
-        let mut manager = block_manager(keypair, peer_id);
+        let (mut manager, _) = block_manager_with_defaults();
+
         let block = block();
         let certificate = manager.sign_block(&block).unwrap();
 
@@ -282,9 +341,8 @@ mod test {
 
     #[test]
     fn test_reject_invalid_hash() {
-        let keypair: Arc<Keypair> = Keypair::generate(None).into();
-        let peer_id = keypair.public_key().peer_id();
-        let mut manager = block_manager(keypair, peer_id);
+        let (mut manager, peer_id) = block_manager_with_defaults();
+
         let mut block = block();
         let certificate = manager.sign_block(&block).unwrap();
 
@@ -296,9 +354,7 @@ mod test {
 
     #[test]
     fn test_reject_invalid_signature() {
-        let keypair: Arc<Keypair> = Keypair::generate(None).into();
-        let peer_id = keypair.public_key().peer_id();
-        let mut manager = block_manager(keypair, peer_id);
+        let (mut manager, peer_id) = block_manager_with_defaults();
 
         let correct_block = block();
         let fake_block = block();
@@ -313,32 +369,178 @@ mod test {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_on_block_committed() {
-        //TODO: how to handle non-termination?
+    #[tokio::test]
+    async fn test_next_block_empty() {
+        let (mut manager, _) = block_manager_with_defaults();
+
+        let (block, _) = manager.next().await.unwrap();
+        assert_eq!(block.header.height, 1);
+        assert!(block.messages.is_empty());
     }
 
-    fn block_manager(keypair: Arc<Keypair>, peer_id: PeerId) -> BlockManager {
+    #[tokio::test]
+    async fn test_next_block_with_message() {
+        let (mut manager, _) = block_manager_with_defaults();
+
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        match manager.next().await {
+            Some((block, _)) => {
+                assert_eq!(block.header.height, 1);
+                assert_eq!(block.messages.len(), 1);
+            }
+            None => {
+                panic!("No block produced");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_next_block_previous_not_committed_repeat() {
+        let (mut manager, _) = block_manager_with_defaults();
+
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        let (block1, _) = manager.next().await.unwrap();
+
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        let (block2, _) = manager.next().await.unwrap();
+
+        assert_eq!(block1.messages.len(), block2.messages.len());
+        assert_eq!(block1.header.height, block2.header.height);
+    }
+
+    #[tokio::test]
+    async fn test_next_block_previous_not_committed_repeat_false() {
+        let config = BlockConfig::new(true, 0, false);
+        let (mut manager, _) = block_manager_with_config(config);
+
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        let (block1, _) = manager.next().await.unwrap();
+
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        let (block2, _) = manager.next().await.unwrap();
+
+        assert_eq!(block1.messages.len(), 1);
+        assert_eq!(block2.messages.len(), 2);
+        //We create new block but don't leave gap
+        assert_eq!(block1.header.height, block2.header.height);
+    }
+
+    #[tokio::test]
+    async fn test_on_committed_with_correct_pending_block() {
+        let (mut manager, _) = block_manager_with_defaults();
+
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        let (block, _) = manager.next().await.unwrap();
+
+        let result = manager.on_block_committed(&block);
+
+        assert!(result.is_ok());
+        assert!(manager.message_pool.get_messages().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_on_committed_with_invalid_pending_block() {
+        let (mut manager, _) = block_manager_with_defaults();
+
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        let _ = manager.next().await.unwrap();
+
+        //Create invalid block
+        let wrong_block = block();
+
+        //This shouldn't remove messages from the pool
+        let result = manager.on_block_committed(&wrong_block);
+        assert!(result.is_err());
+        assert_eq!(manager.message_pool.get_messages().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn application_rejected_messages_all() {
+        let (mut manager, _) = block_manager_with_defaults();
+
+        //Add messages to pool
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        let signed_message = message("test");
+        manager.on_new_message(signed_message).unwrap();
+
+        //Produce new block
+        let _ = manager.next().await.unwrap();
+
+        //Application Rejects the block with ALL messages
+        manager.on_application_rejected_block(RemoveMessages::All).unwrap();
+
+        assert!(manager.message_pool.get_messages().is_empty());
+    }
+
+    #[tokio::test]
+    async fn application_rejected_messages_selected() {
+        let (mut manager, _) = block_manager_with_defaults();
+
+        //Add messages to pool
+        let signed_message1 = message("test");
+        manager.on_new_message(signed_message1.clone()).unwrap();
+
+        let signed_message2 = message("test");
+        manager.on_new_message(signed_message2.clone()).unwrap();
+
+        //Produce new block
+        let _ = manager.next().await.unwrap();
+
+        //Application Rejects the block with ALL messages
+        manager.on_application_rejected_block(RemoveMessages::Selected(vec![signed_message2.into()])).unwrap();
+
+        assert_eq!(manager.message_pool.get_messages().len(), 1);
+        let message = manager.message_pool.get_messages().into_iter().next().unwrap();
+        assert_eq!(message, signed_message1);
+    }
+
+    fn block_manager_with_defaults() -> (BlockManager, PeerId) {
+        let config = BlockConfig::new(true, 0, true);
+        block_manager_with_config(config)
+    }
+
+    fn block_manager_with_config(config: BlockConfig) -> (BlockManager, PeerId) {
+        let keypair: Arc<Keypair> = Keypair::generate(None).into();
+        let peer_id = keypair.public_key().peer_id();
         let genesis_block = Block::new_genesis_block(peer_id.clone());
-        BlockManager {
-            config: BlockConfig {
-                producer: true,
-                creation_interval_sec: 0,
-            },
-            last_blocks: LruCache::new(NonZeroUsize::new(10).unwrap()),
-            last_produced_block: genesis_block.clone(),
-            last_committed_block: genesis_block.clone(),
+        let block_chain_state = BlockChainState::new(genesis_block.clone());
+        (BlockManager {
+            config,
             block_producer: BlockProducer::new(peer_id.clone()),
             message_pool: MessagePool::new(),
             delay: Delay::new(Duration::from_secs(0)),
             block_signer: BlockSigner::new(keypair.clone()),
-        }
+            block_chain_state,
+        }, peer_id)
     }
 
     fn block() -> Block {
         let keypair: Arc<Keypair> = Keypair::generate(None).into();
         let peer_id = keypair.public_key().peer_id();
         let mut producer = BlockProducer::new(peer_id.clone());
-        producer.produce_block(1, vec![]).unwrap()
+        producer.create_block(1, vec![]).unwrap()
+    }
+
+    fn message(label: &str) -> EphemeraMessage {
+        let message1 = RawApiEphemeraMessage::new(label.into(), vec![1, 2, 3]);
+        let keypair = Keypair::generate(None);
+        let signed_message1 = message1.sign(&keypair).expect("Failed to sign message");
+        signed_message1.into()
     }
 }

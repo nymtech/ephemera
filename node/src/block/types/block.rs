@@ -125,6 +125,10 @@ impl Block {
         self.header.hash
     }
 
+    pub(crate) fn get_height(&self) -> u64 {
+        self.header.height
+    }
+
     pub(crate) fn new_genesis_block(creator: PeerId) -> Self {
         Self {
             header: BlockHeader {

@@ -4,18 +4,20 @@
 //!
 //! This API is also available over HTTP.
 
-pub(crate) mod application;
-pub(crate) mod http;
-pub(crate) mod types;
-
 use std::fmt::Display;
+
 use thiserror::Error;
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot,
 };
 
+use crate::api::application::ApplicationError;
 use crate::api::types::{ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage};
+
+pub(crate) mod application;
+pub(crate) mod http;
+pub(crate) mod types;
 
 #[derive(Error, Debug)]
 pub enum ApiError {
@@ -25,7 +27,9 @@ pub enum ApiError {
     DuplicateMessage,
     #[error("Invalid block hash: {0}")]
     InvalidBlockHash(#[from] bs58::decode::Error),
-    #[error(transparent)]
+    #[error("ApplicationError: {0}")]
+    Application(#[from] ApplicationError),
+    #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
 }
 

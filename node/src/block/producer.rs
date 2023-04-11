@@ -6,7 +6,7 @@ use crate::{
     network::peer::PeerId,
 };
 
-pub(super) struct BlockProducer {
+pub(crate) struct BlockProducer {
     pub(crate) peer_id: PeerId,
 }
 
@@ -15,7 +15,7 @@ impl BlockProducer {
         Self { peer_id }
     }
 
-    pub(super) fn produce_block(
+    pub(super) fn create_block(
         &mut self,
         height: u64,
         pending_messages: Vec<EphemeraMessage>,
@@ -25,7 +25,7 @@ impl BlockProducer {
 
         let block = self.new_block(height, pending_messages)?;
 
-        log::debug!("New block: {}", block);
+        log::debug!("Produced new block: {:?}", block.get_hash());
         Ok(block)
     }
 
@@ -69,7 +69,7 @@ mod test {
 
         let messages = vec![signed_message1.clone(), signed_message2.clone()];
 
-        let block = block_producer.produce_block(1, messages).unwrap();
+        let block = block_producer.create_block(1, messages).unwrap();
 
         assert_eq!(block.header.height, 1);
         assert_eq!(block.header.creator, peer_id);

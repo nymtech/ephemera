@@ -30,7 +30,10 @@ pub use crate::core::shutdown::ShutdownHandle;
 
 pub mod ephemera_api {
     pub use crate::api::{
-        application::{Application, DefaultApplication},
+        application::{
+            Application, ApplicationError, CheckBlockResult, DefaultApplication, RemoveMessages,
+            Result,
+        },
         http::client::{EphemeraHttpClient, Error},
         types::{
             ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, Health,
@@ -41,7 +44,7 @@ pub mod ephemera_api {
 }
 
 pub mod peer_discovery {
-    pub use super::network::discovery::{PeerDiscovery, PeerInfo};
+    pub use super::network::discovery::{PeerDiscovery, PeerInfo, Result};
 }
 
 pub mod crypto {

@@ -2,8 +2,6 @@ use std::num::NonZeroUsize;
 
 use lru::LruCache;
 
-use crate::crypto::EphemeraKeypair;
-use crate::ephemera_api::ApiEphemeraConfig;
 use crate::{
     api::{
         self,
@@ -12,6 +10,9 @@ use crate::{
         ApiCmd,
     },
     block::manager::BlockManagerError,
+    block::types::message,
+    crypto::EphemeraKeypair,
+    ephemera_api::ApiEphemeraConfig,
     network::libp2p::ephemera_sender::EphemeraEvent,
     Ephemera,
 };
@@ -42,12 +43,10 @@ impl ApiCmdProcessor {
                     Ok(true) => {
                         log::trace!("Application accepted ephemera message: {:?}", sm);
                         // 2. Send to BlockManager to put into memory pool
-                        let ephemera_msg: crate::block::types::message::EphemeraMessage =
-                            (*sm).try_into()?;
+                        let ephemera_msg: message::EphemeraMessage = (*sm).try_into()?;
                         match ephemera
                             .block_manager
                             .on_new_message(ephemera_msg.clone())
-                            .await
                         {
                             Ok(_) => {
                                 //Gossip to network for other nodes to receive
@@ -79,7 +78,7 @@ impl ApiCmdProcessor {
                                             "Error sending SubmitEphemeraMessage response to api",
                                         );
                                     }
-                                    BlockManagerError::Internal(_) => {
+                                    BlockManagerError::General(err) => {
                                         reply.send(Err(api::ApiError::Internal(
                                             anyhow::Error::msg(err.to_string()),
                                         )))
@@ -98,7 +97,7 @@ impl ApiCmdProcessor {
                     Err(err) => {
                         log::error!("Application rejected transaction: {:?}", err);
                         reply
-                            .send(Err(api::ApiError::Internal(err)))
+                            .send(Err(api::ApiError::Application(err)))
                             .expect("Error sending SubmitEphemeraMessage response to api");
                     }
                 }

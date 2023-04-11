@@ -1,18 +1,21 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::api::application::CheckBlockResult;
 use async_trait::async_trait;
 use clap::Parser;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::api::application::{Application, DefaultApplication};
-use crate::api::types::{ApiBlock, ApiEphemeraMessage, RawApiEphemeraMessage};
 use crate::codec::EphemeraEncoder;
 use crate::config::{Configuration, PeerSetting};
 use crate::core::builder::EphemeraStarter;
 use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
+use crate::ephemera_api::{
+    ApiBlock, ApiEphemeraMessage, Application, DefaultApplication, RawApiEphemeraMessage, Result,
+};
 use crate::network::discovery::{PeerDiscovery, PeerInfo};
+use crate::peer_discovery;
 use crate::utilities::encoding::Encoder;
 
 #[derive(Debug, Clone, Parser)]
@@ -82,17 +85,17 @@ impl SignatureVerificationApplication {
 }
 
 impl Application for SignatureVerificationApplication {
-    fn check_tx(&self, tx: ApiEphemeraMessage) -> anyhow::Result<bool> {
+    fn check_tx(&self, tx: ApiEphemeraMessage) -> Result<bool> {
         log::trace!("SignatureVerificationApplicationHook::check_tx");
         self.verify_message(tx)?;
         Ok(true)
     }
 
-    fn check_block(&self, _block: &ApiBlock) -> anyhow::Result<bool> {
-        todo!()
+    fn check_block(&self, _block: &ApiBlock) -> Result<CheckBlockResult> {
+        Ok(CheckBlockResult::Accept)
     }
 
-    fn deliver_block(&self, _block: ApiBlock) -> anyhow::Result<()> {
+    fn deliver_block(&self, _block: ApiBlock) -> Result<()> {
         log::trace!("SignatureVerificationApplicationHook::deliver_block");
         Ok(())
     }
@@ -102,7 +105,7 @@ struct DummyPeerDiscovery;
 
 #[async_trait]
 impl PeerDiscovery for DummyPeerDiscovery {
-    async fn poll(&mut self, _: UnboundedSender<Vec<PeerInfo>>) -> anyhow::Result<()> {
+    async fn poll(&mut self, _: UnboundedSender<Vec<PeerInfo>>) -> peer_discovery::Result<()> {
         Ok(())
     }
 
@@ -140,7 +143,7 @@ impl ConfigPeers {
 impl TryFrom<PeerSetting> for PeerInfo {
     type Error = anyhow::Error;
 
-    fn try_from(setting: PeerSetting) -> Result<Self, Self::Error> {
+    fn try_from(setting: PeerSetting) -> std::result::Result<Self, Self::Error> {
         let pub_key = PublicKey::from_base58(setting.pub_key.as_str())?;
         Ok(PeerInfo {
             name: setting.name,
@@ -155,7 +158,7 @@ impl PeerDiscovery for ConfigPeers {
     async fn poll(
         &mut self,
         discovery_channel: UnboundedSender<Vec<PeerInfo>>,
-    ) -> anyhow::Result<()> {
+    ) -> peer_discovery::Result<()> {
         discovery_channel.send(self.peers.clone()).unwrap();
         Ok(())
     }

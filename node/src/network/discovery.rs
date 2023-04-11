@@ -5,6 +5,7 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use libp2p::multiaddr::Protocol;
 use libp2p::Multiaddr;
+use thiserror::Error;
 
 use crate::crypto::PublicKey;
 use crate::network::peer::{Peer, PeerId};
@@ -36,7 +37,7 @@ impl Display for PeerInfo {
 impl TryFrom<PeerInfo> for Peer {
     type Error = anyhow::Error;
 
-    fn try_from(value: PeerInfo) -> Result<Self, Self::Error> {
+    fn try_from(value: PeerInfo) -> std::result::Result<Self, Self::Error> {
         let multi_address: Option<Multiaddr> = match Multiaddr::from_str(value.address.as_str()) {
             Ok(multiaddr) => Some(multiaddr),
             Err(err) => {
@@ -83,6 +84,15 @@ impl TryFrom<PeerInfo> for Peer {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum PeerDiscoveryError {
+    //Just a placeholder for now
+    #[error("PeerDiscoveryError::GeneralError: {0}")]
+    GeneralError(#[from] anyhow::Error),
+}
+
+pub type Result<T> = std::result::Result<T, PeerDiscoveryError>;
+
 /// The PeerDiscovery trait allows the user to implement their own peer discovery mechanism.
 #[async_trait]
 pub trait PeerDiscovery: Send + Sync {
@@ -93,11 +103,11 @@ pub trait PeerDiscovery: Send + Sync {
     /// * `discovery_channel` - The channel to send the new peers to.
     ///
     /// # Returns
-    /// * `anyhow::Result<()>` - The result of the operation.
+    /// * `Result<()>` - An error if the polling failed.
     async fn poll(
         &mut self,
         discovery_channel: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<()>;
 
     /// Ephemera will call this method to get the interval between each poll.
     ///

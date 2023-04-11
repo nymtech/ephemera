@@ -5,6 +5,7 @@ use futures_util::StreamExt;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
+use crate::api::application::CheckBlockResult;
 use crate::{
     api::{application::Application, ApiListener},
     block::{manager::BlockManager, types::block::Block},
@@ -162,7 +163,7 @@ impl<A: Application> Ephemera<A> {
                     Ok(true) => {
                         log::trace!("Application accepted message: {:?}", em);
                         // 2. send to BlockManager
-                        if let Err(err) = self.block_manager.on_new_message(*em).await {
+                        if let Err(err) = self.block_manager.on_new_message(*em) {
                             log::error!("Error sending signed message to block manager: {:?}", err);
                         }
                     }
@@ -220,13 +221,23 @@ impl<A: Application> Ephemera<A> {
 
         //Ephemera ABCI
         match self.application.check_block(&new_block.clone().into()) {
-            Ok(true) => {
-                log::debug!("Application accepted block: {:?}", new_block);
-            }
-            Ok(false) => {
-                log::debug!("Application rejected block: {:?}", new_block);
-                return Ok(());
-            }
+            Ok(response) => match response {
+                CheckBlockResult::Accept => {
+                    log::debug!("Application accepted block: {:?}", new_block);
+                }
+                CheckBlockResult::Reject => {
+                    log::debug!("Application rejected block: {hash:?}",);
+                    return Ok(());
+                }
+                CheckBlockResult::RejectAndRemoveMessages(messages_to_remove) => {
+                    log::debug!("Application rejected block: {:?}", messages_to_remove);
+                    self.block_manager
+                        .on_application_rejected_block(messages_to_remove)
+                        .map_err(|err| {
+                            anyhow!("Error rejecting block from block manager: {:?}", err)
+                        })?;
+                }
+            },
             Err(err) => {
                 return Err(anyhow!("Application check_block failed: {:?}", err).into());
             }
@@ -316,7 +327,7 @@ impl<A: Application> Ephemera<A> {
                             //DB
                             let signatures = self
                                 .block_manager
-                                .get_block_signatures(&block.header.hash)
+                                .get_block_certificates(&block.header.hash)
                                 .ok_or(anyhow!(
                                     "Error: Block signatures not found in block manager"
                                 ))?;
@@ -324,10 +335,16 @@ impl<A: Application> Ephemera<A> {
                             self.storage.lock().await.store_block(&block, signatures)?;
 
                             //BlockManager
-                            self.block_manager.on_block_committed(&block)?;
+                            self.block_manager.on_block_committed(&block).map_err(|e| {
+                                anyhow!("Error: BlockManager failed to process block: {:?}", e)
+                            })?;
 
                             //Application(ABCI)
-                            self.application.deliver_block(Into::into(block.clone()))?;
+                            self.application
+                                .deliver_block(Into::into(block.clone()))
+                                .map_err(|e| {
+                                    anyhow!("Error: Deliver block to Application failed: {e:?}",)
+                                })?;
 
                             //WS
                             self.ws_message_broadcast.send_block(&block)?;

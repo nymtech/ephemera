@@ -1,11 +1,8 @@
-use std::num::NonZeroUsize;
+use futures_timer::Delay;
 use std::sync::Arc;
 use std::time;
 
-use futures_timer::Delay;
-use lru::LruCache;
-
-use crate::block::manager::BlockManager;
+use crate::block::manager::{BlockChainState, BlockManager};
 use crate::block::message_pool::MessagePool;
 use crate::block::producer::BlockProducer;
 use crate::block::types::block::Block;
@@ -49,23 +46,19 @@ impl BlockManagerBuilder {
             most_recent_block = Some(genesis_block);
         }
 
-        let last_blocks =
-            LruCache::new(NonZeroUsize::new(10000).ok_or(anyhow::anyhow!("Invalid cache size"))?);
         let last_created_block = most_recent_block.expect("Block should be present");
 
         let block_signer = BlockSigner::new(self.keypair.clone());
-
         let message_pool = MessagePool::new();
+        let block_chain_state = BlockChainState::new(last_created_block);
 
         Ok(BlockManager {
             config: self.config,
-            last_blocks,
-            last_produced_block: last_created_block.clone(),
-            last_committed_block: last_created_block,
             block_producer: self.block_producer,
             block_signer,
             delay: self.delay,
             message_pool,
+            block_chain_state,
         })
     }
 }

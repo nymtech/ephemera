@@ -29,6 +29,8 @@ pub struct InitCmd {
     pub block_producer: bool,
     #[clap(long, default_value_t = 30)]
     pub block_creation_interval_sec: u64,
+    #[clap(long)]
+    pub repeat_last_block: bool,
 }
 
 impl InitCmd {
@@ -76,6 +78,7 @@ impl InitCmd {
             block: BlockConfig {
                 producer: self.block_producer,
                 creation_interval_sec: self.block_creation_interval_sec,
+                repeat_last_block: self.repeat_last_block,
             },
         };
         if let Err(err) = configuration.try_create_root_dir(&self.node_name) {

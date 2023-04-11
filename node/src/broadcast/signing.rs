@@ -94,7 +94,7 @@ mod test {
 
         let message_signing_keypair = Keypair::generate(None);
 
-        let block = new_block(&message_signing_keypair);
+        let block = new_block(&message_signing_keypair, "label1");
         let certificate = block.sign(&message_signing_keypair).unwrap();
 
         assert!(signer.verify_block(&block, &certificate).is_ok());
@@ -105,19 +105,19 @@ mod test {
         let mut signer = BlockSigner::new(Arc::new(Keypair::generate(None)).clone());
         let message_signing_keypair = Keypair::generate(None);
 
-        let block = new_block(&message_signing_keypair);
+        let block = new_block(&message_signing_keypair, "label1");
         let certificate = block.sign(&message_signing_keypair).unwrap();
 
-        let modified_block = new_block(&message_signing_keypair);
+        let modified_block = new_block(&message_signing_keypair, "label2");
 
         assert!(signer.verify_block(&modified_block, &certificate).is_err());
     }
 
-    fn new_block(keypair: &Keypair) -> Block {
+    fn new_block(keypair: &Keypair, message_label: &str) -> Block {
         let peer_id = keypair.public_key().peer_id();
 
         let raw_ephemera_message =
-            RawEphemeraMessage::new("label".to_string(), "payload".as_bytes().to_vec());
+            RawEphemeraMessage::new(message_label.to_string(), "payload".as_bytes().to_vec());
 
         let message_certificate = Certificate::prepare(keypair, &raw_ephemera_message).unwrap();
         let messages = vec![EphemeraMessage::new(

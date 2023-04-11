@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::block::types::message::EphemeraMessage;
 use crate::utilities::hash::HashType;
 
-pub(super) struct MessagePool {
+pub(crate) struct MessagePool {
     pending_messages: HashMap<HashType, EphemeraMessage>,
 }
 
