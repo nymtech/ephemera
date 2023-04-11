@@ -1,25 +1,43 @@
-use std::iter;
-use std::sync::Arc;
-use std::time::Duration;
-
-use libp2p::core::{muxing::StreamMuxerBox, transport::Boxed};
-use libp2p::gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode};
-use libp2p::kad;
-use libp2p::swarm::NetworkBehaviour;
-use libp2p::tcp::{tokio::Transport as TokioTransport, Config as TokioConfig};
-use libp2p::yamux::YamuxConfig;
-use libp2p::{gossipsub, noise, request_response, PeerId as Libp2pPeerId, Transport};
-
-use crate::broadcast::RbMsg;
-use crate::crypto::Keypair;
-use crate::network::discovery::PeerDiscovery;
-use crate::network::libp2p::behaviours::broadcast_messages::{
-    RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
+use std::{
+    iter,
+    sync::Arc,
+    time::Duration
 };
-use crate::network::libp2p::behaviours::rendezvous;
-use crate::network::libp2p::behaviours::rendezvous::RendezvousBehaviour;
-use crate::network::peer::ToPeerId;
-use crate::utilities::hash::{EphemeraHasher, Hasher};
+
+use libp2p::{
+    core::{muxing::StreamMuxerBox, transport::Boxed},
+    gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode},
+    kad,
+    swarm::NetworkBehaviour,
+    tcp::{tokio::Transport as TokioTransport, Config as TokioConfig},
+    yamux::YamuxConfig,
+    gossipsub,
+    noise,
+    request_response,
+    PeerId as Libp2pPeerId,
+    Transport
+};
+
+use crate::{
+    crypto::Keypair,
+    broadcast::RbMsg,
+    network::{
+        discovery::PeerDiscovery,
+        libp2p::{
+            behaviours::{
+                broadcast_messages::{
+                    RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
+                },
+                rendezvous::{
+                    self,
+                    RendezvousBehaviour
+                }
+            }
+        },
+        peer::ToPeerId
+    },
+    utilities::hash::{EphemeraHasher, Hasher}
+};
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
@@ -93,10 +111,12 @@ pub(crate) fn create_gossipsub(local_key: Arc<Keypair>, topic: &Topic) -> gossip
         .expect("Valid config");
 
     let mut behaviour = gossipsub::Behaviour::new(
-        MessageAuthenticity::Signed(local_key.0.clone()),
+        MessageAuthenticity::Signed(local_key.inner().clone()),
         gossipsub_config,
     )
     .expect("Correct configuration");
+
+    log::info!("Subscribing to topic: {}", topic);
     behaviour.subscribe(topic).expect("Valid topic");
     behaviour
 }
@@ -121,7 +141,7 @@ pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::sto
     let mut cfg = kad::KademliaConfig::default();
     cfg.set_query_timeout(Duration::from_secs(5 * 60));
     let store = kad::store::MemoryStore::new(peer_id.0);
-    kad::Kademlia::with_config(peer_id.0, store, cfg)
+    kad::Kademlia::with_config(*peer_id.inner(), store, cfg)
 }
 
 //Configure networking connection stack(Tcp, Noise, Yamux)
@@ -131,7 +151,7 @@ pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::sto
 pub(crate) fn create_transport(local_key: Arc<Keypair>) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
     let transport = TokioTransport::new(TokioConfig::default().nodelay(true));
     let noise_keypair = noise::Keypair::<noise::X25519Spec>::new()
-        .into_authentic(&local_key.0.clone())
+        .into_authentic(&local_key.inner())
         .unwrap();
     let xx_config = noise::NoiseConfig::xx(noise_keypair);
     transport

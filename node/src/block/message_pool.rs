@@ -10,7 +10,7 @@ pub(crate) struct MessagePool {
 impl MessagePool {
     pub(super) fn new() -> Self {
         Self {
-            pending_messages: HashMap::with_capacity(10000),
+            pending_messages: Default::default(),
         }
     }
 
@@ -19,18 +19,18 @@ impl MessagePool {
     }
 
     pub(super) fn add_message(&mut self, msg: EphemeraMessage) -> anyhow::Result<()> {
-        let msg_hash = msg.hash_with_default_hasher()?;
+        log::debug!("Adding message to pool: {:?}", msg);
 
-        log::debug!("Adding message to pool: {}", msg_hash);
+        let msg_hash = msg.hash_with_default_hasher()?;
 
         self.pending_messages.insert(msg_hash, msg);
 
-        log::debug!("Message pool size: {:?}", self.pending_messages.len());
+        log::trace!("Message pool size: {:?}", self.pending_messages.len());
         Ok(())
     }
 
     pub(super) fn remove_messages(&mut self, messages: &[EphemeraMessage]) -> anyhow::Result<()> {
-        log::trace!("Removing messages from pool: {:?}", messages);
+        log::debug!("Removing messages from pool: {:?}", messages);
         log::trace!(
             "Mempool size before removing messages {}",
             self.pending_messages.len()

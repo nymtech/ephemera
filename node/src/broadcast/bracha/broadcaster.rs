@@ -63,7 +63,7 @@ impl Broadcaster {
     }
 
     pub(crate) async fn new_broadcast(&mut self, block: Block) -> anyhow::Result<ProtocolResponse> {
-        log::debug!("Starting broadcast for new block {}", block);
+        log::debug!("Starting broadcast for new block {:?}", block);
         let rb_msg = RawRbMsg::new(block, self.local_peer_id);
         self.handle(rb_msg).await
     }
@@ -75,6 +75,7 @@ impl Broadcaster {
         let hash = block.hash_with_default_hasher()?;
 
         if !self.contexts.contains(&hash) {
+            log::trace!("Creating new context for block {:?}", hash);
             self.contexts
                 .put(hash, ProtocolContext::new(hash, self.local_peer_id));
         }
@@ -103,11 +104,14 @@ impl Broadcaster {
         let ctx = self.contexts.get_mut(&hash).unwrap();
 
         if self.local_peer_id != rb_msg.original_sender {
+            log::trace!("Adding echo from {:?}", rb_msg.original_sender);
             ctx.add_echo(rb_msg.original_sender);
         }
 
         if !ctx.echoed() {
             ctx.add_echo(self.local_peer_id);
+
+            log::trace!("Sending echo reply for {hash:?}",);
             return Ok(ProtocolResponse::broadcast(
                 rb_msg.echo_reply(self.local_peer_id, rb_msg.block()),
             ));
@@ -119,10 +123,9 @@ impl Broadcaster {
                 .check_threshold(ctx, rb_msg.message_type.clone().into())
                 .is_vote()
         {
-            log::trace!("Prepare completed for {:?}", rb_msg.id);
-
             ctx.add_vote(self.local_peer_id);
 
+            log::trace!("Sending vote reply for {hash:?}",);
             return Ok(ProtocolResponse::broadcast(
                 rb_msg.vote_reply(self.local_peer_id, rb_msg.block()),
             ));
@@ -140,6 +143,7 @@ impl Broadcaster {
         let ctx = self.contexts.get_mut(&hash).unwrap();
 
         if self.local_peer_id != rb_msg.original_sender {
+            log::trace!("Adding vote from {:?}", rb_msg.original_sender);
             ctx.add_vote(rb_msg.original_sender);
         }
 
@@ -150,6 +154,7 @@ impl Broadcaster {
         {
             ctx.add_vote(self.local_peer_id);
 
+            log::trace!("Sending vote reply for {hash:?}",);
             return Ok(ProtocolResponse::broadcast(
                 rb_msg.vote_reply(self.local_peer_id, block.clone()),
             ));
@@ -160,8 +165,7 @@ impl Broadcaster {
             .check_threshold(ctx, rb_msg.message_type.clone().into())
             .is_deliver()
         {
-            log::debug!("Commit complete for {:?}", rb_msg.id);
-
+            log::trace!("Commit complete for {:?}", rb_msg.id);
             return Ok(ProtocolResponse::deliver());
         }
 

@@ -5,9 +5,8 @@ use futures_util::StreamExt;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-use crate::api::application::CheckBlockResult;
 use crate::{
-    api::{application::Application, ApiListener},
+    api::{ApiListener, application::Application},
     block::{manager::BlockManager, types::block::Block},
     broadcast::{
         bracha::broadcaster::{Broadcaster, ProtocolResponse},
@@ -29,6 +28,7 @@ use crate::{
     utilities::crypto::Certificate,
     websocket::ws_manager::WsMessageBroadcaster,
 };
+use crate::api::application::CheckBlockResult;
 
 //Just a placeholder now
 #[derive(Error, Debug)]
@@ -79,7 +79,7 @@ pub struct Ephemera<A: Application> {
     ///Interface to external Rust code
     pub(crate) ephemera_handle: EphemeraHandle,
 
-    //It is inside option so that it can taken out
+    /// A component which handles shutdown.
     pub(crate) shutdown_manager: Option<ShutdownManager>,
 }
 
@@ -104,16 +104,16 @@ impl<A: Application> Ephemera<A> {
     /// system, I'm not worried about it at this stage.
     pub async fn run(mut self) {
         log::info!("Starting ephemera...");
+
         let mut shutdown_manager = self
             .shutdown_manager
             .take()
             .expect("Shutdown manager not set");
+
         loop {
             tokio::select! {
                 // GENERATING NEW BLOCKS
                 Some((new_block, certificate)) = self.block_manager.next() => {
-                    log::trace!("New block from block manager: {}", new_block);
-
                     if let Err(err) = self.process_new_local_block(new_block, certificate).await{
                         log::error!("Error processing new block: {:?}", err);
                     }
@@ -121,8 +121,6 @@ impl<A: Application> Ephemera<A> {
 
                 // PROCESSING NETWORK EVENTS
                 Some(net_event) = self.from_network.net_event_rcv.recv() => {
-                    log::trace!("New network event: {:?}", net_event);
-
                     if let Err(err) = self.process_network_event(net_event).await{
                         log::error!("Error processing network event: {:?}", err);
                     }
@@ -154,6 +152,8 @@ impl<A: Application> Ephemera<A> {
     }
 
     async fn process_network_event(&mut self, net_event: NetworkEvent) -> Result<()> {
+        log::trace!("New network event: {:?}", net_event);
+
         match net_event {
             NetworkEvent::EphemeraMessage(em) => {
                 // 1. Ask application to decide if we should accept this message.
@@ -161,14 +161,14 @@ impl<A: Application> Ephemera<A> {
                 log::debug!("New ephemera message from network: {:?}", api_msg);
                 match self.application.check_tx(api_msg) {
                     Ok(true) => {
-                        log::trace!("Application accepted message: {:?}", em);
+                        log::debug!("Application accepted message: {:?}", em);
                         // 2. send to BlockManager
                         if let Err(err) = self.block_manager.on_new_message(*em) {
                             log::error!("Error sending signed message to block manager: {:?}", err);
                         }
                     }
                     Ok(false) => {
-                        log::trace!("Application rejected message: {:?}", em);
+                        log::debug!("Application rejected message: {:?}", em);
                     }
                     Err(err) => {
                         log::error!("Application check_tx failed: {:?}", err);
@@ -176,16 +176,18 @@ impl<A: Application> Ephemera<A> {
                 }
             }
             NetworkEvent::ProtocolMessage(pm) => {
-                log::trace!("New protocol message from network: {:?}", pm);
+                log::debug!("New protocol message from network: {:?}", pm);
                 if let Err(err) = self.process_block_from_network(*pm).await {
                     log::error!("Error processing block from network: {:?}", err);
                 }
             }
             NetworkEvent::PeersUpdated(peers) => {
+                log::debug!("New peers: {:?}", peers);
                 self.broadcaster.topology_updated(peers.len());
                 self.topology.add_snapshot(peers);
             }
             NetworkEvent::QueryDhtResponse { key, value } => {
+                log::debug!("New dht query response: {:?}", key);
                 match self.api_cmd_processor.dht_query_cache.pop(&key) {
                     Some(reply) => {
                         let response = Ok(Some((key, value)));
@@ -210,12 +212,15 @@ impl<A: Application> Ephemera<A> {
         new_block: Block,
         certificate: Certificate,
     ) -> Result<()> {
+        log::debug!("New block from block manager: {}", new_block);
+
         let hash = new_block.header.hash;
         let block_creator = &self.node_info.peer_id;
         let sender = &self.node_info.peer_id;
 
         // Check if block matches topology
         if !self.topology.check_membership(hash, block_creator, sender) {
+            log::debug!("Membership check rejected block: {:?}", new_block);
             return Ok(());
         }
 
@@ -247,10 +252,10 @@ impl<A: Application> Ephemera<A> {
         //We start reliable broadcaster protocol to broadcaster it to other nodes.
         match self.broadcaster.new_broadcast(new_block).await {
             Ok(ProtocolResponse {
-                status: _,
-                command,
-                protocol_reply: Some(rp),
-            }) => {
+                   status: _,
+                   command,
+                   protocol_reply: Some(rp),
+               }) => {
                 if command == Command::Broadcast {
                     log::trace!("Broadcasting new block: {:?}", rp);
 
@@ -271,18 +276,14 @@ impl<A: Application> Ephemera<A> {
     }
 
     async fn process_block_from_network(&mut self, msg: RbMsg) -> Result<()> {
+        log::debug!("New broadcast message from network: {:?}", msg);
+
         let msg_id = msg.id.clone();
         let block = msg.get_block();
         let block_creator = &block.header.creator;
         let sender = &msg.original_sender;
         let hash = block.header.hash;
         let certificate = msg.certificate.clone();
-
-        log::trace!(
-            "Processing broadcast message {:?}[block {:?}] from network",
-            msg_id,
-            hash
-        );
 
         if !self.topology.check_membership(hash, block_creator, sender) {
             return Err(anyhow!("Block doesn't match topology").into());
@@ -295,10 +296,10 @@ impl<A: Application> Ephemera<A> {
         //Send to local RB protocol
         match self.broadcaster.handle(msg.into()).await {
             Ok(ProtocolResponse {
-                status: _,
-                command: Command::Broadcast,
-                protocol_reply: Some(rp),
-            }) => {
+                   status: _,
+                   command: Command::Broadcast,
+                   protocol_reply: Some(rp),
+               }) => {
                 log::trace!("Broadcasting block to network: {:?}", rp);
 
                 match self.block_manager.sign_block(rp.block_ref()) {
@@ -314,16 +315,17 @@ impl<A: Application> Ephemera<A> {
                 }
             }
             Ok(ProtocolResponse {
-                status: Status::Completed,
-                command: _,
-                protocol_reply: None,
-            }) => {
-                //If committed, store in DB, send to WS
+                   status: Status::Completed,
+                   command: _,
+                   protocol_reply: None,
+               }) => {
+                log::debug!("Block broadcast complete: {hash:?}",);
                 let block = self.block_manager.get_block_by_hash(&hash);
-
                 match block {
                     Some(block) => {
                         if block.header.creator == self.node_info.peer_id {
+                            log::debug!("It's local block: {hash:?}",);
+
                             //DB
                             let signatures = self
                                 .block_manager

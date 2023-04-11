@@ -1,22 +1,24 @@
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use rand::Rng;
 use tokio::task::JoinHandle;
 
 use ephemera::crypto::Keypair;
-use ephemera::ephemera_api::EphemeraHttpClient;
+use ephemera::ephemera_api::{ApiDhtQueryRequest, ApiDhtStoreRequest, EphemeraHttpClient};
 
+use crate::Args;
 use crate::node::Node;
 use crate::util::create_ephemera_message;
-use crate::Args;
 
 pub(crate) struct Cluster {
     args: Args,
     nodes: Arc<tokio::sync::Mutex<Vec<Node>>>,
     keypair: Arc<Keypair>,
+    dht_pending_stores: Arc<tokio::sync::Mutex<Vec<ApiDhtStoreRequest>>>,
+    dht_pending_queries: Arc<tokio::sync::Mutex<Vec<ApiDhtQueryRequest>>>,
 }
 
 impl Cluster {
@@ -25,6 +27,8 @@ impl Cluster {
             args,
             nodes: Arc::new(tokio::sync::Mutex::new(nodes)),
             keypair: Arc::new(keypair),
+            dht_pending_stores: Arc::new(tokio::sync::Mutex::new(vec![])),
+            dht_pending_queries: Arc::new(tokio::sync::Mutex::new(vec![])),
         }
     }
 
@@ -345,23 +349,85 @@ impl Cluster {
         Ok(handle)
     }
 
-    pub(crate) async fn store_dht(&self, interval: Duration) -> anyhow::Result<JoinHandle<()>> {
-        let _args = self.args.clone();
+    pub(crate) async fn store_in_dht_using_random_node(&self, interval: Duration) -> anyhow::Result<JoinHandle<()>> {
+        let nodes = self.nodes.clone();
+        let nodes_len = nodes.lock().await.len();
+        let mut clients = self.clients().await;
+        let dht_pending_stores = self.dht_pending_stores.clone();
+
         let handle = tokio::spawn(async move {
+            let mut tick_counter = 0;
             let mut interval = tokio::time::interval(interval);
+
             loop {
                 interval.tick().await;
+                let index = rand::thread_rng().gen_range(0..nodes_len);
+
+                if let Some(node) = nodes.lock().await.get_mut(index) {
+                    let client = clients.get_mut(&index).unwrap();
+
+                    let key = format!("message_{}", tick_counter);
+                    let key = key.as_bytes();
+                    let value = format!("message_{}_{}", tick_counter, node.id);
+                    let value = value.as_bytes();
+                    let request = ApiDhtStoreRequest::new(key, value);
+
+                    log::info!("Stored key value pair in DHT: {:?} {:?}", key, value);
+
+                    client.store_dht_request(request.clone()).await.unwrap();
+
+                    dht_pending_stores.lock().await.push(request);
+
+                    tick_counter += 1;
+                }
             }
         });
         Ok(handle)
     }
 
-    pub(crate) async fn query_dht(&self, interval: Duration) -> anyhow::Result<JoinHandle<()>> {
-        let _args = self.args.clone();
+    pub(crate) async fn query_dht_using_random_node(&self, interval: Duration) -> anyhow::Result<JoinHandle<()>> {
+        let nodes = self.nodes.clone();
+        let nodes_len = nodes.lock().await.len();
+        let mut clients = self.clients().await;
+
+        let dht_pending_stores = self.dht_pending_stores.clone();
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(interval);
+
             loop {
                 interval.tick().await;
+
+                log::info!("DHT pending stores before queries: {:?}", dht_pending_stores.lock().await.len());
+
+                let mut found = vec![];
+                for store in dht_pending_stores.lock().await.iter() {
+                    log::info!("DHT pending store: {:?}", store.key());
+                    let index = rand::thread_rng().gen_range(0..nodes_len);
+
+                    let client = clients.get_mut(&index).unwrap();
+
+                    let request = ApiDhtQueryRequest::new(store.key().as_slice());
+                    log::info!("DHT query request: {:?}", request.key());
+
+                    let response = client.query_dht_key(request).await.unwrap();
+                    match response {
+                        Some(value) => {
+                            log::info!("DHT query response: key: {:?}, value: {:?}", store.key(), value);
+                            found.push(store.key().to_vec());
+                        }
+                        None => {
+                            log::error!("DHT query response is None");
+                        }
+                    }
+                }
+
+                let mut guard = dht_pending_stores.lock().await;
+                for key in found.into_iter() {
+                    guard.retain(|store| store.key() != key);
+                }
+
+                log::info!("DHT pending stores after queries: {:?}", guard.len());
             }
         });
         Ok(handle)

@@ -1,15 +1,21 @@
 use std::collections::HashMap;
 use std::task::{Context, Poll};
 
-use libp2p::swarm::{
-    dummy, ConnectionId, FromSwarm, NetworkBehaviour, NetworkBehaviourAction, PollParameters,
-    THandlerInEvent, THandlerOutEvent,
+use libp2p::{
+    Multiaddr,
+    swarm::{
+        ConnectionId, dummy, FromSwarm, NetworkBehaviour, NetworkBehaviourAction, PollParameters,
+        THandlerInEvent, THandlerOutEvent,
+    },
 };
-use libp2p::Multiaddr;
 use tokio::task::JoinHandle;
 
-use crate::network::discovery::{PeerDiscovery, PeerInfo};
-use crate::network::peer::{Peer, PeerId};
+use crate::{
+    network::{
+        discovery::{PeerDiscovery, PeerInfo},
+        peer::{Peer, PeerId},
+    }
+};
 
 pub(crate) struct RendezvousBehaviour<P: PeerDiscovery> {
     peers: HashMap<PeerId, Peer>,
@@ -90,7 +96,7 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for RendezvousBehaviour<P> {
     }
 
     fn on_swarm_event(&mut self, _event: FromSwarm<Self::ConnectionHandler>) {
-        log::trace!("HttpPeerDiscoveryBehaviour: on_swarm_event");
+        log::trace!("RendezvousBehaviour: on_swarm_event");
     }
 
     fn on_connection_handler_event(
@@ -99,7 +105,7 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for RendezvousBehaviour<P> {
         _connection_id: ConnectionId,
         _event: THandlerOutEvent<Self>,
     ) {
-        log::trace!("HttpPeerDiscoveryBehaviour: on_connection_handler_event");
+        log::trace!("RendezvousBehaviour: on_connection_handler_event");
     }
 
     fn poll(
@@ -108,11 +114,11 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for RendezvousBehaviour<P> {
         _params: &mut impl PollParameters,
     ) -> Poll<NetworkBehaviourAction<Self::OutEvent, THandlerInEvent<Self>>> {
         if let Poll::Ready(Some(peers)) = self.discovery_channel_rcv.poll_recv(cx) {
-            let previous_peers = std::mem::take(&mut self.peers);
-            self.previous_peers = previous_peers;
+            log::info!("Received peers from discovery: {:?}", peers);
+
+            self.previous_peers = std::mem::take(&mut self.peers);
 
             for peer_info in peers {
-                log::info!("Discovered peer {}", peer_info);
                 match <PeerInfo as TryInto<Peer>>::try_into(peer_info) {
                     Ok(peer) => {
                         self.peers.insert(peer.peer_id, peer);

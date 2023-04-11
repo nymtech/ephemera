@@ -25,7 +25,7 @@ impl BlockProducer {
 
         let block = self.new_block(height, pending_messages)?;
 
-        log::debug!("Produced new block: {:?}", block.get_hash());
+        log::debug!("Produced new block: {:?}", block);
         Ok(block)
     }
 

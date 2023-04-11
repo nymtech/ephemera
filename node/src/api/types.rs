@@ -12,6 +12,7 @@
 
 use std::fmt::Display;
 
+use array_bytes::{bytes2hex, hex2bytes};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -307,6 +308,82 @@ impl TryFrom<ApiBlock> for Block {
             },
             messages,
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiDhtStoreRequest {
+    /// The key to store the value under in hex format.
+    key: String,
+    /// The value to store in hex format.
+    value: String,
+}
+
+impl ApiDhtStoreRequest {
+    pub fn new(key: &[u8], value: &[u8]) -> Self {
+        let key = bytes2hex("0x", key);
+        let value = bytes2hex("0x", value);
+        Self { key, value }
+    }
+
+    pub fn key(&self) -> Vec<u8> {
+        //We can unwrap here because the key is always valid.
+        hex2bytes(&self.key).expect("Failed to decode key")
+    }
+
+    pub fn value(&self) -> Vec<u8> {
+        //We can unwrap here because the value is always valid.
+        hex2bytes(&self.value).expect("Failed to decode value")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiDhtQueryRequest {
+    /// The key to query for in hex format.
+    key: String,
+}
+
+impl ApiDhtQueryRequest {
+    pub fn new(key: &[u8]) -> Self {
+        let key = bytes2hex("0x", key);
+        Self { key }
+    }
+
+    pub fn key_encoded(&self) -> String {
+        self.key.clone()
+    }
+
+    pub fn key(&self) -> Vec<u8> {
+        hex2bytes(&self.key).expect("Failed to decode key")
+    }
+
+    pub(crate) fn parse_key(key: &str) -> Vec<u8> {
+        hex2bytes(key).expect("Failed to decode key")
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiDhtQueryResponse {
+    /// The key that was queried for in hex format.
+    pub key: String,
+    /// The value that was stored under the queried key in hex format.
+    pub value: String,
+}
+
+impl ApiDhtQueryResponse {
+    pub(crate) fn new(key: Vec<u8>, value: Vec<u8>) -> Self {
+        let key = bytes2hex("0x", &key);
+        let value = bytes2hex("0x", &value);
+        Self { key, value }
+    }
+
+    pub fn key(&self) -> Vec<u8> {
+        hex2bytes(&self.key).expect("Failed to decode key")
+    }
+
+    pub fn value(&self) -> Vec<u8> {
+        hex2bytes(&self.value).expect("Failed to decode value")
     }
 }
 

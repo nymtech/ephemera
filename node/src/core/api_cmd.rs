@@ -1,27 +1,26 @@
 use std::num::NonZeroUsize;
 
 use lru::LruCache;
+use tokio::sync::oneshot::Sender;
 
 use crate::{
     api::{
         self,
+        ApiCmd,
         application::Application,
         types::{ApiBlock, ApiCertificate},
-        ApiCmd,
     },
-    block::manager::BlockManagerError,
-    block::types::message,
+    block::{manager::BlockManagerError, types::message},
     crypto::EphemeraKeypair,
+    Ephemera,
     ephemera_api::ApiEphemeraConfig,
     network::libp2p::ephemera_sender::EphemeraEvent,
-    Ephemera,
 };
+use crate::ephemera_api::ApiEphemeraMessage;
 
 pub(crate) struct ApiCmdProcessor {
-    pub(crate) dht_query_cache: LruCache<
-        Vec<u8>,
-        tokio::sync::oneshot::Sender<Result<Option<(Vec<u8>, Vec<u8>)>, api::ApiError>>,
-    >,
+    pub(crate) dht_query_cache:
+    LruCache<Vec<u8>, Sender<Result<Option<(Vec<u8>, Vec<u8>)>, api::ApiError>>>,
 }
 
 impl ApiCmdProcessor {
@@ -35,160 +34,73 @@ impl ApiCmdProcessor {
         ephemera: &mut Ephemera<A>,
         cmd: ApiCmd,
     ) -> anyhow::Result<()> {
-        log::trace!("Processing API request: {:?}", cmd);
+        log::debug!("Processing API request: {:?}", cmd);
         match cmd {
-            ApiCmd::SubmitEphemeraMessage(sm, reply) => {
-                // 1. Ask application to decide if we should accept this message.
-                match ephemera.application.check_tx(*sm.clone()) {
-                    Ok(true) => {
-                        log::trace!("Application accepted ephemera message: {:?}", sm);
-                        // 2. Send to BlockManager to put into memory pool
-                        let ephemera_msg: message::EphemeraMessage = (*sm).try_into()?;
-                        match ephemera
-                            .block_manager
-                            .on_new_message(ephemera_msg.clone())
-                        {
-                            Ok(_) => {
-                                //Gossip to network for other nodes to receive
-                                match ephemera
-                                    .to_network
-                                    .send_ephemera_event(EphemeraEvent::EphemeraMessage(
-                                        ephemera_msg.into(),
-                                    ))
-                                    .await
-                                {
-                                    Ok(_) => {
-                                        reply.send(Ok(())).expect(
-                                            "Error sending SubmitEphemeraMessage response to api",
-                                        );
-                                    }
-                                    Err(err) => {
-                                        log::error!("Error: {}", err);
-                                        reply.send(Err(api::ApiError::Internal(err))).expect(
-                                            "Error sending SubmitEphemeraMessage response to api",
-                                        );
-                                    }
-                                }
-                            }
-                            Err(err) => {
-                                log::error!("Error: {}", err);
-                                match err {
-                                    BlockManagerError::DuplicateMessage(_) => {
-                                        reply.send(Err(api::ApiError::DuplicateMessage)).expect(
-                                            "Error sending SubmitEphemeraMessage response to api",
-                                        );
-                                    }
-                                    BlockManagerError::General(err) => {
-                                        reply.send(Err(api::ApiError::Internal(
-                                            anyhow::Error::msg(err.to_string()),
-                                        )))
-                                            .expect("Error sending SubmitEphemeraMessage response to api");
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Ok(false) => {
-                        log::debug!("Application rejected ephemera message: {:?}", sm);
-                        reply
-                            .send(Err(api::ApiError::ApplicationRejectedMessage))
-                            .expect("Error sending SubmitEphemeraMessage response to api");
-                    }
-                    Err(err) => {
-                        log::error!("Application rejected transaction: {:?}", err);
-                        reply
-                            .send(Err(api::ApiError::Application(err)))
-                            .expect("Error sending SubmitEphemeraMessage response to api");
-                    }
-                }
+            ApiCmd::SubmitEphemeraMessage(api_msg, reply) => {
+                // Ask application to decide if we should accept this message.
+                Self::handle_submit_message(ephemera, api_msg, reply).await?;
             }
 
             ApiCmd::QueryBlockById(block_id, reply) => {
-                match ephemera.storage.lock().await.get_block_by_id(block_id) {
+                let response = match ephemera.storage.lock().await.get_block_by_id(block_id) {
                     Ok(Some(block)) => {
                         let api_block: ApiBlock = block.into();
-                        reply
-                            .send(Ok(api_block.into()))
-                            .expect("Error sending QueryBlockById response to api");
+                        Ok(api_block.into())
                     }
-                    Ok(None) => {
-                        reply
-                            .send(Ok(None))
-                            .expect("Error sending QueryBlockById response to api");
-                    }
-                    Err(err) => {
-                        reply
-                            .send(Err(api::ApiError::Internal(err)))
-                            .expect("Error sending QueryBlockById response to api");
-                    }
+                    Ok(None) => Ok(None),
+                    Err(err) => Err(api::ApiError::Internal(err)),
                 };
+                reply
+                    .send(response)
+                    .expect("Error sending QueryBlockById response to api");
             }
 
             ApiCmd::QueryBlockByHeight(height, reply) => {
-                match ephemera.storage.lock().await.get_block_by_height(height) {
+                let response = match ephemera.storage.lock().await.get_block_by_height(height) {
                     Ok(Some(block)) => {
                         let api_block: ApiBlock = block.into();
-                        reply
-                            .send(Ok(api_block.into()))
-                            .expect("Error sending QueryBlockByHeight response to api");
+                        Ok(api_block.into())
                     }
-                    Ok(None) => {
-                        reply
-                            .send(Ok(None))
-                            .expect("Error sending QueryBlockByHeight response to api");
-                    }
-                    Err(err) => {
-                        reply
-                            .send(Err(api::ApiError::Internal(err)))
-                            .expect("Error sending QueryBlockByHeight response to api");
-                    }
+                    Ok(None) => Ok(None),
+                    Err(err) => Err(api::ApiError::Internal(err)),
                 };
+                reply
+                    .send(response)
+                    .expect("Error sending QueryBlockByHeight response to api");
             }
 
             ApiCmd::QueryLastBlock(reply) => {
-                match ephemera.storage.lock().await.get_last_block() {
-                    Ok(Some(block)) => {
-                        reply
-                            .send(Ok(block.into()))
-                            .expect("Error sending QueryLastBlock response to api");
-                    }
-                    Ok(None) => {
-                        reply
-                            .send(Err(api::ApiError::Internal(anyhow::Error::msg(
-                                "No blocks found, this is a bug!",
-                            ))))
-                            .expect("Error sending QueryLastBlock response to api");
-                    }
-                    Err(err) => {
-                        reply
-                            .send(Err(api::ApiError::Internal(err)))
-                            .expect("Error sending QueryLastBlock response to api");
-                    }
+                let response = match ephemera.storage.lock().await.get_last_block() {
+                    Ok(Some(block)) => Ok(block.into()),
+                    Ok(None) => Err(api::ApiError::Internal(anyhow::Error::msg(
+                        "No blocks found, this is a bug!",
+                    ))),
+                    Err(err) => Err(api::ApiError::Internal(err)),
                 };
+                reply
+                    .send(response)
+                    .expect("Error sending QueryLastBlock response to api");
             }
             ApiCmd::QueryBlockCertificates(block_id, reply) => {
-                match ephemera
+                let response = match ephemera
                     .storage
                     .lock()
                     .await
                     .get_block_certificates(block_id)
                 {
                     Ok(signatures) => {
-                        let signatures = signatures.map(|s| {
+                        let certificates = signatures.map(|s| {
                             s.into_iter()
                                 .map(|s| s.into())
                                 .collect::<Vec<ApiCertificate>>()
                         });
-                        reply
-                            .send(Ok(signatures))
-                            .expect("Error sending QueryBlockSignatures response to api");
+                        Ok(certificates)
                     }
-                    Err(err) => {
-                        reply
-                            .send(Err(api::ApiError::Internal(err)))
-                            .expect("Error sending QueryBlockSignatures response to api");
-                    }
+                    Err(err) => Err(api::ApiError::Internal(err)),
                 };
+                reply
+                    .send(response)
+                    .expect("Error sending QueryBlockSignatures response to api");
             }
             ApiCmd::QueryDht(key, reply) => {
                 //FIXME: This is very loose, we could have multiple pending queries for the same key
@@ -203,33 +115,29 @@ impl ApiCmdProcessor {
                             .api_cmd_processor
                             .dht_query_cache
                             .put(key.clone(), reply);
+                        return Ok(());
                     }
                     Err(err) => {
                         log::error!("Error sending QueryDht to network: {:?}", err);
-
                         reply
                             .send(Err(api::ApiError::Internal(err)))
                             .expect("Error sending QueryDht response to api");
                     }
-                }
+                };
             }
             ApiCmd::StoreInDht(key, value, reply) => {
-                if let Err(err) = ephemera
+                let response = match ephemera
                     .to_network
                     .send_ephemera_event(EphemeraEvent::StoreInDht { key, value })
-                    .await
-                {
-                    log::error!("Error sending StoreInDht to network: {:?}", err);
-
-                    reply
-                        .send(Err(api::ApiError::Internal(err)))
-                        .expect("Error sending StoreInDht response to api");
-                } else {
-                    reply
-                        .send(Ok(()))
-                        .expect("Error sending StoreInDht response to api");
-                }
+                    .await {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(api::ApiError::Internal(err)),
+                };
+                reply
+                    .send(response)
+                    .expect("Error sending StoreInDht response to api");
             }
+
             ApiCmd::EphemeraConfig(reply) => {
                 let node_info = ephemera.node_info.clone();
                 let api_config = ApiEphemeraConfig {
@@ -248,6 +156,56 @@ impl ApiCmdProcessor {
                     .expect("Error sending EphemeraConfig response to api");
             }
         }
+        Ok(())
+    }
+
+    async fn handle_submit_message<A: Application>(
+        ephemera: &mut Ephemera<A>,
+        api_msg: Box<ApiEphemeraMessage>,
+        reply: Sender<api::Result<()>>,
+    ) -> anyhow::Result<()> {
+        let response = match ephemera.application.check_tx(*api_msg.clone()) {
+            Ok(true) => {
+                log::trace!("Application accepted ephemera message: {:?}", api_msg);
+
+                // Send to BlockManager to verify it and put into memory pool
+                let ephemera_msg: message::EphemeraMessage = (*api_msg).try_into()?;
+                match ephemera.block_manager.on_new_message(ephemera_msg.clone()) {
+                    Ok(_) => {
+                        //Gossip to network for other nodes to receive
+                        match ephemera
+                            .to_network
+                            .send_ephemera_event(EphemeraEvent::EphemeraMessage(
+                                ephemera_msg.into(),
+                            ))
+                            .await
+                        {
+                            Ok(_) => Ok(()),
+                            Err(err) => Err(api::ApiError::Internal(err)),
+                        }
+                    }
+                    Err(err) => match err {
+                        BlockManagerError::DuplicateMessage(_) => {
+                            Err(api::ApiError::DuplicateMessage)
+                        }
+                        BlockManagerError::General(err) => {
+                            Err(api::ApiError::Internal(anyhow::Error::msg(err.to_string())))
+                        }
+                    },
+                }
+            }
+            Ok(false) => {
+                log::debug!("Application rejected ephemera message: {:?}", api_msg);
+                Err(api::ApiError::ApplicationRejectedMessage)
+            }
+            Err(err) => {
+                log::error!("Application rejected ephemera message: {:?}", err);
+                Err(api::ApiError::Application(err))
+            }
+        };
+        reply
+            .send(response)
+            .expect("Error sending SubmitEphemeraMessage response to api");
         Ok(())
     }
 }

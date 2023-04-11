@@ -12,8 +12,12 @@ use crate::storage::rocksdb::RocksDbStorage;
 use crate::storage::sqlite::SqliteStorage;
 use crate::storage::EphemeraDatabase;
 use crate::{
-    api::application::Application,
-    api::{http, ApiListener, EphemeraExternalApi},
+    api::{
+        application::Application,
+        http,
+        ApiListener,
+        EphemeraExternalApi
+    },
     block::{builder::BlockManagerBuilder, manager::BlockManager},
     broadcast::bracha::broadcaster::Broadcaster,
     config::Configuration,

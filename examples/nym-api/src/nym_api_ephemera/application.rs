@@ -2,7 +2,7 @@ use ephemera::{
     configuration::Configuration,
     ephemera_api::{
         ApiBlock, ApiEphemeraMessage, Application, CheckBlockResult, RemoveMessages, Result,
-    }
+    },
 };
 
 use crate::contract::MixnodeToReward;

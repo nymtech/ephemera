@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use clap::Parser;
+
 use ephemera::crypto::EphemeraKeypair;
 use ephemera::helpers::init_logging_with_directives;
 
@@ -50,6 +53,10 @@ async fn main() {
 
     let mut query_block_hashes_handle = cluster.query_blocks_by_hash().await.unwrap();
 
+    let mut store_in_dht_handle = cluster.store_in_dht_using_random_node(Duration::from_secs(10)).await.unwrap();
+
+    let mut query_dht_handle = cluster.query_dht_using_random_node(Duration::from_secs(10)).await.unwrap();
+
     tokio::select! {
         _ = &mut submit_messages_handle => {
             log::info!("Submit messages task exited");
@@ -59,6 +66,12 @@ async fn main() {
         }
         _ = &mut query_block_hashes_handle => {
             log::info!("Query blocks by hash task exited");
+        }
+        _ = &mut store_in_dht_handle => {
+            log::info!("Store in dht task exited");
+        }
+        _ = &mut query_dht_handle => {
+            log::info!("Query dht task exited");
         }
     }
 

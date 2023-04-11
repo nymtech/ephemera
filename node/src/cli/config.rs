@@ -74,21 +74,25 @@ impl<'a> ConfigVisitor<'a> {
             Value::String(str) => {
                 println!("Old value: {str}",);
                 let value = String::from(&self.value);
+                println!("New value: {value}",);
                 table.insert(root_key.to_string(), Value::String(value));
             }
             Value::Integer(i) => {
                 println!("Old value: {i}",);
                 let value = i64::from_str(&self.value).unwrap();
+                println!("New value: {value}",);
                 table.insert(root_key.to_string(), Value::Integer(value));
             }
             Value::Float(f) => {
                 println!("Old value: {f}",);
                 let value = f64::from_str(&self.value).unwrap();
+                println!("New value: {value}",);
                 table.insert(root_key.to_string(), Value::Float(value));
             }
             Value::Boolean(b) => {
                 println!("Old value: {b}",);
                 let value = bool::from_str(&self.value).unwrap();
+                println!("New value: {value}",);
                 table.insert(root_key.to_string(), Value::Boolean(value));
             }
             Value::Datetime(_) => {

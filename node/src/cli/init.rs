@@ -42,7 +42,8 @@ impl InitCmd {
         let path = Configuration::ephemera_root_dir()
             .unwrap()
             .join(&self.node_name);
-        println!("Creating ephemera node in: {:?}", path);
+        println!("Creating ephemera node configuration in: {:?}", path);
+        println!("Configuration: {:?}", self);
 
         let db_dir = path.join("db");
         let rocksdb_path = db_dir.join("rocksdb");

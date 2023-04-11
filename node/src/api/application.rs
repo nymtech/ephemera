@@ -6,7 +6,7 @@ use crate::api::types::{ApiBlock, ApiEphemeraMessage};
 pub enum RemoveMessages {
     /// Remove all messages from the mempool
     All,
-    /// Remove only messages from the mempool which are included in the block
+    /// Remove only inclued messages from the mempool
     Selected(Vec<ApiEphemeraMessage>),
 }
 
@@ -16,7 +16,7 @@ pub enum CheckBlockResult {
     Accept,
     /// Reject the block with a reason.
     Reject,
-    /// Reject the block and erase included messages from the mempool
+    /// Reject the block and remove messages from the mempool
     RejectAndRemoveMessages(RemoveMessages),
 }
 

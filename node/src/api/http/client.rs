@@ -3,7 +3,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 use crate::api::types::Health;
-use crate::ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage};
+use crate::ephemera_api::{ApiBlock, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest, ApiEphemeraConfig, ApiEphemeraMessage};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -38,6 +38,7 @@ impl EphemeraHttpClient {
     ///
     /// # Parameters
     /// * `url` - The url of the node api endpoint.
+    /// * `timeout_sec` - Request timeout in seconds.
     pub fn new_with_timeout(url: String, timeout_sec: u64) -> Self {
         let client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(timeout_sec))
@@ -79,7 +80,7 @@ impl EphemeraHttpClient {
     /// }
     /// ```
     pub async fn get_block_by_hash(&self, hash: &str) -> Result<Option<ApiBlock>> {
-        let url = format!("ephemera/broadcast/block/{hash}",);
+        let url = format!("ephemera/broadcast/block/{hash}", );
         self.query_optional(&url).await
     }
 
@@ -97,7 +98,7 @@ impl EphemeraHttpClient {
     /// }
     /// ```
     pub async fn get_block_certificates(&self, hash: &str) -> Result<Option<Vec<ApiCertificate>>> {
-        let url = format!("ephemera/broadcast/block/certificates/{hash}",);
+        let url = format!("ephemera/broadcast/block/certificates/{hash}", );
         self.query_optional(&url).await
     }
 
@@ -114,7 +115,7 @@ impl EphemeraHttpClient {
     ///   Ok(())
     /// }
     pub async fn get_block_by_height(&self, height: u64) -> Result<Option<ApiBlock>> {
-        let url = format!("ephemera/broadcast/block/height/{height}",);
+        let url = format!("ephemera/broadcast/block/height/{height}", );
         self.query_optional(&url).await
     }
 
@@ -167,7 +168,7 @@ impl EphemeraHttpClient {
     ///   Ok(())
     /// }
     pub async fn submit_message(&self, message: ApiEphemeraMessage) -> Result<()> {
-        let url = format!("{}/{}", self.url, "ephemera/submit_message");
+        let url = format!("{}/{}", self.url, "ephemera/broadcast/submit_message");
         let response = self.client.post(&url).json(&message).send().await?;
         if response.status().is_success() {
             Ok(())
@@ -177,6 +178,58 @@ impl EphemeraHttpClient {
                 body: response.text().await?,
             })
         }
+    }
+
+    ///Store Key Value pair in the DHT.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ephemera::ephemera_api::{ApiDhtStoreRequest, EphemeraHttpClient};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///    let client = EphemeraHttpClient::new("http://localhost:7000/".to_string());
+    ///     let request = unimplemented!("See how to create a ApiDhtStoreRequest");
+    ///     client.store_dht_request(request).await?;
+    ///  Ok(())
+    /// }
+    pub async fn store_dht_request(&self, request: ApiDhtStoreRequest) -> Result<()> {
+        let url = format!("{}/{}", self.url, "ephemera/dht/store");
+        let response = self.client.post(&url).json(&request).send().await?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(Error::UnexpectedResponse {
+                status: response.status(),
+                body: response.text().await?,
+            })
+        }
+    }
+
+    ///Store Key Value pair in the DHT.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ephemera::ephemera_api::{ApiDhtStoreRequest, EphemeraHttpClient};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///    let client = EphemeraHttpClient::new("http://localhost:7000/".to_string());
+    ///    let key = &[1, 2, 3];
+    ///    let value = &[4, 5, 6];
+    ///    client.store_dht_key_value(key, value).await?;
+    ///    Ok(())
+    /// }
+    pub async fn store_dht_key_value(&self, key: &[u8], value: &[u8]) -> Result<()> {
+        let request = ApiDhtStoreRequest::new(key, value);
+        self.store_dht_request(request).await
+    }
+
+    pub async fn query_dht_key(&self, request: ApiDhtQueryRequest) -> Result<Option<ApiDhtQueryResponse>> {
+        let url = format!("ephemera/dht/query/{}", request.key_encoded());
+        self.query_optional(&url).await
     }
 
     async fn query_optional<T: for<'de> serde::Deserialize<'de>>(

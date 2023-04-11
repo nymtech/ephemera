@@ -177,7 +177,7 @@ impl Configuration {
 
     fn write(&self, file_path: PathBuf) -> Result<()> {
         let config = toml::to_string(&self).map_err(|e| {
-            ConfigurationError::Other(format!("Failed to serialize configuration: {e}", ))
+            ConfigurationError::Other(format!("Failed to serialize configuration: {e}",))
         })?;
 
         let config = format!(

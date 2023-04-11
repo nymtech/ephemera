@@ -73,7 +73,7 @@ impl BrachaQuorum {
         match phase {
             BrachaMessageType::Echo => {
                 if ctx.echo.len() > self.cluster_size - self.max_faulty_nodes {
-                    log::debug!(
+                    log::trace!(
                         "Echo threshold reached: Echoed:{} / Threshold:{} for Block:{}",
                         ctx.echo.len(),
                         self.cluster_size - self.max_faulty_nodes,
@@ -81,6 +81,12 @@ impl BrachaQuorum {
                     );
                     BrachaAction::Vote
                 } else {
+                    log::trace!(
+                        "Echo threshold not reached: Echoed:{} / Threshold:{} for Block:{}",
+                        ctx.echo.len(),
+                        self.cluster_size - self.max_faulty_nodes,
+                        ctx.hash
+                    );
                     BrachaAction::Ignore
                 }
             }
@@ -88,7 +94,7 @@ impl BrachaQuorum {
                 if !ctx.voted() {
                     // f + 1 votes are enough to send our vote
                     if ctx.vote.len() > self.max_faulty_nodes {
-                        log::debug!(
+                        log::trace!(
                             "Vote send threshold reached: Voted:{} / Threshold:{} for Block:{}",
                             ctx.vote.len(),
                             self.max_faulty_nodes + 1,
@@ -101,7 +107,7 @@ impl BrachaQuorum {
                 if ctx.voted() {
                     // n-f votes are enough to deliver the value
                     if ctx.vote.len() > self.cluster_size - self.max_faulty_nodes {
-                        log::debug!(
+                        log::trace!(
                             "Deliver threshold reached: Voted:{} / Threshold:{} for Block:{}",
                             ctx.vote.len(),
                             self.cluster_size - self.max_faulty_nodes,
@@ -111,6 +117,12 @@ impl BrachaQuorum {
                     }
                 }
 
+                log::trace!(
+                    "Vote threshold not reached: Voted:{} / Threshold:{} for Block:{}",
+                    ctx.vote.len(),
+                    self.max_faulty_nodes + 1,
+                    ctx.hash
+                );
                 BrachaAction::Ignore
             }
         }

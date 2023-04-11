@@ -1,22 +1,25 @@
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
-use crate::api::application::CheckBlockResult;
 use async_trait::async_trait;
 use clap::Parser;
-use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::mpsc::UnboundedSender;
-
-use crate::codec::EphemeraEncoder;
-use crate::config::{Configuration, PeerSetting};
-use crate::core::builder::EphemeraStarter;
-use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
-use crate::ephemera_api::{
-    ApiBlock, ApiEphemeraMessage, Application, DefaultApplication, RawApiEphemeraMessage, Result,
+use tokio::{
+    signal::unix::{signal, SignalKind},
+    sync::mpsc::UnboundedSender,
 };
-use crate::network::discovery::{PeerDiscovery, PeerInfo};
-use crate::peer_discovery;
-use crate::utilities::encoding::Encoder;
+
+use crate::{
+    api::application::CheckBlockResult,
+    codec::EphemeraEncoder,
+    config::{Configuration, PeerSetting},
+    core::builder::EphemeraStarter,
+    crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey},
+    ephemera_api::{
+        ApiBlock, ApiEphemeraMessage, Application, DefaultApplication, RawApiEphemeraMessage,
+        Result,
+    },
+    peer_discovery::{self, PeerDiscovery, PeerInfo},
+    utilities::encoding::Encoder,
+};
 
 #[derive(Debug, Clone, Parser)]
 pub struct RunExternalNodeCmd {

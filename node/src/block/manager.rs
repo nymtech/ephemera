@@ -1,25 +1,29 @@
-use std::{task, time};
-use std::num::NonZeroUsize;
-use std::pin::Pin;
-use std::task::Poll::{Pending, Ready};
+use std::{
+    num::NonZeroUsize,
+    pin::Pin,
+    task,
+    task::Poll::{Pending, Ready},
+    time,
+};
 
 use anyhow::anyhow;
-use futures::FutureExt;
-use futures::Stream;
+use futures::{FutureExt, Stream};
 use futures_timer::Delay;
 use lru::LruCache;
 use thiserror::Error;
 
-use crate::api::application::RemoveMessages;
-use crate::block::message_pool::MessagePool;
-use crate::block::producer::BlockProducer;
-use crate::block::types::block::Block;
-use crate::block::types::message::EphemeraMessage;
-use crate::broadcast::signing::BlockSigner;
-use crate::config::BlockConfig;
-use crate::network::peer::{PeerId, ToPeerId};
-use crate::utilities::crypto::Certificate;
-use crate::utilities::hash::HashType;
+use crate::{
+    api::application::RemoveMessages,
+    block::{
+        message_pool::MessagePool,
+        producer::BlockProducer,
+        types::{block::Block, message::EphemeraMessage},
+    },
+    broadcast::signing::BlockSigner,
+    config::BlockConfig,
+    network::peer::{PeerId, ToPeerId},
+    utilities::{crypto::Certificate, hash::HashType},
+};
 
 pub(crate) type Result<T> = std::result::Result<T, BlockManagerError>;
 
@@ -46,6 +50,7 @@ pub(crate) struct BlockChainState {
 impl BlockChainState {
     pub(crate) fn new(last_committed_block: Block) -> Self {
         Self {
+            //1000 is just a "big enough"
             last_blocks: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             last_produced_block: None,
             last_committed_block,
@@ -85,20 +90,21 @@ pub(crate) struct BlockManager {
     pub(crate) config: BlockConfig,
     /// Block producer. Simple helper that creates blocks
     pub(crate) block_producer: BlockProducer,
-    /// Message pool. Contains all messages that we received from the network and not included in any block yet
+    /// Message pool. Contains all messages that we received from the network and not included in any(committed) block yet
     pub(crate) message_pool: MessagePool,
     /// Delay between block creation attempts.
     pub(crate) delay: Delay,
     /// Signs and verifies blocks
     pub(crate) block_signer: BlockSigner,
-    /// Atomic state management for new blocks
+    /// State management for new blocks
     pub(crate) block_chain_state: BlockChainState,
 }
 
 impl BlockManager {
     pub(crate) fn on_new_message(&mut self, msg: EphemeraMessage) -> Result<()> {
-        let message_hash = msg.hash_with_default_hasher()?;
+        log::debug!("Message received: {:?}", msg);
 
+        let message_hash = msg.hash_with_default_hasher()?;
         if self.message_pool.contains(&message_hash) {
             return Err(BlockManagerError::DuplicateMessage(
                 message_hash.to_string(),
@@ -106,7 +112,6 @@ impl BlockManager {
         }
 
         self.message_pool.add_message(msg)?;
-
         Ok(())
     }
 
@@ -116,6 +121,8 @@ impl BlockManager {
         block: &Block,
         certificate: &Certificate,
     ) -> Result<()> {
+        log::debug!("Block received: {:?}", block);
+
         let hash = block.hash_with_default_hasher()?;
         if self.block_chain_state.last_blocks.contains(&hash) {
             log::trace!("Block already received, ignoring: {hash}");
@@ -128,7 +135,7 @@ impl BlockManager {
             return Err(anyhow!(
                 "Block signer is not the sender: {sender:?} != {signer_peer_id:?}",
             )
-                .into());
+            .into());
         }
 
         //Reject blocks with invalid hash
@@ -141,7 +148,6 @@ impl BlockManager {
             return Err(anyhow!("Block signature is invalid: {hash}").into());
         }
 
-        log::debug!("Block received: {}", block.header.hash);
         self.block_chain_state
             .last_blocks
             .put(hash, block.to_owned());
@@ -149,8 +155,12 @@ impl BlockManager {
     }
 
     pub(crate) fn sign_block(&mut self, block: &Block) -> Result<Certificate> {
+        log::debug!("Signing block: {:?}", block);
+
         let hash = block.hash_with_default_hasher()?;
         let certificate = self.block_signer.sign_block(block, &hash)?;
+
+        log::trace!("Block certificate: {certificate:?}",);
         Ok(certificate)
     }
 
@@ -158,18 +168,22 @@ impl BlockManager {
         &mut self,
         messages_to_remove: RemoveMessages,
     ) -> Result<()> {
+        log::debug!("Application rejected last created block");
+
         let last_produced_block = self.block_chain_state.remove_last_produced_block();
         match messages_to_remove {
             RemoveMessages::All => {
-                log::debug!("Removing block messages from pool: all");
                 let messages = last_produced_block
                     .messages
                     .into_iter()
                     .map(Into::into)
                     .collect::<Vec<_>>();
+
+                log::debug!("Removing block messages from pool: all: {messages:?}",);
                 self.message_pool.remove_messages(&messages)?;
             }
             RemoveMessages::Selected(messages) => {
+                log::debug!("Removing block messages from pool: selected: {messages:?}",);
                 let messages = messages.into_iter().map(Into::into).collect::<Vec<_>>();
                 self.message_pool.remove_messages(messages.as_slice())?;
             }
@@ -179,6 +193,8 @@ impl BlockManager {
 
     /// After a block gets committed, clear up mempool from its messages
     pub(crate) fn on_block_committed(&mut self, block: &Block) -> Result<()> {
+        log::debug!("Block committed: {:?}", block);
+
         let hash = &block.header.hash;
 
         if !self.block_chain_state.is_last_produced_block(*hash) {
@@ -214,7 +230,7 @@ impl BlockManager {
 }
 
 //Produces blocks at a predefined interval.
-//If blocks will be actually broadcast is a different question and depends on the application.
+//If blocks will be actually broadcast depends on the application.
 impl Stream for BlockManager {
     type Item = (Block, Certificate);
 
@@ -229,12 +245,13 @@ impl Stream for BlockManager {
         }
 
         match self.delay.poll_unpin(cx) {
-            task::Poll::Ready(_) => {
+            Ready(_) => {
                 //Reset the delay for the next block
                 let interval = self.config.creation_interval_sec;
                 self.delay.reset(time::Duration::from_secs(interval));
 
-                let is_previous_pending = self.block_chain_state.is_last_produced_block_is_pending();
+                let is_previous_pending =
+                    self.block_chain_state.is_last_produced_block_is_pending();
                 let pending_messages = if is_previous_pending && self.config.repeat_last_block {
                     let block = self
                         .block_chain_state
@@ -483,7 +500,9 @@ mod test {
         let _ = manager.next().await.unwrap();
 
         //Application Rejects the block with ALL messages
-        manager.on_application_rejected_block(RemoveMessages::All).unwrap();
+        manager
+            .on_application_rejected_block(RemoveMessages::All)
+            .unwrap();
 
         assert!(manager.message_pool.get_messages().is_empty());
     }
@@ -503,10 +522,17 @@ mod test {
         let _ = manager.next().await.unwrap();
 
         //Application Rejects the block with ALL messages
-        manager.on_application_rejected_block(RemoveMessages::Selected(vec![signed_message2.into()])).unwrap();
+        manager
+            .on_application_rejected_block(RemoveMessages::Selected(vec![signed_message2.into()]))
+            .unwrap();
 
         assert_eq!(manager.message_pool.get_messages().len(), 1);
-        let message = manager.message_pool.get_messages().into_iter().next().unwrap();
+        let message = manager
+            .message_pool
+            .get_messages()
+            .into_iter()
+            .next()
+            .unwrap();
         assert_eq!(message, signed_message1);
     }
 
@@ -520,14 +546,17 @@ mod test {
         let peer_id = keypair.public_key().peer_id();
         let genesis_block = Block::new_genesis_block(peer_id.clone());
         let block_chain_state = BlockChainState::new(genesis_block.clone());
-        (BlockManager {
-            config,
-            block_producer: BlockProducer::new(peer_id.clone()),
-            message_pool: MessagePool::new(),
-            delay: Delay::new(Duration::from_secs(0)),
-            block_signer: BlockSigner::new(keypair.clone()),
-            block_chain_state,
-        }, peer_id)
+        (
+            BlockManager {
+                config,
+                block_producer: BlockProducer::new(peer_id.clone()),
+                message_pool: MessagePool::new(),
+                delay: Delay::new(Duration::from_secs(0)),
+                block_signer: BlockSigner::new(keypair.clone()),
+                block_chain_state,
+            },
+            peer_id,
+        )
     }
 
     fn block() -> Block {

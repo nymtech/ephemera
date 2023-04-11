@@ -36,6 +36,8 @@ impl BlockSigner {
         block: &Block,
         hash: &HashType,
     ) -> anyhow::Result<Certificate> {
+        log::debug!("Signing block: {:?}", block);
+
         let certificate = block.sign(self.signing_keypair.as_ref())?;
         self.add_certificate(hash, certificate.clone());
         Ok(certificate)
@@ -48,6 +50,8 @@ impl BlockSigner {
         block: &Block,
         certificate: &Certificate,
     ) -> anyhow::Result<()> {
+        log::debug!("Verifying block: {block:?} against certificate {certificate:?}");
+
         if self
             .verified_signatures
             .get(&block.header.hash)
@@ -68,11 +72,12 @@ impl BlockSigner {
             self.add_certificate(&block.header.hash, certificate.clone());
             Ok(())
         } else {
-            anyhow::bail!("Invalid block signature");
+            anyhow::bail!("Invalid block certificate");
         }
     }
 
     fn add_certificate(&mut self, block_id: &HashType, signature: Certificate) {
+        log::trace!("Adding certificate to block: {}", block_id);
         self.verified_signatures
             .get_or_insert_mut(block_id.to_owned(), HashSet::new)
             .insert(signature);

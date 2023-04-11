@@ -2,15 +2,19 @@ use futures_timer::Delay;
 use std::sync::Arc;
 use std::time;
 
-use crate::block::manager::{BlockChainState, BlockManager};
-use crate::block::message_pool::MessagePool;
-use crate::block::producer::BlockProducer;
-use crate::block::types::block::Block;
-use crate::broadcast::signing::BlockSigner;
-use crate::config::BlockConfig;
-use crate::crypto::Keypair;
-use crate::network::peer::ToPeerId;
-use crate::storage::EphemeraDatabase;
+use crate::{
+    block::{
+        manager::{BlockChainState, BlockManager},
+        message_pool::MessagePool,
+        producer::BlockProducer,
+        types::block::Block,
+    },
+    broadcast::signing::BlockSigner,
+    config::BlockConfig,
+    crypto::Keypair,
+    network::peer::ToPeerId,
+    storage::EphemeraDatabase,
+};
 
 pub(crate) struct BlockManagerBuilder {
     config: BlockConfig,
@@ -35,18 +39,21 @@ impl BlockManagerBuilder {
         self,
         storage: &mut D,
     ) -> anyhow::Result<BlockManager> {
-        //Although Ephemera is not a blockchain(chain of historically dependent blocks),
-        //it's helpful to have some sort of notion of progress in time. So we use the concept of height.
-        //The genesis block helps to define the start of it.
         let mut most_recent_block = storage.get_last_block()?;
         if most_recent_block.is_none() {
+            //Although Ephemera is not a blockchain(chain of historically dependent blocks),
+            //it's helpful to have some sort of notion of progress in time. So we use the concept of height.
+            //The genesis block helps to define the start of it.
+
             log::info!("No last block found in database. Creating genesis block.");
+
             let genesis_block = Block::new_genesis_block(self.block_producer.peer_id);
             storage.store_block(&genesis_block, vec![])?;
             most_recent_block = Some(genesis_block);
         }
 
         let last_created_block = most_recent_block.expect("Block should be present");
+        log::debug!("Most recent block: {:?}", last_created_block);
 
         let block_signer = BlockSigner::new(self.keypair.clone());
         let message_pool = MessagePool::new();

@@ -1,5 +1,4 @@
-use actix_web::http::KeepAlive;
-use actix_web::{dev::Server, web::Data, App, HttpServer};
+use actix_web::{dev::Server, http::KeepAlive, web::Data, App, HttpServer};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -23,7 +22,9 @@ pub(crate) fn init(node_info: &NodeInfo, api: EphemeraExternalApi) -> anyhow::Re
             .service(query::block_by_height)
             .service(query::last_block)
             .service(query::get_node_config)
+            .service(query::query_dht)
             .service(submit::submit_message)
+            .service(submit::store_in_dht)
             .service(swagger_ui())
     })
     .keep_alive(KeepAlive::Os)
@@ -46,7 +47,9 @@ fn swagger_ui() -> SwaggerUi {
             query::block_by_height,
             query::last_block,
             query::get_node_config,
-            submit::submit_message
+            query::query_dht,
+            submit::submit_message,
+            submit::store_in_dht,
         ),
         components(schemas(
             types::ApiBlock,
@@ -54,6 +57,9 @@ fn swagger_ui() -> SwaggerUi {
             types::ApiCertificate,
             types::Health,
             types::ApiEphemeraConfig,
+            types::ApiDhtStoreRequest,
+            types::ApiDhtQueryRequest,
+            types::ApiDhtQueryResponse,
         ))
     )]
     struct ApiDoc;

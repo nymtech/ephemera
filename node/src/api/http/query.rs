@@ -1,7 +1,8 @@
-use actix_web::{get, web, HttpResponse, Responder};
+use actix_web::{get, HttpResponse, Responder, web};
 
-use crate::api::types::Health;
 use crate::api::EphemeraExternalApi;
+use crate::api::types::Health;
+use crate::ephemera_api::{ApiDhtQueryRequest, ApiDhtQueryResponse};
 
 #[utoipa::path(
 responses(
@@ -10,6 +11,7 @@ responses(
 #[get("/ephemera/node/health")]
 pub(crate) async fn health() -> impl Responder {
     log::debug!("GET /ephemera/node/health");
+
     HttpResponse::Ok().json(Health {
         status: "OK".to_string(),
     })
@@ -120,6 +122,34 @@ pub(crate) async fn get_node_config(api: web::Data<EphemeraExternalApi>) -> impl
         Ok(config) => HttpResponse::Ok().json(config),
         Err(err) => {
             log::error!("Failed to get node config {err}",);
+            HttpResponse::InternalServerError().json("Server failed to process request")
+        }
+    }
+}
+
+#[utoipa::path(
+responses(
+(status = 200, description = "Query dht"),
+(status = 500, description = "Server failed to process request")),
+params(("query", description = "Dht query")),
+)]
+#[get("/ephemera/dht/query/{key}")]
+pub(crate) async fn query_dht(
+    api: web::Data<EphemeraExternalApi>,
+    key: web::Path<String>,
+) -> impl Responder {
+    log::debug!("POST /ephemera/dht/query");
+
+    let key = ApiDhtQueryRequest::parse_key(key.into_inner().as_str());
+
+    match api.query_dht(key).await {
+        Ok(Some((key, value))) => {
+            let response = ApiDhtQueryResponse::new(key, value);
+            HttpResponse::Ok().json(response)
+        }
+        Ok(_) => HttpResponse::NotFound().json("Not found"),
+        Err(err) => {
+            log::error!("Failed to query dht {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }

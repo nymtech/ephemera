@@ -1,30 +1,40 @@
 use std::str::FromStr;
 
 use futures::StreamExt;
-use libp2p::gossipsub::Event;
-use libp2p::kad;
-use libp2p::swarm::SwarmEvent;
 use libp2p::{
     gossipsub::{self, IdentTopic as Topic},
-    request_response, Multiaddr, Swarm,
+    gossipsub::Event,
+    kad,
+    Multiaddr,
+    request_response,
+    Swarm,
+    swarm::SwarmEvent,
 };
 use tokio::task::JoinHandle;
 
-use crate::block::types::message::EphemeraMessage;
-use crate::broadcast::RbMsg;
-use crate::codec::Encode;
-use crate::core::builder::NodeInfo;
-use crate::network::discovery::PeerDiscovery;
-use crate::network::libp2p::behaviours::broadcast_messages::RbMsgResponse;
-use crate::network::libp2p::behaviours::common_behaviour::{
-    create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
-};
-use crate::network::libp2p::behaviours::rendezvous;
-use crate::network::libp2p::ephemera_sender::{
-    EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
-};
-use crate::network::libp2p::network_sender::{
-    EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
+use crate::{
+    block::types::message::EphemeraMessage,
+    broadcast::RbMsg,
+    codec::Encode,
+    core::builder::NodeInfo,
+    network::{
+        discovery::PeerDiscovery,
+        libp2p::{
+            behaviours::{
+                broadcast_messages::RbMsgResponse,
+                common_behaviour::{
+                    create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
+                },
+                rendezvous,
+            },
+            ephemera_sender::{
+                EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
+            },
+            network_sender::{
+                EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
+            },
+        },
+    },
 };
 
 pub struct SwarmNetwork<P: PeerDiscovery + 'static> {
@@ -68,8 +78,8 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     }
 
     pub(crate) fn listen(&mut self) -> anyhow::Result<()> {
-        let address =
-            Multiaddr::from_str(&self.node_info.protocol_address()).expect("Invalid multi-address");
+        let address = Multiaddr::from_str(&self.node_info.protocol_address())
+            .expect("Invalid multi-address");
         self.swarm.listen_on(address.clone())?;
 
         log::info!("Listening on {address:?}");
@@ -92,7 +102,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                             }
                         }
                         None => {
-                            anyhow::bail!("Swarm event channel closed")
+                            anyhow::bail!("Swarm event channel closed");
                         }
                     }
                 },

@@ -14,13 +14,13 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub(crate) struct EphemeraMessage {
-    //Timestamp of the message
+    ///Timestamp of the message
     pub(crate) timestamp: u64,
-    //Application specific logical identifier of the message
+    ///Application specific logical identifier of the message
     pub(crate) label: String,
-    //Application specific data
+    ///Application specific data
     pub(crate) data: Vec<u8>,
-    //Signature of the raw message
+    ///Signature of the raw message
     pub(crate) certificate: Certificate,
 }
 
