@@ -45,7 +45,7 @@ async fn main() {
     let mut cluster = cluster::Cluster::new(args.clone(), nodes, keypair);
 
     let mut submit_messages_handle = cluster
-        .submit_messages_to_an_randoms_burst_and_wait(10)
+        .submit_messages_to_at_random_burst_and_wait(100)
         .await
         .unwrap();
 
@@ -53,9 +53,15 @@ async fn main() {
 
     let mut query_block_hashes_handle = cluster.query_blocks_by_hash().await.unwrap();
 
-    let mut store_in_dht_handle = cluster.store_in_dht_using_random_node(Duration::from_secs(10)).await.unwrap();
+    let mut store_in_dht_handle = cluster
+        .store_in_dht_using_random_node(Duration::from_secs(10))
+        .await
+        .unwrap();
 
-    let mut query_dht_handle = cluster.query_dht_using_random_node(Duration::from_secs(10)).await.unwrap();
+    let mut query_dht_handle = cluster
+        .query_dht_using_random_node(Duration::from_secs(8))
+        .await
+        .unwrap();
 
     tokio::select! {
         _ = &mut submit_messages_handle => {

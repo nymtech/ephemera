@@ -124,9 +124,10 @@ impl BlockManager {
         log::debug!("Block received: {:?}", block);
 
         let hash = block.hash_with_default_hasher()?;
-        if self.block_chain_state.last_blocks.contains(&hash) {
-            log::trace!("Block already received, ignoring: {hash}");
-            return Ok(());
+
+        //Reject blocks with invalid hash
+        if block.header.hash != hash {
+            return Err(anyhow!("Block hash is invalid: {} != {hash}", block.header.hash).into());
         }
 
         //Block signer should be also its sender
@@ -136,11 +137,6 @@ impl BlockManager {
                 "Block signer is not the sender: {sender:?} != {signer_peer_id:?}",
             )
             .into());
-        }
-
-        //Reject blocks with invalid hash
-        if block.header.hash != hash {
-            return Err(anyhow!("Block hash is invalid: {} != {hash}", block.header.hash).into());
         }
 
         //Verify that block signature is valid
@@ -225,7 +221,7 @@ impl BlockManager {
     }
 
     pub(crate) fn get_block_certificates(&mut self, hash: &HashType) -> Option<Vec<Certificate>> {
-        self.block_signer.get_block_signatures(hash)
+        self.block_signer.get_block_certificates(hash)
     }
 }
 
@@ -260,8 +256,10 @@ impl Stream for BlockManager {
                         .expect("Block should be present");
 
                     //Use only previous block messages but create new block with new timestamp
+                    log::debug!("Producing block with previous messages");
                     block.messages
                 } else {
+                    log::debug!("Producing block with new messages");
                     self.message_pool.get_messages()
                 };
 

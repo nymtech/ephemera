@@ -1,7 +1,7 @@
-use actix_web::{get, HttpResponse, Responder, web};
+use actix_web::{get, web, HttpResponse, Responder};
 
-use crate::api::EphemeraExternalApi;
 use crate::api::types::Health;
+use crate::api::EphemeraExternalApi;
 use crate::ephemera_api::{ApiDhtQueryRequest, ApiDhtQueryResponse};
 
 #[utoipa::path(

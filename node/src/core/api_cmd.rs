@@ -3,24 +3,24 @@ use std::num::NonZeroUsize;
 use lru::LruCache;
 use tokio::sync::oneshot::Sender;
 
+use crate::ephemera_api::ApiEphemeraMessage;
 use crate::{
     api::{
         self,
-        ApiCmd,
         application::Application,
         types::{ApiBlock, ApiCertificate},
+        ApiCmd,
     },
     block::{manager::BlockManagerError, types::message},
     crypto::EphemeraKeypair,
-    Ephemera,
     ephemera_api::ApiEphemeraConfig,
     network::libp2p::ephemera_sender::EphemeraEvent,
+    Ephemera,
 };
-use crate::ephemera_api::ApiEphemeraMessage;
 
 pub(crate) struct ApiCmdProcessor {
     pub(crate) dht_query_cache:
-    LruCache<Vec<u8>, Sender<Result<Option<(Vec<u8>, Vec<u8>)>, api::ApiError>>>,
+        LruCache<Vec<u8>, Sender<Result<Option<(Vec<u8>, Vec<u8>)>, api::ApiError>>>,
 }
 
 impl ApiCmdProcessor {
@@ -129,7 +129,8 @@ impl ApiCmdProcessor {
                 let response = match ephemera
                     .to_network
                     .send_ephemera_event(EphemeraEvent::StoreInDht { key, value })
-                    .await {
+                    .await
+                {
                     Ok(_) => Ok(()),
                     Err(err) => Err(api::ApiError::Internal(err)),
                 };

@@ -74,10 +74,13 @@ impl Broadcaster {
         let block = rb_msg.block_ref();
         let hash = block.hash_with_default_hasher()?;
 
-        if !self.contexts.contains(&hash) {
-            log::trace!("Creating new context for block {:?}", hash);
-            self.contexts
-                .put(hash, ProtocolContext::new(hash, self.local_peer_id));
+        let ctx = self
+            .contexts
+            .get_or_insert(hash, || ProtocolContext::new(hash, self.local_peer_id));
+
+        if ctx.delivered {
+            log::debug!("Block already delivered");
+            return Ok(ProtocolResponse::drop());
         }
 
         match rb_msg.message_type.clone() {
@@ -166,6 +169,9 @@ impl Broadcaster {
             .is_deliver()
         {
             log::trace!("Commit complete for {:?}", rb_msg.id);
+
+            ctx.delivered = true;
+
             return Ok(ProtocolResponse::deliver());
         }
 

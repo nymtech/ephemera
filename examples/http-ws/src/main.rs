@@ -3,9 +3,12 @@ use std::thread;
 
 use clap::Parser;
 
-use ephemera::codec::Encode;
-use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
-use ephemera::ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage};
+use ephemera::{
+    codec::Encode,
+    crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair},
+    ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage},
+    peer_discovery::ToPeerId,
+};
 
 use crate::http_client::SignedMessageClient;
 use crate::ws_listener::WsBlockListener;
@@ -78,6 +81,7 @@ async fn listen_ws_blocks(shared_data: Arc<Mutex<Data>>, args: Args) {
 
 async fn send_signed_messages(keypair: Keypair, shared_data: Arc<Mutex<Data>>, args: Args) -> ! {
     let http_url = format!("http://{}:{}", args.host, args.http_port);
+    println!("Sending messages to {http_url}\n",);
     println!(
         "Sending signed messages every {} ms\n",
         args.messages_frequency_ms
@@ -126,8 +130,6 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
                     println!("Block found by hash: {:?}\n", block.hash());
                     compare_blocks(&block, &http_block);
 
-                    println!("Verifying block signature...");
-
                     println!("Verifying messages signatures");
                     if verify_messages_signatures(block.clone()).is_ok() {
                         println!("All messages signatures are valid");
@@ -140,7 +142,11 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
                             println!("Block certificates not found by hash: {:?}\n", block.hash());
                         }
                         Some(certificates) => {
-                            println!("Block certificates found by hash: {:?}\n", block.hash());
+                            println!(
+                                "Block certificates found by hash: {:?}, len {:?}\n",
+                                block.hash(),
+                                certificates.len()
+                            );
                             verify_block_certificates(&block, certificates).unwrap();
                         }
                     }
@@ -181,9 +187,15 @@ fn verify_block_certificates(
         match block.verify(&certificate) {
             Ok(valid) => {
                 if valid {
-                    println!("Certificate is valid");
+                    println!(
+                        "Certificate from peer {} is valid",
+                        certificate.public_key.peer_id()
+                    );
                 } else {
-                    println!("Certificate is invalid");
+                    println!(
+                        "Certificate from peer {} is invalid",
+                        certificate.public_key.peer_id()
+                    );
                 }
             }
             Err(err) => {

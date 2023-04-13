@@ -3,7 +3,10 @@ use std::time::Duration;
 use thiserror::Error;
 
 use crate::api::types::Health;
-use crate::ephemera_api::{ApiBlock, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest, ApiEphemeraConfig, ApiEphemeraMessage};
+use crate::ephemera_api::{
+    ApiBlock, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest,
+    ApiEphemeraConfig, ApiEphemeraMessage,
+};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -80,7 +83,7 @@ impl EphemeraHttpClient {
     /// }
     /// ```
     pub async fn get_block_by_hash(&self, hash: &str) -> Result<Option<ApiBlock>> {
-        let url = format!("ephemera/broadcast/block/{hash}", );
+        let url = format!("ephemera/broadcast/block/{hash}",);
         self.query_optional(&url).await
     }
 
@@ -98,7 +101,7 @@ impl EphemeraHttpClient {
     /// }
     /// ```
     pub async fn get_block_certificates(&self, hash: &str) -> Result<Option<Vec<ApiCertificate>>> {
-        let url = format!("ephemera/broadcast/block/certificates/{hash}", );
+        let url = format!("ephemera/broadcast/block/certificates/{hash}",);
         self.query_optional(&url).await
     }
 
@@ -115,7 +118,7 @@ impl EphemeraHttpClient {
     ///   Ok(())
     /// }
     pub async fn get_block_by_height(&self, height: u64) -> Result<Option<ApiBlock>> {
-        let url = format!("ephemera/broadcast/block/height/{height}", );
+        let url = format!("ephemera/broadcast/block/height/{height}",);
         self.query_optional(&url).await
     }
 
@@ -227,7 +230,24 @@ impl EphemeraHttpClient {
         self.store_dht_request(request).await
     }
 
-    pub async fn query_dht_key(&self, request: ApiDhtQueryRequest) -> Result<Option<ApiDhtQueryResponse>> {
+    ///Store Key Value pair in the DHT.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ephemera::ephemera_api::{ApiDhtQueryRequest, EphemeraHttpClient};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///    let client = EphemeraHttpClient::new("http://localhost:7000/".to_string());
+    ///    let request = ApiDhtQueryRequest::new(&[1, 2, 3]);
+    ///    let response = client.query_dht_key(request).await?;
+    ///    Ok(())
+    /// }
+    pub async fn query_dht_key(
+        &self,
+        request: ApiDhtQueryRequest,
+    ) -> Result<Option<ApiDhtQueryResponse>> {
         let url = format!("ephemera/dht/query/{}", request.key_encoded());
         self.query_optional(&url).await
     }

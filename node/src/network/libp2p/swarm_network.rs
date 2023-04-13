@@ -2,13 +2,11 @@ use std::str::FromStr;
 
 use futures::StreamExt;
 use libp2p::{
-    gossipsub::{self, IdentTopic as Topic},
     gossipsub::Event,
-    kad,
-    Multiaddr,
-    request_response,
-    Swarm,
+    gossipsub::{self, IdentTopic as Topic},
+    kad, request_response,
     swarm::SwarmEvent,
+    Multiaddr, Swarm,
 };
 use tokio::task::JoinHandle;
 
@@ -28,10 +26,12 @@ use crate::{
                 rendezvous,
             },
             ephemera_sender::{
-                EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
+                EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver,
+                EphemeraToNetworkSender,
             },
             network_sender::{
-                EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
+                EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender,
+                NetworkEvent,
             },
         },
     },
@@ -78,8 +78,8 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     }
 
     pub(crate) fn listen(&mut self) -> anyhow::Result<()> {
-        let address = Multiaddr::from_str(&self.node_info.protocol_address())
-            .expect("Invalid multi-address");
+        let address =
+            Multiaddr::from_str(&self.node_info.protocol_address()).expect("Invalid multi-address");
         self.swarm.listen_on(address.clone())?;
 
         log::info!("Listening on {address:?}");

@@ -235,6 +235,7 @@ mod test {
             hash: [0; 32].into(),
             echo: Default::default(),
             vote: Default::default(),
+            delivered: false,
         };
         for _ in 0..n {
             ctx.echo.insert(PeerId::random());
@@ -248,6 +249,7 @@ mod test {
             hash: [0; 32].into(),
             echo: Default::default(),
             vote: Default::default(),
+            delivered: false,
         };
         for _ in 0..n {
             ctx.vote.insert(PeerId::random());

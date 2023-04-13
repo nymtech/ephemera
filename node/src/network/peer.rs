@@ -1,10 +1,11 @@
-use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 use std::fmt::Display;
 
-pub(crate) type PeerIdType = Libp2pPeerId;
+use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::PublicKey;
-use serde::{Deserialize, Serialize};
+
+pub(crate) type PeerIdType = Libp2pPeerId;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PeerId(pub(crate) PeerIdType);
@@ -14,7 +15,7 @@ impl PeerId {
         Self(PeerIdType::random())
     }
 
-    pub fn inner(&self) -> &PeerIdType {
+    pub(crate) fn inner(&self) -> &PeerIdType {
         &self.0
     }
 

@@ -362,13 +362,12 @@ impl ApiDhtQueryRequest {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiDhtQueryResponse {
     /// The key that was queried for in hex format.
-    pub key: String,
+    key: String,
     /// The value that was stored under the queried key in hex format.
-    pub value: String,
+    value: String,
 }
 
 impl ApiDhtQueryResponse {

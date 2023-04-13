@@ -1,42 +1,28 @@
-use std::{
-    iter,
-    sync::Arc,
-    time::Duration
-};
+use std::{iter, sync::Arc, time::Duration};
 
 use libp2p::{
     core::{muxing::StreamMuxerBox, transport::Boxed},
+    gossipsub,
     gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode},
-    kad,
+    kad, noise, request_response,
     swarm::NetworkBehaviour,
     tcp::{tokio::Transport as TokioTransport, Config as TokioConfig},
     yamux::YamuxConfig,
-    gossipsub,
-    noise,
-    request_response,
-    PeerId as Libp2pPeerId,
-    Transport
+    PeerId as Libp2pPeerId, Transport,
 };
 
 use crate::{
-    crypto::Keypair,
     broadcast::RbMsg,
+    crypto::Keypair,
     network::{
         discovery::PeerDiscovery,
-        libp2p::{
-            behaviours::{
-                broadcast_messages::{
-                    RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
-                },
-                rendezvous::{
-                    self,
-                    RendezvousBehaviour
-                }
-            }
+        libp2p::behaviours::{
+            broadcast_messages::{RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse},
+            rendezvous::{self, RendezvousBehaviour},
         },
-        peer::ToPeerId
+        peer::ToPeerId,
     },
-    utilities::hash::{EphemeraHasher, Hasher}
+    utilities::hash::{EphemeraHasher, Hasher},
 };
 
 #[derive(NetworkBehaviour)]

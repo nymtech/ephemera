@@ -5,8 +5,9 @@ use futures_util::StreamExt;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
+use crate::api::application::CheckBlockResult;
 use crate::{
-    api::{ApiListener, application::Application},
+    api::{application::Application, ApiListener},
     block::{manager::BlockManager, types::block::Block},
     broadcast::{
         bracha::broadcaster::{Broadcaster, ProtocolResponse},
@@ -28,7 +29,6 @@ use crate::{
     utilities::crypto::Certificate,
     websocket::ws_manager::WsMessageBroadcaster,
 };
-use crate::api::application::CheckBlockResult;
 
 //Just a placeholder now
 #[derive(Error, Debug)]
@@ -252,10 +252,10 @@ impl<A: Application> Ephemera<A> {
         //We start reliable broadcaster protocol to broadcaster it to other nodes.
         match self.broadcaster.new_broadcast(new_block).await {
             Ok(ProtocolResponse {
-                   status: _,
-                   command,
-                   protocol_reply: Some(rp),
-               }) => {
+                status: _,
+                command,
+                protocol_reply: Some(rp),
+            }) => {
                 if command == Command::Broadcast {
                     log::trace!("Broadcasting new block: {:?}", rp);
 
@@ -275,6 +275,7 @@ impl<A: Application> Ephemera<A> {
         Ok(())
     }
 
+    //TODO: should we accept more blocks from peers after its committed?
     async fn process_block_from_network(&mut self, msg: RbMsg) -> Result<()> {
         log::debug!("New broadcast message from network: {:?}", msg);
 
@@ -296,10 +297,10 @@ impl<A: Application> Ephemera<A> {
         //Send to local RB protocol
         match self.broadcaster.handle(msg.into()).await {
             Ok(ProtocolResponse {
-                   status: _,
-                   command: Command::Broadcast,
-                   protocol_reply: Some(rp),
-               }) => {
+                status: _,
+                command: Command::Broadcast,
+                protocol_reply: Some(rp),
+            }) => {
                 log::trace!("Broadcasting block to network: {:?}", rp);
 
                 match self.block_manager.sign_block(rp.block_ref()) {
@@ -315,10 +316,10 @@ impl<A: Application> Ephemera<A> {
                 }
             }
             Ok(ProtocolResponse {
-                   status: Status::Completed,
-                   command: _,
-                   protocol_reply: None,
-               }) => {
+                status: Status::Completed,
+                command: _,
+                protocol_reply: None,
+            }) => {
                 log::debug!("Block broadcast complete: {hash:?}",);
                 let block = self.block_manager.get_block_by_hash(&hash);
                 match block {
@@ -327,14 +328,17 @@ impl<A: Application> Ephemera<A> {
                             log::debug!("It's local block: {hash:?}",);
 
                             //DB
-                            let signatures = self
+                            let certificates = self
                                 .block_manager
                                 .get_block_certificates(&block.header.hash)
                                 .ok_or(anyhow!(
                                     "Error: Block signatures not found in block manager"
                                 ))?;
 
-                            self.storage.lock().await.store_block(&block, signatures)?;
+                            self.storage
+                                .lock()
+                                .await
+                                .store_block(&block, certificates)?;
 
                             //BlockManager
                             self.block_manager.on_block_committed(&block).map_err(|e| {

@@ -59,6 +59,8 @@ pub(crate) struct ProtocolContext {
     pub(crate) echo: HashSet<PeerId>,
     /// Peers that sent commit message(this peer included)
     pub(crate) vote: HashSet<PeerId>,
+    /// Flag indicating if the message was delivered to the client
+    pub(crate) delivered: bool,
 }
 
 impl ProtocolContext {
@@ -68,6 +70,7 @@ impl ProtocolContext {
             hash,
             echo: HashSet::new(),
             vote: HashSet::new(),
+            delivered: false,
         }
     }
 

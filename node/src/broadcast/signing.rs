@@ -25,7 +25,10 @@ impl BlockSigner {
         }
     }
 
-    pub(crate) fn get_block_signatures(&mut self, block_id: &HashType) -> Option<Vec<Certificate>> {
+    pub(crate) fn get_block_certificates(
+        &mut self,
+        block_id: &HashType,
+    ) -> Option<Vec<Certificate>> {
         self.verified_signatures
             .get(block_id)
             .map(|signatures| signatures.iter().cloned().collect())
@@ -52,16 +55,6 @@ impl BlockSigner {
     ) -> anyhow::Result<()> {
         log::debug!("Verifying block: {block:?} against certificate {certificate:?}");
 
-        if self
-            .verified_signatures
-            .get(&block.header.hash)
-            .map(|signatures| signatures.contains(certificate))
-            .unwrap_or(false)
-        {
-            log::trace!("Block already verified: {}", block.header.hash);
-            return Ok(());
-        }
-
         let raw_block: RawBlock = (*block).clone().into();
         let raw_block = raw_block.encode()?;
 
@@ -76,11 +69,11 @@ impl BlockSigner {
         }
     }
 
-    fn add_certificate(&mut self, block_id: &HashType, signature: Certificate) {
-        log::trace!("Adding certificate to block: {}", block_id);
+    fn add_certificate(&mut self, hash: &HashType, certificate: Certificate) {
+        log::trace!("Adding certificate to block: {}", hash);
         self.verified_signatures
-            .get_or_insert_mut(block_id.to_owned(), HashSet::new)
-            .insert(signature);
+            .get_or_insert_mut(hash.to_owned(), HashSet::new)
+            .insert(certificate);
     }
 }
 
@@ -100,9 +93,29 @@ mod test {
         let message_signing_keypair = Keypair::generate(None);
 
         let block = new_block(&message_signing_keypair, "label1");
-        let certificate = block.sign(&message_signing_keypair).unwrap();
+        let hash = block.hash_with_default_hasher().unwrap();
+
+        let certificate = signer.sign_block(&block, &hash).unwrap();
 
         assert!(signer.verify_block(&block, &certificate).is_ok());
+    }
+
+    #[test]
+    fn test_sign_signatures_cached_correctly() {
+        let mut signer = BlockSigner::new(Arc::new(Keypair::generate(None)).clone());
+
+        let block = new_block(&Keypair::generate(None), "label1");
+        let hash = block.hash_with_default_hasher().unwrap();
+
+        //Signed by node 1
+        let certificate1 = block.sign(&Keypair::generate(None)).unwrap();
+        signer.verify_block(&block, &certificate1).unwrap();
+        //Signed by node 2
+        let certificate2 = block.sign(&Keypair::generate(None)).unwrap();
+        signer.verify_block(&block, &certificate2).unwrap();
+
+        let certificates = signer.get_block_certificates(&hash).unwrap();
+        assert_eq!(certificates.len(), 2);
     }
 
     #[test]

@@ -4,46 +4,28 @@ use reqwest::{IntoUrl, StatusCode, Url};
 
 use ephemera::crypto::Keypair;
 use ephemera::ephemera_api;
+use ephemera::ephemera_api::EphemeraHttpClient;
 
 use crate::Data;
 
 pub(crate) struct SignedMessageClient {
-    http: Url,
+    client: EphemeraHttpClient,
     pub(crate) data: Arc<Mutex<Data>>,
 }
 
 impl SignedMessageClient {
-    pub(crate) fn new<U: IntoUrl>(url: U, data: Arc<Mutex<Data>>) -> SignedMessageClient {
-        SignedMessageClient {
-            http: url.into_url().unwrap(),
-            data,
-        }
+    pub(crate) fn new(url: String, data: Arc<Mutex<Data>>) -> SignedMessageClient {
+        let client = EphemeraHttpClient::new(url);
+        SignedMessageClient { client, data }
     }
 
     pub(crate) async fn send_message(&mut self, msg: ephemera_api::ApiEphemeraMessage) {
-        let path = format!("{}{}", self.http, "ephemera/submit_message");
-        let client: reqwest::Client = Default::default();
-        match client.post(&path).json(&msg).send().await {
-            Ok(_) => {
-                self.data.lock().unwrap().sent_messages.push(msg);
-            }
-            Err(err) => {
-                println!("Error sending message: {err:?}",);
-            }
-        }
+        self.client.submit_message(msg).await.unwrap();
     }
 
     pub(crate) async fn block_by_hash(&self, hash: String) -> Option<ephemera_api::ApiBlock> {
-        let path = format!("{}{}{}", self.http, "ephemera/block/", hash);
-        let client: reqwest::Client = Default::default();
-        match client.get(&path).send().await {
-            Ok(res) => {
-                if res.status() == StatusCode::NOT_FOUND {
-                    return None;
-                }
-                let block: ephemera_api::ApiBlock = res.json().await.unwrap();
-                Some(block)
-            }
+        match self.client.get_block_by_hash(&hash).await {
+            Ok(block) => block,
             Err(err) => {
                 println!("Error sending message: {err:?}",);
                 None
@@ -55,17 +37,8 @@ impl SignedMessageClient {
         &self,
         hash: String,
     ) -> Option<Vec<ephemera_api::ApiCertificate>> {
-        let path = format!("{}{}{}", self.http, "ephemera/block/certificates/", hash);
-        println!("Requesting certificates for block {hash} from {path}",);
-        let client: reqwest::Client = Default::default();
-        match client.get(&path).send().await {
-            Ok(res) => {
-                if res.status() == StatusCode::NOT_FOUND {
-                    return None;
-                }
-                let certificates: Vec<ephemera_api::ApiCertificate> = res.json().await.unwrap();
-                Some(certificates)
-            }
+        match self.client.get_block_certificates(&hash).await {
+            Ok(certificates) => certificates,
             Err(err) => {
                 println!("Error sending message: {err:?}",);
                 None

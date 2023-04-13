@@ -2,19 +2,17 @@ use std::collections::HashMap;
 use std::task::{Context, Poll};
 
 use libp2p::{
-    Multiaddr,
     swarm::{
-        ConnectionId, dummy, FromSwarm, NetworkBehaviour, NetworkBehaviourAction, PollParameters,
+        dummy, ConnectionId, FromSwarm, NetworkBehaviour, NetworkBehaviourAction, PollParameters,
         THandlerInEvent, THandlerOutEvent,
     },
+    Multiaddr,
 };
 use tokio::task::JoinHandle;
 
-use crate::{
-    network::{
-        discovery::{PeerDiscovery, PeerInfo},
-        peer::{Peer, PeerId},
-    }
+use crate::network::{
+    discovery::{PeerDiscovery, PeerInfo},
+    peer::{Peer, PeerId},
 };
 
 pub(crate) struct RendezvousBehaviour<P: PeerDiscovery> {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
 use rand::Rng;
@@ -9,9 +9,9 @@ use tokio::task::JoinHandle;
 use ephemera::crypto::Keypair;
 use ephemera::ephemera_api::{ApiDhtQueryRequest, ApiDhtStoreRequest, EphemeraHttpClient};
 
-use crate::Args;
 use crate::node::Node;
 use crate::util::create_ephemera_message;
+use crate::Args;
 
 pub(crate) struct Cluster {
     args: Args,
@@ -130,7 +130,7 @@ impl Cluster {
         Ok(handle)
     }
 
-    pub(crate) async fn submit_messages_to_an_randoms_burst_and_wait(
+    pub(crate) async fn submit_messages_to_at_random_burst_and_wait(
         &self,
         nr_of_messages: usize,
     ) -> anyhow::Result<JoinHandle<()>> {
@@ -349,7 +349,10 @@ impl Cluster {
         Ok(handle)
     }
 
-    pub(crate) async fn store_in_dht_using_random_node(&self, interval: Duration) -> anyhow::Result<JoinHandle<()>> {
+    pub(crate) async fn store_in_dht_using_random_node(
+        &self,
+        interval: Duration,
+    ) -> anyhow::Result<JoinHandle<()>> {
         let nodes = self.nodes.clone();
         let nodes_len = nodes.lock().await.len();
         let mut clients = self.clients().await;
@@ -367,12 +370,12 @@ impl Cluster {
                     let client = clients.get_mut(&index).unwrap();
 
                     let key = format!("message_{}", tick_counter);
-                    let key = key.as_bytes();
                     let value = format!("message_{}_{}", tick_counter, node.id);
+                    log::info!("Stored key value pair in DHT: {:?} {:?}", key, value);
+
+                    let key = key.as_bytes();
                     let value = value.as_bytes();
                     let request = ApiDhtStoreRequest::new(key, value);
-
-                    log::info!("Stored key value pair in DHT: {:?} {:?}", key, value);
 
                     client.store_dht_request(request.clone()).await.unwrap();
 
@@ -385,7 +388,10 @@ impl Cluster {
         Ok(handle)
     }
 
-    pub(crate) async fn query_dht_using_random_node(&self, interval: Duration) -> anyhow::Result<JoinHandle<()>> {
+    pub(crate) async fn query_dht_using_random_node(
+        &self,
+        interval: Duration,
+    ) -> anyhow::Result<JoinHandle<()>> {
         let nodes = self.nodes.clone();
         let nodes_len = nodes.lock().await.len();
         let mut clients = self.clients().await;
@@ -398,22 +404,32 @@ impl Cluster {
             loop {
                 interval.tick().await;
 
-                log::info!("DHT pending stores before queries: {:?}", dht_pending_stores.lock().await.len());
+                log::info!(
+                    "DHT pending stores before queries: {:?}",
+                    dht_pending_stores.lock().await.len()
+                );
 
                 let mut found = vec![];
                 for store in dht_pending_stores.lock().await.iter() {
-                    log::info!("DHT pending store: {:?}", store.key());
+                    log::info!(
+                        "DHT pending store: {:?}",
+                        String::from_utf8_lossy(store.key().as_slice())
+                    );
+
                     let index = rand::thread_rng().gen_range(0..nodes_len);
 
                     let client = clients.get_mut(&index).unwrap();
 
                     let request = ApiDhtQueryRequest::new(store.key().as_slice());
-                    log::info!("DHT query request: {:?}", request.key());
 
                     let response = client.query_dht_key(request).await.unwrap();
                     match response {
-                        Some(value) => {
-                            log::info!("DHT query response: key: {:?}, value: {:?}", store.key(), value);
+                        Some(response) => {
+                            log::info!(
+                                "DHT query response: key: {:?}, value: {:?}",
+                                String::from_utf8_lossy(response.key().as_slice()),
+                                String::from_utf8_lossy(response.value().as_slice())
+                            );
                             found.push(store.key().to_vec());
                         }
                         None => {
