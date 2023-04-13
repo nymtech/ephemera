@@ -58,13 +58,11 @@ impl<P: PeerDiscovery + 'static> RendezvousBehaviour<P> {
             .take()
             .ok_or(anyhow::anyhow!("Peer discovery already spawned"))?;
 
-        peer_discovery.poll(tx.clone()).await?;
-
         let join_handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(peer_discovery.get_poll_interval());
             loop {
                 interval.tick().await;
-                log::trace!("Polling peer discovery (after tick)");
+                log::debug!("Polling peer discovery (after tick)");
                 if let Err(err) = peer_discovery.poll(tx.clone()).await {
                     log::error!("Error while polling peer discovery: {}", err);
                 }

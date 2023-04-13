@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use futures::StreamExt;
 use libp2p::{
     gossipsub::Event,
@@ -8,6 +6,7 @@ use libp2p::{
     swarm::SwarmEvent,
     Multiaddr, Swarm,
 };
+use std::str::FromStr;
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -217,13 +216,13 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             }
 
             Event::Subscribed { peer_id, topic } => {
-                log::trace!("Peer {peer_id:?} subscribed to topic {topic:?}");
+                log::debug!("Peer {peer_id:?} subscribed to topic {topic:?}");
             }
             Event::Unsubscribed { peer_id, topic } => {
-                log::trace!("Peer {peer_id:?} unsubscribed from topic {topic:?}");
+                log::debug!("Peer {peer_id:?} unsubscribed from topic {topic:?}");
             }
             Event::GossipsubNotSupported { peer_id } => {
-                log::trace!("Peer {peer_id:?} does not support gossipsub");
+                log::debug!("Peer {peer_id:?} does not support gossipsub");
             }
         }
         Ok(())
@@ -266,7 +265,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 request_id,
                 error,
             } => {
-                log::trace!(
+                log::error!(
                     "Outbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",
                 );
             }
@@ -299,6 +298,13 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 for peer in new_peers {
                     kademlia.add_address(peer.peer_id.inner(), peer.address.clone());
                 }
+
+                let query_id = self
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .get_closest_peers(libp2p::PeerId::random());
+                log::debug!("Neighbours: {:?}", query_id);
             }
         }
         Ok(())
@@ -327,9 +333,9 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                         log::trace!("Bootstrap: {:?}", bt);
                     }
                     kad::QueryResult::GetClosestPeers(gcp) => {
-                        log::info!("GetClosestPeers: {:?}", gcp);
+                        log::debug!("GetClosestPeers: {:?}", gcp);
                         //TODO: we need also to make sure that we have enough peers
-                        // (Repeat if not enough, may neee to wait network to stabilize)
+                        // (Repeat if not enough, may need to wait network to stabilize)
 
                         //TODO: kad seems to get multiple responses for single query
                         match gcp {
@@ -345,7 +351,6 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
 
                                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
                                 for peer_id in previous_peer_ids {
-                                    //TODO: remove only peers that are not in the new list
                                     gossipsub.remove_explicit_peer(peer_id.inner());
                                 }
 
@@ -400,38 +405,31 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                         }
                     }
                     kad::QueryResult::PutRecord(pr) => {
-                        log::trace!("PutRecord: {:?}", pr);
+                        log::debug!("PutRecord: {:?}", pr);
                     }
                     kad::QueryResult::RepublishRecord(rr) => {
-                        log::trace!("RepublishRecord: {:?}", rr);
+                        log::debug!("RepublishRecord: {:?}", rr);
                     }
                 }
             }
             kad::KademliaEvent::RoutingUpdated {
-                peer,
+                peer: peer_id,
                 is_new_peer,
                 addresses,
                 bucket_range,
                 old_peer,
             } => {
                 log::info!("Routing updated: peer:{:?}, is_new_peer:{:?}, addresses:{:?}, bucket_range:{:?}, old_peer:{:?}",
-                    peer, is_new_peer, addresses, bucket_range, old_peer);
-
-                let query_id = self
-                    .swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .get_closest_peers(libp2p::PeerId::random());
-                log::debug!("Neighbours: {:?}", query_id);
+                    peer_id, is_new_peer, addresses, bucket_range, old_peer);
             }
             kad::KademliaEvent::UnroutablePeer { peer } => {
-                log::trace!("Unroutable peer: {:?}", peer);
+                log::debug!("Unroutable peer: {:?}", peer);
             }
             kad::KademliaEvent::RoutablePeer { peer, address } => {
-                log::trace!("Routable peer: {:?}, address: {:?}", peer, address);
+                log::debug!("Routable peer: {:?}, address: {:?}", peer, address);
             }
             kad::KademliaEvent::PendingRoutablePeer { peer, address } => {
-                log::trace!("Pending routable peer: {:?}, address: {:?}", peer, address);
+                log::debug!("Pending routable peer: {:?}, address: {:?}", peer, address);
             }
         }
         Ok(())
