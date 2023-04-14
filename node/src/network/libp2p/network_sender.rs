@@ -7,8 +7,9 @@ use crate::network::peer::PeerId;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum NetworkEvent {
     EphemeraMessage(Box<EphemeraMessage>),
-    ProtocolMessage(Box<RbMsg>),
+    BroadcastMessage(Box<RbMsg>),
     PeersUpdated(Vec<PeerId>),
+    LocalPeerRemoved,
     QueryDhtResponse { key: Vec<u8>, value: Vec<u8> },
 }
 

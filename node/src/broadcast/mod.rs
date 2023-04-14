@@ -33,6 +33,7 @@
 //!   Also this can be a task for an upstream layer(gossip...) which handles networking and peers relationship.
 
 use std::collections::HashSet;
+use std::fmt::Display;
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -119,10 +120,19 @@ impl RbMsg {
         }
     }
 
-    pub(crate) fn get_block(&self) -> &Block {
+    pub(crate) fn block(&self) -> &Block {
         match &self.phase {
             MessageType::Echo(block) | MessageType::Vote(block) => block,
         }
+    }
+
+    pub(crate) fn short_fmt(&self) -> String {
+        format!(
+            "[id: {}, peer: {}, block: {}]",
+            self.id,
+            self.original_sender,
+            self.block().get_hash()
+        )
     }
 }
 
@@ -146,16 +156,19 @@ impl RawRbMsg {
         }
     }
 
-    pub(crate) fn block_ref(&self) -> &Block {
-        match &self.message_type {
-            MessageType::Echo(block) | MessageType::Vote(block) => block,
-        }
-    }
-
     pub(crate) fn block(&self) -> Block {
         match &self.message_type {
             MessageType::Echo(block) | MessageType::Vote(block) => block.clone(),
         }
+    }
+
+    pub(crate) fn short_fmt(&self) -> String {
+        format!(
+            "[id: {}, peer: {}, block: {}]",
+            self.id,
+            self.original_sender,
+            self.block().get_hash()
+        )
     }
 
     pub(crate) fn reply(&self, local_id: PeerId, phase: MessageType) -> Self {
@@ -186,6 +199,19 @@ impl From<RbMsg> for RawRbMsg {
             timestamp: msg.timestamp,
             message_type: msg.phase,
         }
+    }
+}
+
+impl Display for RbMsg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[id: {}, peer: {}, block: {}, phase: {:?}]",
+            self.id,
+            self.original_sender,
+            self.block().get_hash(),
+            self.phase
+        )
     }
 }
 

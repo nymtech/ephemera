@@ -228,7 +228,7 @@ echo $#
   done
 }
 
-[[ $SUBCMD == "run_node" ]] && [[ $# -ne 1 ]] && echo "$RUN_NODE_HELP" && exit 1
+[[ $SUBCMD == "run_node" ]] && [[ $# -ne 2 ]] && echo "$RUN_NODE_HELP" && exit 1
 
 [[ $SUBCMD == "run_node" ]] && {
   while getopts :n opt; do
@@ -263,7 +263,7 @@ REWARD_CONTRACT="$PROJECT_ROOT"/target/release/reward_contract
 
 export RUST_LOG="nym_api=debug,ephemera=debug,info"
 #export RUST_LOG="debug"
-export RUST_BACKTRACE=1
+#export RUST_BACKTRACE=1
 
 build() {
   echo "Building ephemera..."
@@ -335,6 +335,7 @@ start_cluster() {
       run_nym_api_ephemera "$d" "$COUNTER" &
     else
       run_ephemera "$d" "$COUNTER" &
+      sleep 2
     fi
 
     COUNTER=$((COUNTER + 1))
@@ -439,7 +440,7 @@ stop_node() {
   echo "Stopping node $NODE_NR"
   NODE_PID=$(grep "$NODE_NR:" "$PIDS_FILE" | awk -F ':' '{print $2}')
   echo "Killing $NODE_PID"
-  kill -9 "$NODE_PID" &&
+  kill "$NODE_PID" &&
   sed -i '' "/$NODE_PID/d" "$PIDS_FILE"
 }
 

@@ -372,8 +372,8 @@ pub struct ApiDhtQueryResponse {
 
 impl ApiDhtQueryResponse {
     pub(crate) fn new(key: Vec<u8>, value: Vec<u8>) -> Self {
-        let key = bytes2hex("0x", &key);
-        let value = bytes2hex("0x", &value);
+        let key = bytes2hex("0x", key);
+        let value = bytes2hex("0x", value);
         Self { key, value }
     }
 

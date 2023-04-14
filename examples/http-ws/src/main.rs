@@ -155,7 +155,7 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
 
             println!();
         }
-        thread::sleep(std::time::Duration::from_millis(
+        thread::sleep(std::time::Duration::from_secs(
             args.block_query_frequency_sec,
         ));
     }

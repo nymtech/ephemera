@@ -1,8 +1,10 @@
 use std::sync::{Arc, Mutex};
+use std::thread;
+
+use futures::{StreamExt, TryStreamExt};
+use reqwest::{IntoUrl, Url};
 
 use ephemera::ephemera_api::ApiBlock;
-use futures::StreamExt;
-use reqwest::{IntoUrl, Url};
 
 use crate::Data;
 
@@ -22,17 +24,12 @@ impl WsBlockListener {
     pub(crate) async fn listen(&mut self) {
         let (mut ws_stream, _) = tokio_tungstenite::connect_async(&self.url).await.unwrap();
         loop {
-            if let Some(item) = ws_stream.next().await {
-                match item {
-                    Ok(res) => {
-                        println!("Received new block");
-                        let block = serde_json::from_str::<ApiBlock>(&res.to_string()).unwrap();
-                        self.data.lock().unwrap().received_blocks.push(block);
-                    }
-                    Err(err) => {
-                        println!("Error receiving message: {err:?}",);
-                    }
-                }
+            if let Ok(Some(item)) = ws_stream.try_next().await {
+                println!("Received new block");
+                let block = serde_json::from_str::<ApiBlock>(&item.to_string()).unwrap();
+                self.data.lock().unwrap().received_blocks.push(block);
+            } else {
+                thread::sleep(std::time::Duration::from_secs(10));
             }
         }
     }

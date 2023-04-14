@@ -21,7 +21,7 @@ impl DbStore {
         certificates: Vec<Certificate>,
     ) -> Result<()> {
         log::debug!("Storing block: {}", block.header);
-        log::debug!("Storing block certificates: {:?}", certificates);
+        log::trace!("Storing block certificates: {:?}", certificates);
 
         let hash = block.header.hash.to_string();
         let height = block.header.height;

@@ -53,7 +53,7 @@ impl BlockSigner {
         block: &Block,
         certificate: &Certificate,
     ) -> anyhow::Result<()> {
-        log::debug!("Verifying block: {block:?} against certificate {certificate:?}");
+        log::trace!("Verifying block: {block:?} against certificate {certificate:?}");
 
         let raw_block: RawBlock = (*block).clone().into();
         let raw_block = raw_block.encode()?;

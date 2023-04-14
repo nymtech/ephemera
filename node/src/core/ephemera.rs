@@ -103,13 +103,12 @@ impl<A: Application> Ephemera<A> {
     /// individually. Because it's not expected(at its current scope) to be an extremely high performance
     /// system, I'm not worried about it at this stage.
     pub async fn run(mut self) {
-        log::info!("Starting ephemera...");
-
         let mut shutdown_manager = self
             .shutdown_manager
             .take()
             .expect("Shutdown manager not set");
 
+        log::info!("Starting ephemera main loop");
         loop {
             tokio::select! {
                 // GENERATING NEW BLOCKS
@@ -175,9 +174,8 @@ impl<A: Application> Ephemera<A> {
                     }
                 }
             }
-            NetworkEvent::ProtocolMessage(pm) => {
-                log::debug!("New protocol message from network: {:?}", pm);
-                if let Err(err) = self.process_block_from_network(*pm).await {
+            NetworkEvent::BroadcastMessage(rb_msg) => {
+                if let Err(err) = self.process_block_from_network(*rb_msg).await {
                     log::error!("Error processing block from network: {:?}", err);
                 }
             }
@@ -185,6 +183,12 @@ impl<A: Application> Ephemera<A> {
                 log::debug!("New peers: {:?}", peers);
                 self.broadcaster.topology_updated(peers.len());
                 self.topology.add_snapshot(peers);
+            }
+            NetworkEvent::LocalPeerRemoved => {
+                //TODO: should pause all block and message activities
+                log::info!("Local peer removed from network");
+                self.broadcaster.topology_updated(0);
+                self.topology.add_snapshot(vec![]);
             }
             NetworkEvent::QueryDhtResponse { key, value } => {
                 log::debug!("New dht query response: {:?}", key);
@@ -212,7 +216,7 @@ impl<A: Application> Ephemera<A> {
         new_block: Block,
         certificate: Certificate,
     ) -> Result<()> {
-        log::debug!("New block from block manager: {}", new_block);
+        log::debug!("New block from block manager: {:?}", new_block.get_hash());
 
         let hash = new_block.header.hash;
         let block_creator = &self.node_info.peer_id;
@@ -228,7 +232,7 @@ impl<A: Application> Ephemera<A> {
         match self.application.check_block(&new_block.clone().into()) {
             Ok(response) => match response {
                 CheckBlockResult::Accept => {
-                    log::debug!("Application accepted block: {:?}", new_block);
+                    log::debug!("Application accepted block: {hash:?}",);
                 }
                 CheckBlockResult::Reject => {
                     log::debug!("Application rejected block: {hash:?}",);
@@ -277,14 +281,18 @@ impl<A: Application> Ephemera<A> {
 
     //TODO: should we accept more blocks from peers after its committed?
     async fn process_block_from_network(&mut self, msg: RbMsg) -> Result<()> {
-        log::debug!("New broadcast message from network: {:?}", msg);
-
         let msg_id = msg.id.clone();
-        let block = msg.get_block();
+        let block = msg.block();
         let block_creator = &block.header.creator;
         let sender = &msg.original_sender;
         let hash = block.header.hash;
         let certificate = msg.certificate.clone();
+
+        log::debug!(
+            "New broadcast message from network: {:?} for block: {hash:?} from peer: {sender:?}",
+            msg.id
+        );
+        log::trace!("New broadcast message from network: {:?}", msg);
 
         if !self.topology.check_membership(hash, block_creator, sender) {
             return Err(anyhow!("Block doesn't match topology").into());
@@ -303,7 +311,7 @@ impl<A: Application> Ephemera<A> {
             }) => {
                 log::trace!("Broadcasting block to network: {:?}", rp);
 
-                match self.block_manager.sign_block(rp.block_ref()) {
+                match self.block_manager.sign_block(&rp.block()) {
                     Ok(certificate) => {
                         let rb_msg = RbMsg::new(rp, certificate);
                         self.to_network

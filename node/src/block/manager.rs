@@ -3,12 +3,11 @@ use std::{
     pin::Pin,
     task,
     task::Poll::{Pending, Ready},
-    time,
 };
 
 use anyhow::anyhow;
-use futures::{FutureExt, Stream};
-use futures_timer::Delay;
+use futures::Stream;
+
 use lru::LruCache;
 use thiserror::Error;
 
@@ -93,7 +92,7 @@ pub(crate) struct BlockManager {
     /// Message pool. Contains all messages that we received from the network and not included in any(committed) block yet
     pub(crate) message_pool: MessagePool,
     /// Delay between block creation attempts.
-    pub(crate) delay: Delay,
+    pub(crate) delay: tokio::time::Interval,
     /// Signs and verifies blocks
     pub(crate) block_signer: BlockSigner,
     /// State management for new blocks
@@ -121,9 +120,12 @@ impl BlockManager {
         block: &Block,
         certificate: &Certificate,
     ) -> Result<()> {
-        log::debug!("Block received: {:?}", block);
-
         let hash = block.hash_with_default_hasher()?;
+
+        log::debug!(
+            "Received block: {:?} from peer {sender:?}",
+            block.get_hash()
+        );
 
         //Reject blocks with invalid hash
         if block.header.hash != hash {
@@ -134,7 +136,7 @@ impl BlockManager {
         let signer_peer_id = certificate.public_key.peer_id();
         if *sender != signer_peer_id {
             return Err(anyhow!(
-                "Block signer is not the sender: {sender:?} != {signer_peer_id:?}",
+                "Block signer is not the block sender: {sender:?} != {signer_peer_id:?}",
             )
             .into());
         }
@@ -151,12 +153,14 @@ impl BlockManager {
     }
 
     pub(crate) fn sign_block(&mut self, block: &Block) -> Result<Certificate> {
-        log::debug!("Signing block: {:?}", block);
-
         let hash = block.hash_with_default_hasher()?;
+
+        log::debug!("Signing block: {hash:?}");
+
         let certificate = self.block_signer.sign_block(block, &hash)?;
 
         log::trace!("Block certificate: {certificate:?}",);
+
         Ok(certificate)
     }
 
@@ -240,12 +244,8 @@ impl Stream for BlockManager {
             return Pending;
         }
 
-        match self.delay.poll_unpin(cx) {
+        match self.delay.poll_tick(cx) {
             Ready(_) => {
-                //Reset the delay for the next block
-                let interval = self.config.creation_interval_sec;
-                self.delay.reset(time::Duration::from_secs(interval));
-
                 let is_previous_pending =
                     self.block_chain_state.is_last_produced_block_is_pending();
                 let pending_messages = if is_previous_pending && self.config.repeat_last_block {
@@ -269,6 +269,8 @@ impl Stream for BlockManager {
                     .create_block(new_height, pending_messages);
 
                 if let Ok(block) = created_block {
+                    log::debug!("Created block: {:?}", block);
+
                     let hash = block.get_hash();
                     self.block_chain_state.last_produced_block = Some(block.clone());
                     self.block_chain_state.last_blocks.put(hash, block.clone());
@@ -329,8 +331,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_accept_valid_block() {
+    #[tokio::test]
+    async fn test_accept_valid_block() {
         let (mut manager, peer_id) = block_manager_with_defaults();
 
         let block = block();
@@ -341,8 +343,8 @@ mod test {
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_reject_invalid_sender() {
+    #[tokio::test]
+    async fn test_reject_invalid_sender() {
         let (mut manager, _) = block_manager_with_defaults();
 
         let block = block();
@@ -354,8 +356,8 @@ mod test {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_reject_invalid_hash() {
+    #[tokio::test]
+    async fn test_reject_invalid_hash() {
         let (mut manager, peer_id) = block_manager_with_defaults();
 
         let mut block = block();
@@ -367,8 +369,8 @@ mod test {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_reject_invalid_signature() {
+    #[tokio::test]
+    async fn test_reject_invalid_signature() {
         let (mut manager, peer_id) = block_manager_with_defaults();
 
         let correct_block = block();
@@ -542,15 +544,15 @@ mod test {
     fn block_manager_with_config(config: BlockConfig) -> (BlockManager, PeerId) {
         let keypair: Arc<Keypair> = Keypair::generate(None).into();
         let peer_id = keypair.public_key().peer_id();
-        let genesis_block = Block::new_genesis_block(peer_id.clone());
-        let block_chain_state = BlockChainState::new(genesis_block.clone());
+        let genesis_block = Block::new_genesis_block(peer_id);
+        let block_chain_state = BlockChainState::new(genesis_block);
         (
             BlockManager {
                 config,
-                block_producer: BlockProducer::new(peer_id.clone()),
+                block_producer: BlockProducer::new(peer_id),
                 message_pool: MessagePool::new(),
-                delay: Delay::new(Duration::from_secs(0)),
-                block_signer: BlockSigner::new(keypair.clone()),
+                delay: tokio::time::interval(Duration::from_millis(1)),
+                block_signer: BlockSigner::new(keypair),
                 block_chain_state,
             },
             peer_id,
@@ -560,7 +562,7 @@ mod test {
     fn block() -> Block {
         let keypair: Arc<Keypair> = Keypair::generate(None).into();
         let peer_id = keypair.public_key().peer_id();
-        let mut producer = BlockProducer::new(peer_id.clone());
+        let mut producer = BlockProducer::new(peer_id);
         producer.create_block(1, vec![]).unwrap()
     }
 

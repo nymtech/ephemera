@@ -63,23 +63,23 @@ impl Broadcaster {
     }
 
     pub(crate) async fn new_broadcast(&mut self, block: Block) -> anyhow::Result<ProtocolResponse> {
-        log::debug!("Starting broadcast for new block {:?}", block);
+        log::debug!("Starting broadcast for new block {:?}", block.get_hash());
         let rb_msg = RawRbMsg::new(block, self.local_peer_id);
         self.handle(rb_msg).await
     }
 
     pub(crate) async fn handle(&mut self, rb_msg: RawRbMsg) -> anyhow::Result<ProtocolResponse> {
-        log::debug!("New broadcast message: {:?}", rb_msg.id);
-
-        let block = rb_msg.block_ref();
+        let block = &rb_msg.block();
         let hash = block.hash_with_default_hasher()?;
+
+        log::debug!("Processing new broadcast message: {:?}", rb_msg.short_fmt());
 
         let ctx = self
             .contexts
             .get_or_insert(hash, || ProtocolContext::new(hash, self.local_peer_id));
 
         if ctx.delivered {
-            log::debug!("Block already delivered");
+            log::debug!("Block {hash:?} already delivered");
             return Ok(ProtocolResponse::drop());
         }
 
@@ -142,7 +142,7 @@ impl Broadcaster {
         rb_msg: RawRbMsg,
         hash: HashType,
     ) -> anyhow::Result<ProtocolResponse> {
-        let block = rb_msg.block_ref();
+        let block = &rb_msg.block();
         let ctx = self.contexts.get_mut(&hash).unwrap();
 
         if self.local_peer_id != rb_msg.original_sender {
@@ -222,33 +222,33 @@ mod tests {
         assert!(ctx.echoed());
         assert!(!ctx.voted());
 
-        receive_nr_of_echo_messages_below_vote_threshold(&mut broadcaster, &block, &peers[2..7])
+        receive_nr_of_echo_messages_below_vote_threshold(&mut broadcaster, &block, &peers[2..6])
             .await;
 
         let ctx = broadcaster.contexts.get(&block_hash).unwrap();
-        assert_eq!(ctx.echo.len(), 7);
+        assert_eq!(ctx.echo.len(), 6);
         assert!(ctx.echoed());
         assert!(!ctx.voted());
 
         receive_echo_threshold_message(
             &mut broadcaster,
             &block,
-            peers.iter().nth(7).unwrap().clone(),
+            *peers.get(7).unwrap(),
         )
         .await;
 
         let ctx = broadcaster.contexts.get(&block_hash).unwrap();
-        assert_eq!(ctx.echo.len(), 8);
+        assert_eq!(ctx.echo.len(), 7);
         assert_eq!(ctx.vote.len(), 1);
         assert!(ctx.echoed());
         assert!(ctx.voted());
 
-        receive_nr_of_vote_messages_below_deliver_threshold(&mut broadcaster, &block, &peers[2..8])
+        receive_nr_of_vote_messages_below_deliver_threshold(&mut broadcaster, &block, &peers[2..7])
             .await;
 
         let ctx = broadcaster.contexts.get(&block_hash).unwrap();
-        assert_eq!(ctx.echo.len(), 8);
-        assert_eq!(ctx.vote.len(), 7);
+        assert_eq!(ctx.echo.len(), 7);
+        assert_eq!(ctx.vote.len(), 6);
         assert!(ctx.echoed());
         assert!(ctx.voted());
 
@@ -281,7 +281,7 @@ mod tests {
         peers: &[PeerId],
     ) {
         for peer_id in peers {
-            let rb_msg = RawRbMsg::new(block.clone(), peer_id.clone());
+            let rb_msg = RawRbMsg::new(block.clone(), *peer_id);
 
             let response = handle_double(broadcaster, rb_msg).await;
 
@@ -298,7 +298,7 @@ mod tests {
     ) {
         for peer_id in peers {
             let rb_msg = RawRbMsg::new(block.clone(), PeerId::random());
-            let rb_msg = rb_msg.vote_reply(peer_id.clone(), block.clone());
+            let rb_msg = rb_msg.vote_reply(*peer_id, block.clone());
 
             let response = handle_double(broadcaster, rb_msg).await;
             assert_matches!(response.status, broadcast::Status::Pending);

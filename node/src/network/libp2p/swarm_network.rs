@@ -1,12 +1,10 @@
+use std::str::FromStr;
+
 use futures::StreamExt;
 use libp2p::{
-    gossipsub::Event,
-    gossipsub::{self, IdentTopic as Topic},
-    kad, request_response,
-    swarm::SwarmEvent,
-    Multiaddr, Swarm,
+    gossipsub, gossipsub::IdentTopic as Topic, kad, request_response, swarm::SwarmEvent, Multiaddr,
+    Swarm,
 };
-use std::str::FromStr;
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -14,6 +12,7 @@ use crate::{
     broadcast::RbMsg,
     codec::Encode,
     core::builder::NodeInfo,
+    network::libp2p::behaviours::peer_discovery,
     network::{
         discovery::PeerDiscovery,
         libp2p::{
@@ -22,7 +21,6 @@ use crate::{
                 common_behaviour::{
                     create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
                 },
-                rendezvous,
             },
             ephemera_sender::{
                 EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver,
@@ -130,7 +128,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 self.send_ephemera_message(*em).await;
             }
             EphemeraEvent::ProtocolMessage(pm) => {
-                self.send_protocol_message(*pm).await;
+                self.send_broadcast_message(*pm).await;
             }
             EphemeraEvent::StoreInDht { key, value } => {
                 let record = kad::Record::new(key, value);
@@ -215,13 +213,13 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     .await?;
             }
 
-            Event::Subscribed { peer_id, topic } => {
+            gossipsub::Event::Subscribed { peer_id, topic } => {
                 log::debug!("Peer {peer_id:?} subscribed to topic {topic:?}");
             }
-            Event::Unsubscribed { peer_id, topic } => {
+            gossipsub::Event::Unsubscribed { peer_id, topic } => {
                 log::debug!("Peer {peer_id:?} unsubscribed from topic {topic:?}");
             }
-            Event::GossipsubNotSupported { peer_id } => {
+            gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 log::debug!("Peer {peer_id:?} does not support gossipsub");
             }
         }
@@ -235,14 +233,14 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         match event {
             request_response::Event::Message { peer, message } => match message {
                 request_response::Message::Request {
-                    request_id,
+                    request_id: _,
                     request,
                     channel,
                 } => {
-                    log::debug!("Received request {request_id:?} from peer: {peer:?}",);
                     let rb_id = request.id.clone();
+                    log::debug!("Received request {:?}", request.short_fmt());
                     self.to_ephemera_tx
-                        .send_network_event(NetworkEvent::ProtocolMessage(request.into()))
+                        .send_network_event(NetworkEvent::BroadcastMessage(request.into()))
                         .await?;
                     if let Err(err) = self
                         .swarm
@@ -277,25 +275,32 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 log::error!("Inbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",);
             }
             request_response::Event::ResponseSent { peer, request_id } => {
-                log::debug!("Response sent to peer: {peer:?}, {request_id:?}",);
+                log::trace!("Response sent to peer: {peer:?}, {request_id:?}",);
             }
         }
         Ok(())
     }
 
-    async fn process_rendezvous_event(&mut self, event: rendezvous::Event) -> anyhow::Result<()> {
+    async fn process_rendezvous_event(
+        &mut self,
+        event: peer_discovery::behaviour::Event,
+    ) -> anyhow::Result<()> {
         match event {
-            rendezvous::Event::PeersUpdated => {
+            peer_discovery::behaviour::Event::PeersUpdated => {
                 log::info!(
                     "Peers updated: {:?}",
-                    self.swarm.behaviour().rendezvous_behaviour.peer_ids_ref()
+                    self.swarm.behaviour().rendezvous_behaviour.peer_ids()
                 );
                 let new_peers = self.swarm.behaviour().rendezvous_behaviour.peers();
                 log::info!("New peers: {:?}", new_peers);
 
+                let local_peer_id = *self.swarm.local_peer_id();
                 let kademlia = &mut self.swarm.behaviour_mut().kademlia;
 
                 for peer in new_peers {
+                    if *peer.peer_id.inner() == local_peer_id {
+                        continue;
+                    }
                     kademlia.add_address(peer.peer_id.inner(), peer.address.clone());
                 }
 
@@ -305,6 +310,15 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     .kademlia
                     .get_closest_peers(libp2p::PeerId::random());
                 log::debug!("Neighbours: {:?}", query_id);
+            }
+            peer_discovery::behaviour::Event::PeerUpdatePending => {
+                log::info!("Peer update pending");
+            }
+            peer_discovery::behaviour::Event::LocalRemoved => {
+                //TODO: should pause all network block and message activities
+                self.to_ephemera_tx
+                    .send_network_event(NetworkEvent::LocalPeerRemoved)
+                    .await?;
             }
         }
         Ok(())
@@ -414,13 +428,12 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             }
             kad::KademliaEvent::RoutingUpdated {
                 peer: peer_id,
-                is_new_peer,
+                is_new_peer: _,
                 addresses,
-                bucket_range,
-                old_peer,
+                bucket_range: _,
+                old_peer: _,
             } => {
-                log::info!("Routing updated: peer:{:?}, is_new_peer:{:?}, addresses:{:?}, bucket_range:{:?}, old_peer:{:?}",
-                    peer_id, is_new_peer, addresses, bucket_range, old_peer);
+                log::debug!("Routing updated: peer:{peer_id}, addresses:{addresses:?}",);
             }
             kad::KademliaEvent::UnroutablePeer { peer } => {
                 log::debug!("Unroutable peer: {:?}", peer);
@@ -543,20 +556,28 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             }
 
             SwarmEvent::Behaviour(_) => {
-                log::error!("Unexpected behaviour event");
+                log::trace!("Unexpected behaviour event");
             }
         }
         Ok(())
     }
 
-    async fn send_protocol_message(&mut self, msg: RbMsg) {
-        log::debug!("Sending Block message: {:?}", msg.id);
+    async fn send_broadcast_message(&mut self, msg: RbMsg) {
+        log::debug!(
+            "Sending broadcast message: {:?} to all peers",
+            msg.short_fmt()
+        );
+        log::trace!("Sending broadcast message: {:?}", msg);
+
         for peer in self.swarm.behaviour().rendezvous_behaviour.peer_ids() {
-            log::trace!("Sending Block message to peer: {:?}", peer);
+            log::trace!("Sending broadcast message: {:?} to peer: {peer:?}", msg.id,);
+            if peer.inner() == self.swarm.local_peer_id() {
+                continue;
+            }
             self.swarm
                 .behaviour_mut()
                 .request_response
-                .send_request(&peer.into(), msg.clone());
+                .send_request(peer.inner(), msg.clone());
         }
     }
 

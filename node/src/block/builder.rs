@@ -1,6 +1,8 @@
-use futures_timer::Delay;
-use std::sync::Arc;
-use std::time;
+use std::{
+    sync::Arc,
+    time,
+    time::Duration
+};
 
 use crate::{
     block::{
@@ -19,14 +21,19 @@ use crate::{
 pub(crate) struct BlockManagerBuilder {
     config: BlockConfig,
     block_producer: BlockProducer,
-    delay: Delay,
+    delay: tokio::time::Interval,
     keypair: Arc<Keypair>,
 }
 
 impl BlockManagerBuilder {
     pub(crate) fn new(config: BlockConfig, keypair: Arc<Keypair>) -> Self {
         let block_producer = BlockProducer::new(keypair.peer_id());
-        let delay = Delay::new(time::Duration::from_secs(config.creation_interval_sec));
+
+        let start_at = tokio::time::Instant::now() + Duration::from_secs(60);
+        let delay = tokio::time::interval_at(
+            start_at,
+            time::Duration::from_secs(config.creation_interval_sec),
+        );
         Self {
             config,
             block_producer,

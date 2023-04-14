@@ -20,8 +20,8 @@ impl BlockProducer {
         height: u64,
         pending_messages: Vec<EphemeraMessage>,
     ) -> anyhow::Result<Block> {
-        log::debug!("Adding {:?} messages in new block", pending_messages.len());
         log::trace!("Pending messages for new block: {:?}", pending_messages);
+        log::debug!("Adding {:?} messages to new block", pending_messages.len());
 
         let block = self.new_block(height, pending_messages)?;
 

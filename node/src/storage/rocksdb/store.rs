@@ -21,7 +21,7 @@ impl DbStore {
         certificates: Vec<Certificate>,
     ) -> anyhow::Result<()> {
         log::debug!("Storing block: {}", block.header);
-        log::debug!("Storing block certificates: {}", certificates.len());
+        log::trace!("Storing block certificates: {}", certificates.len());
 
         let hash_str = block.header.hash.to_string();
 

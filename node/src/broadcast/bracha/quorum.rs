@@ -72,7 +72,7 @@ impl BrachaQuorum {
 
         match phase {
             BrachaMessageType::Echo => {
-                if ctx.echo.len() > self.cluster_size - self.max_faulty_nodes {
+                if ctx.echo.len() >= self.cluster_size - self.max_faulty_nodes {
                     log::trace!(
                         "Echo threshold reached: Echoed:{} / Threshold:{} for Block:{}",
                         ctx.echo.len(),
@@ -93,7 +93,7 @@ impl BrachaQuorum {
             BrachaMessageType::Vote => {
                 if !ctx.voted() {
                     // f + 1 votes are enough to send our vote
-                    if ctx.vote.len() > self.max_faulty_nodes {
+                    if ctx.vote.len() >= self.max_faulty_nodes {
                         log::trace!(
                             "Vote send threshold reached: Voted:{} / Threshold:{} for Block:{}",
                             ctx.vote.len(),
@@ -106,7 +106,7 @@ impl BrachaQuorum {
 
                 if ctx.voted() {
                     // n-f votes are enough to deliver the value
-                    if ctx.vote.len() > self.cluster_size - self.max_faulty_nodes {
+                    if ctx.vote.len() >= self.cluster_size - self.max_faulty_nodes {
                         log::trace!(
                             "Deliver threshold reached: Voted:{} / Threshold:{} for Block:{}",
                             ctx.vote.len(),
@@ -181,7 +181,7 @@ mod test {
             BrachaAction::Ignore
         );
 
-        let ctx = ctx_with_nr_votes(3, None);
+        let ctx = ctx_with_nr_votes(2, None);
         assert_eq!(
             quorum.check_threshold(&ctx, BrachaMessageType::Vote),
             BrachaAction::Ignore
@@ -254,8 +254,8 @@ mod test {
         for _ in 0..n {
             ctx.vote.insert(PeerId::random());
         }
-        if local_peer_id.is_some() {
-            ctx.vote.insert(local_peer_id.unwrap());
+        if let Some(id) = local_peer_id {
+            ctx.vote.insert(id);
         }
         ctx
     }

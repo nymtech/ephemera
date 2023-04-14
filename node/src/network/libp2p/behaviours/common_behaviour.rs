@@ -14,14 +14,16 @@ use libp2p::{
 use crate::{
     broadcast::RbMsg,
     crypto::Keypair,
+    network::libp2p::behaviours::peer_discovery,
     network::{
         discovery::PeerDiscovery,
         libp2p::behaviours::{
             broadcast_messages::{RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse},
-            rendezvous::{self, RendezvousBehaviour},
+            peer_discovery::behaviour::RendezvousBehaviour,
         },
         peer::ToPeerId,
     },
+    peer_discovery::PeerId,
     utilities::hash::{EphemeraHasher, Hasher},
 };
 
@@ -38,7 +40,7 @@ pub(crate) struct GroupNetworkBehaviour<P: PeerDiscovery> {
 pub(crate) enum GroupBehaviourEvent {
     Gossipsub(gossipsub::Event),
     RequestResponse(request_response::Event<RbMsg, RbMsgResponse>),
-    Rendezvous(rendezvous::Event),
+    Rendezvous(peer_discovery::behaviour::Event),
     Kademlia(kad::KademliaEvent),
 }
 
@@ -54,8 +56,8 @@ impl From<request_response::Event<RbMsg, RbMsgResponse>> for GroupBehaviourEvent
     }
 }
 
-impl From<rendezvous::Event> for GroupBehaviourEvent {
-    fn from(event: rendezvous::Event) -> Self {
+impl From<peer_discovery::behaviour::Event> for GroupBehaviourEvent {
+    fn from(event: peer_discovery::behaviour::Event) -> Self {
         GroupBehaviourEvent::Rendezvous(event)
     }
 }
@@ -74,9 +76,10 @@ pub(crate) fn create_behaviour<P: PeerDiscovery + 'static>(
     ephemera_msg_topic: Topic,
     peer_discovery: P,
 ) -> GroupNetworkBehaviour<P> {
+    let local_peer_id = keypair.peer_id();
     let gossipsub = create_gossipsub(keypair.clone(), &ephemera_msg_topic);
     let request_response = create_request_response();
-    let rendezvous_behaviour = create_http_peer_discovery(peer_discovery);
+    let rendezvous_behaviour = create_rendezvous(peer_discovery, local_peer_id);
     let kademlia = create_kademlia(keypair);
 
     GroupNetworkBehaviour {
@@ -116,10 +119,11 @@ pub(crate) fn create_request_response() -> request_response::Behaviour<RbMsgMess
     )
 }
 
-pub(crate) fn create_http_peer_discovery<P: PeerDiscovery + 'static>(
+pub(crate) fn create_rendezvous<P: PeerDiscovery + 'static>(
     peer_discovery: P,
+    local_peer_id: PeerId,
 ) -> RendezvousBehaviour<P> {
-    RendezvousBehaviour::new(peer_discovery)
+    RendezvousBehaviour::new(peer_discovery, local_peer_id)
 }
 
 pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::store::MemoryStore> {
@@ -137,7 +141,7 @@ pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::sto
 pub(crate) fn create_transport(local_key: Arc<Keypair>) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
     let transport = TokioTransport::new(TokioConfig::default().nodelay(true));
     let noise_keypair = noise::Keypair::<noise::X25519Spec>::new()
-        .into_authentic(&local_key.inner())
+        .into_authentic(local_key.inner())
         .unwrap();
     let xx_config = noise::NoiseConfig::xx(noise_keypair);
     transport
