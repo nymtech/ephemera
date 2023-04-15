@@ -5,11 +5,17 @@ use crate::broadcast::RbMsg;
 use crate::network::peer::PeerId;
 
 #[derive(Debug, Clone, PartialEq)]
+pub(crate) enum TopologyEvent {
+    PeersUpdated(Vec<PeerId>),
+    LocalPeerRemoved,
+    NotEnoughPeers,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum NetworkEvent {
     EphemeraMessage(Box<EphemeraMessage>),
     BroadcastMessage(Box<RbMsg>),
-    PeersUpdated(Vec<PeerId>),
-    LocalPeerRemoved,
+    TopologyUpdate(TopologyEvent),
     QueryDhtResponse { key: Vec<u8>, value: Vec<u8> },
 }
 

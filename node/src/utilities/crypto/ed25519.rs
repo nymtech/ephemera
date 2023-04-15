@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +62,14 @@ impl<'de> Deserialize<'de> for Ed25519PublicKey {
 impl Display for Ed25519PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_base58())
+    }
+}
+
+impl FromStr for Ed25519PublicKey {
+    type Err = KeyPairError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ed25519PublicKey::from_base58(s)
     }
 }
 

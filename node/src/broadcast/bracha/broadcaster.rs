@@ -230,12 +230,7 @@ mod tests {
         assert!(ctx.echoed());
         assert!(!ctx.voted());
 
-        receive_echo_threshold_message(
-            &mut broadcaster,
-            &block,
-            *peers.get(7).unwrap(),
-        )
-        .await;
+        receive_echo_threshold_message(&mut broadcaster, &block, *peers.get(7).unwrap()).await;
 
         let ctx = broadcaster.contexts.get(&block_hash).unwrap();
         assert_eq!(ctx.echo.len(), 7);

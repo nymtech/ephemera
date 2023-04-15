@@ -43,10 +43,6 @@ impl Node {
         self.pending_messages.retain(|m| m != message);
     }
 
-    pub(crate) fn has_pending_message(&self, message: &ApiEphemeraMessage) -> bool {
-        self.pending_messages.contains(message)
-    }
-
     pub(crate) fn add_pending_block_hash(&mut self, hash: String) {
         self.pending_block_hashes.push(hash);
     }

@@ -21,7 +21,7 @@ impl BroadcastTopology {
         BroadcastTopology {
             current_id: 0,
             topology_snapshots,
-            block_topologies: LruCache::new(NonZeroUsize::new(1000).unwrap()),
+            block_topologies: LruCache::new(NonZeroUsize::new(100).unwrap()),
         }
     }
 

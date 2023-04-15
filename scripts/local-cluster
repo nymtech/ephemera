@@ -346,6 +346,7 @@ start_cluster() {
 }
 
 run_node() {
+
   echo "Starting node $NODE_NR"
   if [[ $APPLICATION == "nym-api" ]]; then
     run_nym_api_ephemera "$EPHEMERA_HOME_DIR"/"$APPLICATION"/node"$NODE_NR"/ephemera.toml "$NODE_NR" &

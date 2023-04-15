@@ -6,6 +6,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::api::application::CheckBlockResult;
+use crate::network::libp2p::network_sender::TopologyEvent;
 use crate::{
     api::{application::Application, ApiListener},
     block::{manager::BlockManager, types::block::Block},
@@ -155,13 +156,18 @@ impl<A: Application> Ephemera<A> {
 
         match net_event {
             NetworkEvent::EphemeraMessage(em) => {
-                // 1. Ask application to decide if we should accept this message.
                 let api_msg = (*em.clone()).into();
                 log::debug!("New ephemera message from network: {:?}", api_msg);
+
+                //Only Application checks if messages are valid(possibly message origin).
+                //For messages we don't check if sender belongs to topology.
+
+                // Ask application to decide if we should accept this message.
                 match self.application.check_tx(api_msg) {
                     Ok(true) => {
                         log::debug!("Application accepted message: {:?}", em);
-                        // 2. send to BlockManager
+
+                        // Send to BlockManager to store in mempool.
                         if let Err(err) = self.block_manager.on_new_message(*em) {
                             log::error!("Error sending signed message to block manager: {:?}", err);
                         }
@@ -179,16 +185,8 @@ impl<A: Application> Ephemera<A> {
                     log::error!("Error processing block from network: {:?}", err);
                 }
             }
-            NetworkEvent::PeersUpdated(peers) => {
-                log::debug!("New peers: {:?}", peers);
-                self.broadcaster.topology_updated(peers.len());
-                self.topology.add_snapshot(peers);
-            }
-            NetworkEvent::LocalPeerRemoved => {
-                //TODO: should pause all block and message activities
-                log::info!("Local peer removed from network");
-                self.broadcaster.topology_updated(0);
-                self.topology.add_snapshot(vec![]);
+            NetworkEvent::TopologyUpdate(event) => {
+                self.process_topology_update(event);
             }
             NetworkEvent::QueryDhtResponse { key, value } => {
                 log::debug!("New dht query response: {:?}", key);
@@ -209,6 +207,23 @@ impl<A: Application> Ephemera<A> {
             }
         }
         Ok(())
+    }
+
+    fn process_topology_update(&mut self, event: TopologyEvent) {
+        match event {
+            TopologyEvent::PeersUpdated(peers) => {
+                log::debug!("New peers: {:?}", peers);
+                self.broadcaster.topology_updated(peers.len());
+                self.topology.add_snapshot(peers);
+                self.block_manager.resume();
+            }
+            TopologyEvent::LocalPeerRemoved | TopologyEvent::NotEnoughPeers => {
+                log::info!("Topology update: Local peer removed or not enough peers");
+                self.broadcaster.topology_updated(0);
+                self.topology.add_snapshot(vec![]);
+                self.block_manager.pause();
+            }
+        }
     }
 
     async fn process_new_local_block(

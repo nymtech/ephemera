@@ -1,9 +1,6 @@
-use std::{
-    sync::Arc,
-    time,
-    time::Duration
-};
+use std::{sync::Arc, time, time::Duration};
 
+use crate::block::manager::State;
 use crate::{
     block::{
         manager::{BlockChainState, BlockManager},
@@ -73,6 +70,7 @@ impl BlockManagerBuilder {
             delay: self.delay,
             message_pool,
             block_chain_state,
+            state: State::Paused,
         })
     }
 }

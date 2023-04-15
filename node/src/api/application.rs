@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::api::types::{ApiBlock, ApiEphemeraMessage};
+use crate::peer_discovery::PeerId;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RemoveMessages {
@@ -50,7 +51,6 @@ pub trait Application {
     /// Ephemera produces new blocks with configured interval.
     /// Application can decide whether to accept the block or not.
     /// For example, if the block doesn't contain any transactions, it can be rejected.
-    //TODO: maybe add more metadata, including list of peers which will be part of broadcast
     fn check_block(&self, block: &ApiBlock) -> Result<CheckBlockResult>;
 
     /// Deliver Block is called after block is confirmed by Ephemera and persisted to the storage.

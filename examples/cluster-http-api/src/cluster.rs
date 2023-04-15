@@ -34,6 +34,7 @@ impl Cluster {
 
     /// Submit messages to different nodes at the same interval.
     /// Which means that blocks from different nodes will include almost identical set of messages.
+    #[allow(dead_code)]
     pub(crate) async fn submit_messages_to_all_nodes_at_the_same_interval(
         &self,
         interval_sec: u64,
@@ -79,6 +80,7 @@ impl Cluster {
     }
 
     //Gossip should broadcast messages to all nodes
+    #[allow(dead_code)]
     pub(crate) async fn submit_messages_to_an_random_node_and_make_a_break(
         &self,
         interval_sec: u64,
@@ -130,6 +132,7 @@ impl Cluster {
         Ok(handle)
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn submit_messages_to_at_random_burst_and_wait(
         &self,
         nr_of_messages: usize,

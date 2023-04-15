@@ -7,7 +7,6 @@ use std::{
 
 use anyhow::anyhow;
 use futures::Stream;
-
 use lru::LruCache;
 use thiserror::Error;
 
@@ -85,6 +84,11 @@ impl BlockChainState {
     }
 }
 
+pub(crate) enum State {
+    Paused,
+    Running,
+}
+
 pub(crate) struct BlockManager {
     pub(crate) config: BlockConfig,
     /// Block producer. Simple helper that creates blocks
@@ -97,6 +101,8 @@ pub(crate) struct BlockManager {
     pub(crate) block_signer: BlockSigner,
     /// State management for new blocks
     pub(crate) block_chain_state: BlockChainState,
+    /// Current state of the block manager
+    pub(crate) state: State,
 }
 
 impl BlockManager {
@@ -227,6 +233,17 @@ impl BlockManager {
     pub(crate) fn get_block_certificates(&mut self, hash: &HashType) -> Option<Vec<Certificate>> {
         self.block_signer.get_block_certificates(hash)
     }
+
+    pub(crate) fn pause(&mut self) {
+        log::debug!("Pausing block production");
+        self.state = State::Paused;
+    }
+
+    pub(crate) fn resume(&mut self) {
+        log::debug!("Resuming block production");
+        self.block_chain_state.last_produced_block.take();
+        self.state = State::Running;
+    }
 }
 
 //Produces blocks at a predefined interval.
@@ -241,6 +258,10 @@ impl Stream for BlockManager {
         //Optionally it is possible to turn off block production and let the node behave just as voter.
         //For example for testing purposes.
         if !self.config.producer {
+            return Pending;
+        }
+
+        if let State::Paused = self.state {
             return Pending;
         }
 
@@ -554,6 +575,7 @@ mod test {
                 delay: tokio::time::interval(Duration::from_millis(1)),
                 block_signer: BlockSigner::new(keypair),
                 block_chain_state,
+                state: State::Running,
             },
             peer_id,
         )

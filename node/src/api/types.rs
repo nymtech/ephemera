@@ -5,22 +5,27 @@
 //! ## Types
 //!
 //! - ApiEphemeraMessage
+//! - RawApiEphemeraMessage
 //! - ApiBlock
 //! - ApiCertificate
 //! - Health
+//! - ApiError
 //! - ApiEphemeraConfig
-
-use std::fmt::Display;
+//! - ApiDhtQueryRequest
+//! - ApiDhtQueryResponse
+//! - ApiDhtStoreRequest
 
 use array_bytes::{bytes2hex, hex2bytes};
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
+use thiserror::Error;
 use utoipa::ToSchema;
 
 use crate::{
-    api::ApiError,
     block::types::{block::Block, block::BlockHeader, message::EphemeraMessage},
     codec::{Decode, Encode, EphemeraEncoder},
     crypto::{Keypair, PublicKey},
+    ephemera_api::ApplicationError,
     network::peer::PeerId,
     utilities::{
         crypto::{Certificate, Signature},
@@ -29,10 +34,33 @@ use crate::{
     },
 };
 
+#[derive(Error, Debug)]
+pub enum ApiError {
+    #[error("Application rejected ephemera message")]
+    ApplicationRejectedMessage,
+    #[error("Duplicate message")]
+    DuplicateMessage,
+    #[error("Invalid block hash: {0}")]
+    InvalidBlockHash(#[from] bs58::decode::Error),
+    #[error("ApplicationError: {0}")]
+    Application(#[from] ApplicationError),
+    #[error("Internal error: {0}")]
+    Internal(#[from] anyhow::Error),
+}
+
 /// # Ephemera message.
 ///
-/// An ApiEphemeraMessage submitted to an Ephemera node will be gossiped to other nodes.
-/// And should be eventually included in a Ephemera block.
+/// A message submitted to an Ephemera node will be gossiped to other nodes.
+/// And will be eventually included in a Ephemera block.
+///
+/// It needs to signed by the sender. The signature is included in the certificate.
+///
+/// The fields of the message what are signed:
+/// - timestamp
+/// - label
+/// - data
+///
+/// Currently it's up provided [ephemera_api::application::Application] to verify the signature.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiEphemeraMessage {
     /// The timestamp of the message.
@@ -41,7 +69,7 @@ pub struct ApiEphemeraMessage {
     pub label: String,
     /// The data of the message. It is application specific.
     pub data: Vec<u8>,
-    /// The signature of the message. It implements Default trait instead of using Option.
+    /// The certificate of the message. All messages are required to be signed.
     pub certificate: ApiCertificate,
 }
 
@@ -54,6 +82,146 @@ impl ApiEphemeraMessage {
             certificate,
         }
     }
+}
+
+/// RawApiEphemeraMessage contains the fields of the ApiEphemeraMessage that are signed.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct RawApiEphemeraMessage {
+    /// The timestamp of the message. It's initialized when the message is created.
+    /// It uses UTC time.
+    pub timestamp: u64,
+    /// The label of the message. It can be used to identify the type of a message for example.
+    pub label: String,
+    /// The data of the message. It is application specific.
+    pub data: Vec<u8>,
+}
+
+impl RawApiEphemeraMessage {
+    pub fn new(label: String, data: Vec<u8>) -> Self {
+        Self {
+            timestamp: EphemeraTime::now(),
+            label,
+            data,
+        }
+    }
+
+    /// Signs the message with the given keypair.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ephemera::codec::Encode;
+    /// use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
+    /// use ephemera::ephemera_api::{ApiEphemeraMessage, RawApiEphemeraMessage};
+    ///
+    /// let keypair = Keypair::generate(None);
+    /// let raw_message = RawApiEphemeraMessage::new("test".to_string(), vec![]);
+    ///
+    /// let signed_message:ApiEphemeraMessage = raw_message.sign(&keypair).unwrap();
+    ///
+    /// assert_eq!(signed_message.certificate.public_key, keypair.public_key());
+    ///
+    /// let bytes = raw_message.encode().unwrap();
+    /// assert!(keypair.public_key().verify(&bytes, &signed_message.certificate.signature));
+    /// ```
+    pub fn sign(&self, keypair: &Keypair) -> anyhow::Result<ApiEphemeraMessage> {
+        let certificate = Certificate::prepare(keypair, &self)?;
+        let message = ApiEphemeraMessage::new(self.clone(), certificate.into());
+        Ok(message)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct ApiBlockHeader {
+    /// The timestamp of the block. It's initialized when the block is created.
+    /// It uses UTC time.
+    pub timestamp: u64,
+    /// The PeerId of the block producer instance.
+    pub creator: PeerId,
+    /// The height of the block.
+    pub height: u64,
+    /// The hash of the current block.
+    pub hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiBlock {
+    pub header: ApiBlockHeader,
+    pub messages: Vec<ApiEphemeraMessage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct ApiRawBlock {
+    pub(crate) header: ApiBlockHeader,
+    pub(crate) messages: Vec<ApiEphemeraMessage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiCertificate {
+    pub signature: Signature,
+    pub public_key: PublicKey,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiEphemeraConfig {
+    /// The address of the node. It's the address what Ephemera instance uses to communicate with other nodes.
+    pub protocol_address: String,
+    /// The HTTP API address of the node.
+    pub api_address: String,
+    /// The WebSocket address of the node.
+    pub websocket_address: String,
+    /// Node's public key.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ephemera::crypto::{EphemeraKeypair, Keypair, PublicKey};
+    ///
+    /// let keypair = Keypair::generate(None);
+    /// let public_key = keypair.public_key().to_string();
+    ///
+    /// let from_str = public_key.parse::<PublicKey>().unwrap();
+    ///
+    /// assert_eq!(keypair.public_key(), from_str);
+    /// ```
+    pub public_key: String,
+    /// True if the node is a block producer. It's a configuration option.
+    pub block_producer: bool,
+    /// The interval of block creation in seconds. It's a configuration option.
+    pub block_creation_interval_sec: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiDhtQueryRequest {
+    /// The key to query for in hex format.
+    key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiDhtQueryResponse {
+    /// The key that was queried for in hex format.
+    key: String,
+    /// The value that was stored under the queried key in hex format.
+    value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub enum HealthStatus {
+    Healthy,
+    Unhealthy,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct Health {
+    pub(crate) status: HealthStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiDhtStoreRequest {
+    /// The key to store the value under in hex format.
+    key: String,
+    /// The value to store in hex format.
+    value: String,
 }
 
 impl Display for ApiEphemeraMessage {
@@ -87,29 +255,6 @@ impl From<ApiEphemeraMessage> for EphemeraMessage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct RawApiEphemeraMessage {
-    pub timestamp: u64,
-    pub label: String,
-    pub data: Vec<u8>,
-}
-
-impl RawApiEphemeraMessage {
-    pub fn new(label: String, data: Vec<u8>) -> Self {
-        Self {
-            timestamp: EphemeraTime::now(),
-            label,
-            data,
-        }
-    }
-
-    pub fn sign(&self, keypair: &Keypair) -> anyhow::Result<ApiEphemeraMessage> {
-        let certificate = Certificate::prepare(keypair, &self)?;
-        let message = ApiEphemeraMessage::new(self.clone(), certificate.into());
-        Ok(message)
-    }
-}
-
 impl Decode for RawApiEphemeraMessage {
     type Output = Self;
 
@@ -130,14 +275,6 @@ impl Encode for &RawApiEphemeraMessage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct ApiBlockHeader {
-    pub timestamp: u64,
-    pub creator: PeerId,
-    pub height: u64,
-    pub hash: String,
-}
-
 impl Display for ApiBlockHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -146,12 +283,6 @@ impl Display for ApiBlockHeader {
             self.timestamp, self.creator, self.height, self.hash,
         )
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiBlock {
-    pub header: ApiBlockHeader,
-    pub messages: Vec<ApiEphemeraMessage>,
 }
 
 impl ApiBlock {
@@ -188,22 +319,10 @@ impl Display for ApiBlock {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct ApiRawBlock {
-    pub(crate) header: ApiBlockHeader,
-    pub(crate) messages: Vec<ApiEphemeraMessage>,
-}
-
 impl ApiRawBlock {
     pub fn new(header: ApiBlockHeader, messages: Vec<ApiEphemeraMessage>) -> Self {
         Self { header, messages }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiCertificate {
-    pub signature: Signature,
-    pub public_key: PublicKey,
 }
 
 impl ApiCertificate {
@@ -215,21 +334,6 @@ impl ApiCertificate {
         let certificate: Certificate = (self.clone()).into();
         Certificate::verify(&certificate, data)
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct Health {
-    pub(crate) status: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiEphemeraConfig {
-    pub protocol_address: String,
-    pub api_address: String,
-    pub websocket_address: String,
-    pub public_key: String,
-    pub block_producer: bool,
-    pub block_creation_interval_sec: u64,
 }
 
 impl From<EphemeraMessage> for ApiEphemeraMessage {
@@ -264,7 +368,6 @@ impl From<ApiCertificate> for Certificate {
     }
 }
 
-//FIXME
 impl From<&Block> for &ApiBlock {
     fn from(block: &Block) -> Self {
         let api_block: ApiBlock = block.clone().into();
@@ -311,14 +414,6 @@ impl TryFrom<ApiBlock> for Block {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiDhtStoreRequest {
-    /// The key to store the value under in hex format.
-    key: String,
-    /// The value to store in hex format.
-    value: String,
-}
-
 impl ApiDhtStoreRequest {
     pub fn new(key: &[u8], value: &[u8]) -> Self {
         let key = bytes2hex("0x", key);
@@ -328,19 +423,13 @@ impl ApiDhtStoreRequest {
 
     pub fn key(&self) -> Vec<u8> {
         //We can unwrap here because the key is always valid.
-        hex2bytes(&self.key).expect("Failed to decode key")
+        hex2bytes(&self.key).unwrap()
     }
 
     pub fn value(&self) -> Vec<u8> {
         //We can unwrap here because the value is always valid.
-        hex2bytes(&self.value).expect("Failed to decode value")
+        hex2bytes(&self.value).unwrap()
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiDhtQueryRequest {
-    /// The key to query for in hex format.
-    key: String,
 }
 
 impl ApiDhtQueryRequest {
@@ -354,20 +443,12 @@ impl ApiDhtQueryRequest {
     }
 
     pub fn key(&self) -> Vec<u8> {
-        hex2bytes(&self.key).expect("Failed to decode key")
+        hex2bytes(&self.key).unwrap()
     }
 
     pub(crate) fn parse_key(key: &str) -> Vec<u8> {
-        hex2bytes(key).expect("Failed to decode key")
+        hex2bytes(key).unwrap()
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiDhtQueryResponse {
-    /// The key that was queried for in hex format.
-    key: String,
-    /// The value that was stored under the queried key in hex format.
-    value: String,
 }
 
 impl ApiDhtQueryResponse {
@@ -378,11 +459,13 @@ impl ApiDhtQueryResponse {
     }
 
     pub fn key(&self) -> Vec<u8> {
-        hex2bytes(&self.key).expect("Failed to decode key")
+        //We can unwrap here because the key is always valid.
+        hex2bytes(&self.key).unwrap()
     }
 
     pub fn value(&self) -> Vec<u8> {
-        hex2bytes(&self.value).expect("Failed to decode value")
+        //We can unwrap here because the value is always valid.
+        hex2bytes(&self.value).unwrap()
     }
 }
 
@@ -393,7 +476,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_sign_ok() {
+    fn test_message_sign_ok() {
         let message_signing_keypair = Keypair::generate(None);
 
         let message = RawApiEphemeraMessage::new("test".to_string(), vec![1, 2, 3]);
@@ -409,7 +492,7 @@ mod test {
     }
 
     #[test]
-    fn test_sign_fail() {
+    fn test_message_sign_fail() {
         let message_signing_keypair = Keypair::generate(None);
 
         let message = RawApiEphemeraMessage::new("test1".to_string(), vec![1, 2, 3]);

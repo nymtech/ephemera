@@ -8,7 +8,7 @@ use crate::{
     api::{
         self,
         application::Application,
-        types::{ApiBlock, ApiCertificate},
+        types::{ApiBlock, ApiCertificate, ApiError},
         ApiCmd,
     },
     block::{manager::BlockManagerError, types::message},
@@ -20,7 +20,7 @@ use crate::{
 
 pub(crate) struct ApiCmdProcessor {
     pub(crate) dht_query_cache:
-        LruCache<Vec<u8>, Sender<Result<Option<(Vec<u8>, Vec<u8>)>, api::ApiError>>>,
+        LruCache<Vec<u8>, Sender<Result<Option<(Vec<u8>, Vec<u8>)>, ApiError>>>,
 }
 
 impl ApiCmdProcessor {
@@ -48,7 +48,7 @@ impl ApiCmdProcessor {
                         Ok(api_block.into())
                     }
                     Ok(None) => Ok(None),
-                    Err(err) => Err(api::ApiError::Internal(err)),
+                    Err(err) => Err(ApiError::Internal(err)),
                 };
                 reply
                     .send(response)
@@ -62,7 +62,7 @@ impl ApiCmdProcessor {
                         Ok(api_block.into())
                     }
                     Ok(None) => Ok(None),
-                    Err(err) => Err(api::ApiError::Internal(err)),
+                    Err(err) => Err(ApiError::Internal(err)),
                 };
                 reply
                     .send(response)
@@ -72,10 +72,10 @@ impl ApiCmdProcessor {
             ApiCmd::QueryLastBlock(reply) => {
                 let response = match ephemera.storage.lock().await.get_last_block() {
                     Ok(Some(block)) => Ok(block.into()),
-                    Ok(None) => Err(api::ApiError::Internal(anyhow::Error::msg(
+                    Ok(None) => Err(ApiError::Internal(anyhow::Error::msg(
                         "No blocks found, this is a bug!",
                     ))),
-                    Err(err) => Err(api::ApiError::Internal(err)),
+                    Err(err) => Err(ApiError::Internal(err)),
                 };
                 reply
                     .send(response)
@@ -96,7 +96,7 @@ impl ApiCmdProcessor {
                         });
                         Ok(certificates)
                     }
-                    Err(err) => Err(api::ApiError::Internal(err)),
+                    Err(err) => Err(ApiError::Internal(err)),
                 };
                 reply
                     .send(response)
@@ -120,7 +120,7 @@ impl ApiCmdProcessor {
                     Err(err) => {
                         log::error!("Error sending QueryDht to network: {:?}", err);
                         reply
-                            .send(Err(api::ApiError::Internal(err)))
+                            .send(Err(ApiError::Internal(err)))
                             .expect("Error sending QueryDht response to api");
                     }
                 };
@@ -132,7 +132,7 @@ impl ApiCmdProcessor {
                     .await
                 {
                     Ok(_) => Ok(()),
-                    Err(err) => Err(api::ApiError::Internal(err)),
+                    Err(err) => Err(ApiError::Internal(err)),
                 };
                 reply
                     .send(response)
@@ -182,26 +182,24 @@ impl ApiCmdProcessor {
                             .await
                         {
                             Ok(_) => Ok(()),
-                            Err(err) => Err(api::ApiError::Internal(err)),
+                            Err(err) => Err(ApiError::Internal(err)),
                         }
                     }
                     Err(err) => match err {
-                        BlockManagerError::DuplicateMessage(_) => {
-                            Err(api::ApiError::DuplicateMessage)
-                        }
+                        BlockManagerError::DuplicateMessage(_) => Err(ApiError::DuplicateMessage),
                         BlockManagerError::General(err) => {
-                            Err(api::ApiError::Internal(anyhow::Error::msg(err.to_string())))
+                            Err(ApiError::Internal(anyhow::Error::msg(err.to_string())))
                         }
                     },
                 }
             }
             Ok(false) => {
                 log::debug!("Application rejected ephemera message: {:?}", api_msg);
-                Err(api::ApiError::ApplicationRejectedMessage)
+                Err(ApiError::ApplicationRejectedMessage)
             }
             Err(err) => {
                 log::error!("Application rejected ephemera message: {:?}", err);
-                Err(api::ApiError::Application(err))
+                Err(ApiError::Application(err))
             }
         };
         reply

@@ -1,6 +1,7 @@
 use actix_web::{get, web, HttpResponse, Responder};
 
 use crate::api::types::Health;
+use crate::api::types::HealthStatus::Healthy;
 use crate::api::EphemeraExternalApi;
 use crate::ephemera_api::{ApiDhtQueryRequest, ApiDhtQueryResponse};
 
@@ -12,9 +13,7 @@ responses(
 pub(crate) async fn health() -> impl Responder {
     log::debug!("GET /ephemera/node/health");
 
-    HttpResponse::Ok().json(Health {
-        status: "OK".to_string(),
-    })
+    HttpResponse::Ok().json(Health { status: Healthy })
 }
 
 #[utoipa::path(

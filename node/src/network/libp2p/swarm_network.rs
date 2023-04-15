@@ -12,10 +12,10 @@ use crate::{
     broadcast::RbMsg,
     codec::Encode,
     core::builder::NodeInfo,
-    network::libp2p::behaviours::peer_discovery,
     network::{
         discovery::PeerDiscovery,
         libp2p::{
+            behaviours::peer_discovery,
             behaviours::{
                 broadcast_messages::RbMsgResponse,
                 common_behaviour::{
@@ -28,7 +28,8 @@ use crate::{
             },
             network_sender::{
                 EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender,
-                NetworkEvent,
+                NetworkEvent, TopologyEvent,
+                TopologyEvent::{LocalPeerRemoved, NotEnoughPeers},
             },
         },
     },
@@ -118,7 +119,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         self.swarm
             .behaviour_mut()
             .rendezvous_behaviour
-            .spawn()
+            .spawn_peer_discovery()
             .await
     }
 
@@ -186,8 +187,8 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 }
             }
 
-            GroupBehaviourEvent::Rendezvous(event) => {
-                if let Err(err) = self.process_rendezvous_event(event).await {
+            GroupBehaviourEvent::PeerDiscovery(event) => {
+                if let Err(err) = self.process_peer_discovery_event(event).await {
                     log::error!("Error processing rendezvous event: {:?}", err);
                 }
             }
@@ -214,13 +215,13 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             }
 
             gossipsub::Event::Subscribed { peer_id, topic } => {
-                log::debug!("Peer {peer_id:?} subscribed to topic {topic:?}");
+                log::trace!("Peer {peer_id:?} subscribed to topic {topic:?}");
             }
             gossipsub::Event::Unsubscribed { peer_id, topic } => {
-                log::debug!("Peer {peer_id:?} unsubscribed from topic {topic:?}");
+                log::trace!("Peer {peer_id:?} unsubscribed from topic {topic:?}");
             }
             gossipsub::Event::GossipsubNotSupported { peer_id } => {
-                log::debug!("Peer {peer_id:?} does not support gossipsub");
+                log::trace!("Peer {peer_id:?} does not support gossipsub");
             }
         }
         Ok(())
@@ -281,7 +282,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         Ok(())
     }
 
-    async fn process_rendezvous_event(
+    async fn process_peer_discovery_event(
         &mut self,
         event: peer_discovery::behaviour::Event,
     ) -> anyhow::Result<()> {
@@ -301,7 +302,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     if *peer.peer_id.inner() == local_peer_id {
                         continue;
                     }
-                    kademlia.add_address(peer.peer_id.inner(), peer.address.clone());
+                    kademlia.add_address(peer.peer_id.inner(), peer.address.inner());
                 }
 
                 let query_id = self
@@ -316,9 +317,13 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             }
             peer_discovery::behaviour::Event::LocalRemoved => {
                 //TODO: should pause all network block and message activities
-                self.to_ephemera_tx
-                    .send_network_event(NetworkEvent::LocalPeerRemoved)
-                    .await?;
+                let update = NetworkEvent::TopologyUpdate(LocalPeerRemoved);
+                self.to_ephemera_tx.send_network_event(update).await?;
+            }
+            peer_discovery::behaviour::Event::NotEnoughPeers => {
+                //TODO: should pause all network block and message activities
+                let update = NetworkEvent::TopologyUpdate(NotEnoughPeers);
+                self.to_ephemera_tx.send_network_event(update).await?;
             }
         }
         Ok(())
@@ -375,8 +380,11 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                                 let new_peer_ids =
                                     self.swarm.behaviour().rendezvous_behaviour.peer_ids();
 
+                                let topology_update = NetworkEvent::TopologyUpdate(
+                                    TopologyEvent::PeersUpdated(new_peer_ids),
+                                );
                                 self.to_ephemera_tx
-                                    .send_network_event(NetworkEvent::PeersUpdated(new_peer_ids))
+                                    .send_network_event(topology_update)
                                     .await?;
                             }
                             Err(err) => {

@@ -56,6 +56,7 @@ fn swagger_ui() -> SwaggerUi {
             types::ApiEphemeraMessage,
             types::ApiCertificate,
             types::Health,
+            types::HealthStatus,
             types::ApiEphemeraConfig,
             types::ApiDhtStoreRequest,
             types::ApiDhtQueryRequest,
