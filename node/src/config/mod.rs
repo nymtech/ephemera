@@ -29,14 +29,6 @@ pub struct Libp2pConfig {
     pub port: u16,
     pub ephemera_msg_topic_name: String,
     pub heartbeat_interval_sec: u64,
-    pub peers: Vec<PeerSetting>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct PeerSetting {
-    pub name: String,
-    pub address: String,
-    pub pub_key: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

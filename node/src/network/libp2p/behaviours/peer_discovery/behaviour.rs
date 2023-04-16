@@ -25,9 +25,9 @@ use std::{
     time::Duration,
 };
 
-use libp2p::swarm::ToSwarm;
 use libp2p::{
     core::ConnectedPoint,
+    swarm::ToSwarm,
     swarm::{
         behaviour::ConnectionEstablished,
         dial_opts::{DialOpts, PeerCondition},
@@ -45,8 +45,7 @@ use crate::{
     logging::pretty_json,
     network::{
         discovery::{PeerDiscovery, PeerInfo},
-        libp2p::behaviours::peer_discovery::handler::Handler,
-        libp2p::behaviours::peer_discovery::MAX_DIAL_ATTEMPT_ROUNDS,
+        libp2p::behaviours::peer_discovery::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS},
         peer::{Peer, PeerId},
     },
 };

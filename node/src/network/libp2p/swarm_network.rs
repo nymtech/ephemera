@@ -85,10 +85,8 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     }
 
     pub(crate) async fn start(mut self) -> anyhow::Result<()> {
-        // Spawn rendezvous behaviour outside of swarm event loop.
-        // It would look better if it were integrated into libp2p architecture.
-        // Maybe some good ideas will come up in the future.
-        let mut rendezvous_handle = self.start_peer_discovery().await?;
+        // Spawn user provided PeerDiscovery
+        let mut peer_discovery_handle = self.start_peer_discovery().await?;
 
         loop {
             tokio::select! {
@@ -107,7 +105,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 Some(event) = self.from_ephemera_rcv.net_event_rcv.recv() => {
                     self.process_ephemera_events(event).await;
                 }
-                _ = &mut rendezvous_handle => {
+                _ = &mut peer_discovery_handle => {
                     info!("Rendezvous behaviour finished");
                     return Ok(());
                 }

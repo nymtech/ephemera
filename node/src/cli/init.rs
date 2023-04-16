@@ -63,7 +63,6 @@ impl InitCmd {
                 port: self.protocol_port,
                 ephemera_msg_topic_name: DEFAULT_MESSAGES_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
-                peers: vec![],
             },
             storage: DbConfig {
                 rocket_path: rocksdb_path.as_os_str().to_str().unwrap().to_string(),

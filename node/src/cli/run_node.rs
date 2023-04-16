@@ -1,17 +1,20 @@
+use std::io::Write;
 use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use clap::Parser;
 use log::trace;
+use serde::{Deserialize, Serialize};
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::mpsc::UnboundedSender,
 };
 
+use crate::cli::peers::ConfigPeers;
 use crate::{
     api::application::CheckBlockResult,
     codec::EphemeraEncoder,
-    config::{Configuration, PeerSetting},
+    config::Configuration,
     core::builder::EphemeraStarter,
     crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey},
     ephemera_api::{
@@ -38,7 +41,7 @@ impl RunExternalNodeCmd {
         let ephemera = EphemeraStarter::new(conf.clone())
             .unwrap()
             .with_application(DefaultApplication)
-            .with_peer_discovery(ConfigPeers::new(&conf))
+            .with_peer_discovery(ConfigPeers::load()?)
             .init_tasks()
             .await
             .unwrap();
@@ -110,60 +113,6 @@ struct DummyPeerDiscovery;
 #[async_trait]
 impl PeerDiscovery for DummyPeerDiscovery {
     async fn poll(&mut self, _: UnboundedSender<Vec<PeerInfo>>) -> peer_discovery::Result<()> {
-        Ok(())
-    }
-
-    fn get_poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(60 * 60 * 24)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ConfigPeers {
-    peers: Vec<PeerInfo>,
-}
-
-impl ConfigPeers {
-    pub fn new(config: &Configuration) -> ConfigPeers {
-        let mut peers = vec![];
-        for setting in config.libp2p.peers.clone() {
-            peers.push(setting.try_into().unwrap());
-        }
-
-        //Construct local peer info
-        let private_key = Keypair::from_base58(config.node.private_key.as_str()).unwrap();
-        let public_key = private_key.public_key().to_base58();
-        let local = PeerSetting {
-            name: "local".to_string(),
-            address: format!("/ip4/{}/tcp/{}", config.node.ip, config.libp2p.port,),
-            pub_key: public_key,
-        };
-        peers.push(local.try_into().unwrap());
-
-        ConfigPeers { peers }
-    }
-}
-
-impl TryFrom<PeerSetting> for PeerInfo {
-    type Error = anyhow::Error;
-
-    fn try_from(setting: PeerSetting) -> std::result::Result<Self, Self::Error> {
-        let pub_key = PublicKey::from_base58(setting.pub_key.as_str())?;
-        Ok(PeerInfo {
-            name: setting.name,
-            address: setting.address,
-            pub_key,
-        })
-    }
-}
-
-#[async_trait::async_trait]
-impl PeerDiscovery for ConfigPeers {
-    async fn poll(
-        &mut self,
-        discovery_channel: UnboundedSender<Vec<PeerInfo>>,
-    ) -> peer_discovery::Result<()> {
-        discovery_channel.send(self.peers.clone()).unwrap();
         Ok(())
     }
 

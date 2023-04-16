@@ -282,7 +282,7 @@ create_cluster() {
   EPHEMERA_PORT=3000
   HTTP_API_PORT=7000
   for ((c = 1; c <= NR_OF_NODES; c++)); do
-    $EPHEMERA init \
+    $EPHEMERA init-config \
       --node-name node"$c" \
       --protocol-port $EPHEMERA_PORT \
       --websocket-port "$WS_PORT" \
@@ -297,7 +297,7 @@ create_cluster() {
     EPHEMERA_PORT=$((EPHEMERA_PORT + 1))
     NETWORK_PORT=$((NETWORK_PORT + 1))
   done
-  $EPHEMERA add-local-peers
+  $EPHEMERA init-local-peers-config
 
   status=$?
   [ $status -eq 0 ] && echo "Successfully created cluster" || echo "Creating cluster failed"

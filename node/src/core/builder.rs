@@ -110,7 +110,7 @@ pub struct EphemeraHandle {
 
 pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
     config: Configuration,
-    pub(crate) node_info: NodeInfo,
+    node_info: NodeInfo,
     block_manager_builder: Option<BlockManagerBuilder>,
     block_manager: Option<BlockManager>,
     broadcaster: Broadcaster,

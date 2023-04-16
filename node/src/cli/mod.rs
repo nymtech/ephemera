@@ -15,9 +15,8 @@ pub struct Cli {
 
 #[derive(Clone, Debug, clap::Subcommand)]
 pub enum Subcommand {
-    Init(init::InitCmd),
-    AddPeer(peers::AddPeerCmd),
-    AddLocalPeers(peers::AddLocalPeersCmd),
+    InitConfig(init::InitCmd),
+    InitLocalPeersConfig(peers::CreateLocalPeersConfiguration),
     RunNode(run_node::RunExternalNodeCmd),
     GenerateKeypair(crypto::GenerateKeypairCmd),
     UpdateConfig(config::UpdateConfigCmd),
@@ -26,13 +25,10 @@ pub enum Subcommand {
 impl Cli {
     pub async fn execute(self) -> anyhow::Result<()> {
         match self.subcommand {
-            Subcommand::Init(init) => {
+            Subcommand::InitConfig(init) => {
                 init.execute();
             }
-            Subcommand::AddPeer(add_peer) => {
-                add_peer.execute();
-            }
-            Subcommand::AddLocalPeers(add_local_peers) => {
+            Subcommand::InitLocalPeersConfig(add_local_peers) => {
                 add_local_peers.execute();
             }
             Subcommand::RunNode(run_node) => run_node.execute().await?,
