@@ -5,6 +5,7 @@ use crate::{
     },
     network::peer::PeerId,
 };
+use log::{debug, trace};
 
 pub(crate) struct BlockProducer {
     pub(crate) peer_id: PeerId,
@@ -20,12 +21,12 @@ impl BlockProducer {
         height: u64,
         pending_messages: Vec<EphemeraMessage>,
     ) -> anyhow::Result<Block> {
-        log::trace!("Pending messages for new block: {:?}", pending_messages);
-        log::debug!("Adding {:?} messages to new block", pending_messages.len());
+        trace!("Pending messages for new block: {:?}", pending_messages);
+        debug!("Adding {:?} messages to new block", pending_messages.len());
 
         let block = self.new_block(height, pending_messages)?;
 
-        log::debug!("Produced new block: {:?}", block);
+        debug!("Produced new block: {:?}", block);
         Ok(block)
     }
 

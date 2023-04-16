@@ -4,8 +4,12 @@
 //!
 //! This API is also available over HTTP.
 
-use std::fmt::Display;
+pub(crate) mod application;
+pub(crate) mod http;
+pub(crate) mod types;
 
+use log::trace;
+use std::fmt::Display;
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot,
@@ -14,10 +18,6 @@ use tokio::sync::{
 use crate::api::types::{
     ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, ApiError,
 };
-
-pub(crate) mod application;
-pub(crate) mod http;
-pub(crate) mod types;
 
 /// Kademlia DHT key
 pub(crate) type DhtKey = Vec<u8>;
@@ -90,21 +90,21 @@ impl EphemeraExternalApi {
 
     /// Returns block with given id if it exists
     pub async fn get_block_by_id(&self, block_id: String) -> Result<Option<ApiBlock>> {
-        log::trace!("get_block_by_id({:?})", block_id);
+        trace!("get_block_by_id({:?})", block_id);
         self.send_and_wait_response(|tx| ApiCmd::QueryBlockById(block_id, tx))
             .await
     }
 
     /// Returns block with given height if it exists
     pub async fn get_block_by_height(&self, height: u64) -> Result<Option<ApiBlock>> {
-        log::trace!("get_block_by_height({:?})", height);
+        trace!("get_block_by_height({:?})", height);
         self.send_and_wait_response(|tx| ApiCmd::QueryBlockByHeight(height, tx))
             .await
     }
 
     /// Returns last block. Which has maximum height and is stored in database
     pub async fn get_last_block(&self) -> Result<ApiBlock> {
-        log::trace!("get_last_block()");
+        trace!("get_last_block()");
         self.send_and_wait_response(ApiCmd::QueryLastBlock).await
     }
 
@@ -113,32 +113,32 @@ impl EphemeraExternalApi {
         &self,
         block_hash: String,
     ) -> Result<Option<Vec<ApiCertificate>>> {
-        log::trace!("get_block_certificates({block_hash:?})",);
+        trace!("get_block_certificates({block_hash:?})",);
         self.send_and_wait_response(|tx| ApiCmd::QueryBlockCertificates(block_hash, tx))
             .await
     }
 
     pub async fn query_dht(&self, key: DhtKey) -> Result<Option<(DhtKey, DhtValue)>> {
-        log::trace!("get_dht({key:?})");
+        trace!("get_dht({key:?})");
         //TODO: this needs timeout(somewhere around dht query functionality)
         self.send_and_wait_response(|tx| ApiCmd::QueryDht(key, tx))
             .await
     }
 
     pub async fn store_in_dht(&self, key: DhtKey, value: DhtValue) -> Result<()> {
-        log::trace!("store_in_dht({key:?}, {value:?})");
+        trace!("store_in_dht({key:?}, {value:?})");
         self.send_and_wait_response(|tx| ApiCmd::StoreInDht(key, value, tx))
             .await
     }
 
     pub async fn get_node_config(&self) -> Result<ApiEphemeraConfig> {
-        log::trace!("get_node_config()");
+        trace!("get_node_config()");
         self.send_and_wait_response(ApiCmd::EphemeraConfig).await
     }
 
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers
     pub async fn send_ephemera_message(&self, message: ApiEphemeraMessage) -> Result<()> {
-        log::trace!("send_ephemera_message({message})",);
+        trace!("send_ephemera_message({message})",);
         self.send_and_wait_response(|tx| ApiCmd::SubmitEphemeraMessage(message.into(), tx))
             .await
     }

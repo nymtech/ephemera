@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 use libp2p::request_response;
+use log::{error, trace};
 use serde::{Deserialize, Serialize};
 
 use crate::broadcast::RbMsg;
@@ -44,11 +45,11 @@ impl RbMsgMessagesCodec {
             buffer_len += 1;
             match unsigned_varint::decode::u32(&buffer[..buffer_len]) {
                 Ok((len, _)) => {
-                    log::trace!("Read varint: {}", len);
+                    trace!("Read varint: {}", len);
                     return Ok(len);
                 }
                 Err(unsigned_varint::decode::Error::Overflow) => {
-                    log::error!("Invalid varint received");
+                    error!("Invalid varint received");
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
                         "Invalid varint",
@@ -58,7 +59,7 @@ impl RbMsgMessagesCodec {
                     continue;
                 }
                 Err(_) => {
-                    log::error!("Varint decoding error: #[non_exhaustive]");
+                    error!("Varint decoding error: #[non_exhaustive]");
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
                         "Invalid varint",
@@ -122,7 +123,7 @@ impl request_response::Codec for RbMsgMessagesCodec {
     {
         let data = Self::read_length_prefixed(io, 1024 * 1024).await?;
         let msg = serde_json::from_slice(&data)?;
-        log::trace!("Received request {:?}", msg);
+        trace!("Received request {:?}", msg);
         Ok(msg)
     }
 
@@ -136,7 +137,7 @@ impl request_response::Codec for RbMsgMessagesCodec {
     {
         let response = Self::read_length_prefixed(io, 1024 * 1024).await?;
         let response = serde_json::from_slice(&response)?;
-        log::trace!("Received response {:?}", response);
+        trace!("Received response {:?}", response);
         Ok(response)
     }
 
@@ -149,7 +150,7 @@ impl request_response::Codec for RbMsgMessagesCodec {
     where
         T: AsyncWrite + Unpin + Send,
     {
-        log::trace!("Writing request {:?}", req);
+        trace!("Writing request {:?}", req);
         let data = serde_json::to_vec(&req).unwrap();
         Self::write_length_prefixed(io, data).await?;
         Ok(())
@@ -164,7 +165,7 @@ impl request_response::Codec for RbMsgMessagesCodec {
     where
         T: AsyncWrite + Unpin + Send,
     {
-        log::trace!("Writing response {:?}", response);
+        trace!("Writing response {:?}", response);
         let response = serde_json::to_vec(&response).unwrap();
         Self::write_length_prefixed(io, response).await?;
         Ok(())

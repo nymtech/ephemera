@@ -2,6 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use clap::Parser;
+use log::trace;
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::mpsc::UnboundedSender,
@@ -89,7 +90,7 @@ impl SignatureVerificationApplication {
 
 impl Application for SignatureVerificationApplication {
     fn check_tx(&self, tx: ApiEphemeraMessage) -> Result<bool> {
-        log::trace!("SignatureVerificationApplicationHook::check_tx");
+        trace!("SignatureVerificationApplicationHook::check_tx");
         self.verify_message(tx)?;
         Ok(true)
     }
@@ -99,7 +100,7 @@ impl Application for SignatureVerificationApplication {
     }
 
     fn deliver_block(&self, _block: ApiBlock) -> Result<()> {
-        log::trace!("SignatureVerificationApplicationHook::deliver_block");
+        trace!("SignatureVerificationApplicationHook::deliver_block");
         Ok(())
     }
 }

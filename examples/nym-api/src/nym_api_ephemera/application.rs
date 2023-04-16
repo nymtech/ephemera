@@ -4,6 +4,7 @@ use ephemera::{
         ApiBlock, ApiEphemeraMessage, Application, CheckBlockResult, RemoveMessages, Result,
     },
 };
+use log::{debug, error, info};
 
 use crate::contract::MixnodeToReward;
 use crate::peers::NymApiEphemeraPeerInfo;
@@ -24,7 +25,7 @@ impl RewardsEphemeraApplication {
             match NymApiEphemeraPeerInfo::from_ephemera_dev_cluster_conf(&ephemera_config) {
                 Ok(info) => info,
                 Err(err) => {
-                    log::error!("Failed to load peers info: {}", err);
+                    error!("Failed to load peers info: {}", err);
                     return Err(err);
                 }
             };
@@ -46,7 +47,7 @@ impl Application for RewardsEphemeraApplication {
     ///   or messages from unknown peers
     fn check_tx(&self, tx: ApiEphemeraMessage) -> Result<bool> {
         if serde_json::from_slice::<Vec<MixnodeToReward>>(&tx.data).is_err() {
-            log::error!("Message is not a valid Reward message");
+            error!("Message is not a valid Reward message");
             return Ok(false);
         }
         Ok(true)
@@ -58,28 +59,27 @@ impl Application for RewardsEphemeraApplication {
     /// Agree to accept the block if it contains threshold number of transactions
     /// We trust that transactions are valid(checked by check_tx)
     fn check_block(&self, block: &ApiBlock) -> Result<CheckBlockResult> {
-        log::info!("Block message count: {}", block.message_count());
+        info!("Block message count: {}", block.message_count());
 
         let block_threshold = ((block.message_count() as f64
             / self.peer_info.get_peers_count() as f64)
             * 100.0) as u64;
 
         if block_threshold > 100 {
-            log::error!("Block threshold is greater than 100%!. We expected only single message from each peer");
+            error!("Block threshold is greater than 100%!. We expected only single message from each peer");
             return Ok(CheckBlockResult::RejectAndRemoveMessages(
                 RemoveMessages::All,
             ));
         }
 
         if block_threshold >= self.app_config.peers_rewards_threshold {
-            log::info!(
+            info!(
                 "Block accepted {}:{}",
-                block.header.height,
-                block.header.hash
+                block.header.height, block.header.hash
             );
             Ok(CheckBlockResult::Accept)
         } else {
-            log::debug!("Block rejected: not enough messages");
+            debug!("Block rejected: not enough messages");
             Ok(CheckBlockResult::Reject)
         }
     }

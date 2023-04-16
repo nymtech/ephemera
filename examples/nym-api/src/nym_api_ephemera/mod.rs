@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use log::info;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{broadcast, Mutex};
@@ -36,7 +37,7 @@ impl NymApi {
         ephemera_config: Configuration,
         shutdown: Receiver<()>,
     ) -> anyhow::Result<()> {
-        log::info!(
+        info!(
             "Starting nym api with ephemera {} ...",
             args.ephemera_config
         );
@@ -58,7 +59,7 @@ impl NymApi {
                 .await;
 
         //STARTING
-        log::info!("Starting Nym-Api services");
+        info!("Starting Nym-Api services");
         let (shutdown_signal_tx, _shutdown_signal_rcv) = broadcast::channel(1);
         let ephemera_task = tokio::spawn(ephemera.run());
         let rewards_task = tokio::spawn(rewards.start(shutdown_signal_tx.subscribe()));
@@ -75,7 +76,7 @@ impl NymApi {
         )
         .await?;
 
-        log::info!("Shut down complete");
+        info!("Shut down complete");
         Ok(())
     }
 
@@ -83,7 +84,7 @@ impl NymApi {
         args: &Args,
         ephemera_config: Configuration,
     ) -> anyhow::Result<Ephemera<RewardsEphemeraApplication>> {
-        log::info!("Initializing ephemera ...");
+        info!("Initializing ephemera ...");
 
         //Application for Ephemera
         let rewards_ephemera_application =
@@ -133,25 +134,25 @@ impl NymApi {
         metrics: JoinHandle<()>,
     ) -> anyhow::Result<()> {
         shutdown.await?;
-        log::info!("Shutting down nym api ...");
+        info!("Shutting down nym api ...");
         shutdown_signal_tx.send(())?;
 
-        log::info!("Shutting down metrics collector ...");
+        info!("Shutting down metrics collector ...");
         metrics.await?;
-        log::info!("Metrics collector shut down complete");
+        info!("Metrics collector shut down complete");
 
-        log::info!("Shutting down rewards ...");
+        info!("Shutting down rewards ...");
         //doing abort here, rewards has unresponsive long-running loop to submit rewards.
         //No need to bother about graceful shutdown(in simulation)
         rewards.abort();
-        log::info!("Rewards shut down complete");
+        info!("Rewards shut down complete");
 
-        log::info!("Shutting down ephemera ...");
+        info!("Shutting down ephemera ...");
         ephemera_shutdown.shutdown();
         ephemera.await?;
-        log::info!("Ephemera shut down complete");
+        info!("Ephemera shut down complete");
 
-        log::info!("Shut down complete...");
+        info!("Shut down complete...");
 
         Ok(())
     }

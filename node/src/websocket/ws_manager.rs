@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use anyhow::Result;
 use futures_util::SinkExt;
+use log::{debug, error, info};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::broadcast,
@@ -34,9 +35,9 @@ impl WsConnection {
         loop {
             match self.pending_messages_rx.recv().await {
                 Ok(msg) => {
-                    log::debug!("Sending message to {}", self.address);
+                    debug!("Sending message to {}", self.address);
                     if let Err(err) = self.socket.send(msg).await {
-                        log::error!(
+                        error!(
                             "Error sending message to websocket client: {:?}, dropping connection",
                             err
                         );
@@ -45,7 +46,7 @@ impl WsConnection {
                 }
                 Err(e) => {
                     //TODO:: shutdown?
-                    log::error!(
+                    error!(
                         "Error receiving message from broadcast channel: {:?}, dropping connection",
                         e
                     );
@@ -69,7 +70,7 @@ impl WsMessageBroadcaster {
     }
 
     pub(crate) fn send_block(&self, block: &Block) -> Result<()> {
-        log::debug!("Sending block {} to websocket clients", block.header.hash);
+        debug!("Sending block {} to websocket clients", block.header.hash);
         let json = serde_json::to_string::<ApiBlock>(block.into())?;
         let msg = Message::Text(json);
         self.pending_messages_tx.send(msg)?;
@@ -99,7 +100,7 @@ impl WsManager {
 
     pub(crate) async fn listen(&mut self) -> Result<()> {
         let listener = TcpListener::bind(&self.ws_address).await?;
-        log::info!("Listening for websocket connections on {}", self.ws_address);
+        info!("Listening for websocket connections on {}", self.ws_address);
         self.listener = Some(listener);
         Ok(())
     }
@@ -111,7 +112,7 @@ impl WsManager {
                 res = listener.accept() => {
                     match res {
                         Ok((stream, addr)) => {
-                            log::debug!("Accepted websocket connection from: {}", addr);
+                            debug!("Accepted websocket connection from: {}", addr);
                             self.handle_connection(stream, addr);
                         }
                         Err(err) => {
@@ -132,10 +133,10 @@ impl WsManager {
                     connection.accept_messages().await;
                 }
                 Err(err) => {
-                    log::error!("Error accepting websocket connection: {:?}", err);
+                    error!("Error accepting websocket connection: {:?}", err);
                 }
             }
-            log::debug!("Websocket connection closed");
+            debug!("Websocket connection closed");
         });
     }
 }

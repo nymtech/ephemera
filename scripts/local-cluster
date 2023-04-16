@@ -262,7 +262,8 @@ NYM_API_EPHEMERA="$PROJECT_ROOT"/target/release/nym_api_ephemera
 REWARD_CONTRACT="$PROJECT_ROOT"/target/release/reward_contract
 
 export RUST_LOG="nym_api=debug,ephemera=debug,info"
-#export RUST_LOG="debug"
+#export RUST_LOG="info"
+export RUST_LOG_JSON="true"
 #export RUST_BACKTRACE=1
 
 build() {

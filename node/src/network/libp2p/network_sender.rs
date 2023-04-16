@@ -1,3 +1,4 @@
+use log::trace;
 use tokio::sync::mpsc;
 
 use crate::block::types::message::EphemeraMessage;
@@ -5,7 +6,7 @@ use crate::broadcast::RbMsg;
 use crate::network::peer::PeerId;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum TopologyEvent {
+pub(crate) enum GroupChangeEvent {
     PeersUpdated(Vec<PeerId>),
     LocalPeerRemoved,
     NotEnoughPeers,
@@ -15,7 +16,7 @@ pub(crate) enum TopologyEvent {
 pub(crate) enum NetworkEvent {
     EphemeraMessage(Box<EphemeraMessage>),
     BroadcastMessage(Box<RbMsg>),
-    TopologyUpdate(TopologyEvent),
+    GroupUpdate(GroupChangeEvent),
     QueryDhtResponse { key: Vec<u8>, value: Vec<u8> },
 }
 
@@ -56,7 +57,7 @@ impl NetCommunicationSender {
     }
 
     pub(crate) async fn send_network_event(&mut self, event: NetworkEvent) -> anyhow::Result<()> {
-        log::trace!("Network event: {:?}", event);
+        trace!("Network event: {:?}", event);
         self.network_event_sender_tx
             .send(event)
             .await

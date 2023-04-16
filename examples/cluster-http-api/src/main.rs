@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use clap::Parser;
+use log::info;
 
 use ephemera::crypto::EphemeraKeypair;
 use ephemera::helpers::init_logging_with_directives;
@@ -39,7 +40,7 @@ async fn main() {
     }
 
     for node in nodes.iter_mut() {
-        log::info!("Node {} last block: {}", node.id, node.last_block);
+        info!("Node {} last block: {}", node.id, node.last_block);
     }
 
     let mut cluster = cluster::Cluster::new(args.clone(), nodes, keypair);
@@ -65,21 +66,21 @@ async fn main() {
 
     tokio::select! {
         _ = &mut submit_messages_handle => {
-            log::info!("Submit messages task exited");
+            info!("Submit messages task exited");
         }
         _ = &mut query_blocks_by_height_handle => {
-            log::info!("Query blocks by height task exited");
+            info!("Query blocks by height task exited");
         }
         _ = &mut query_block_hashes_handle => {
-            log::info!("Query blocks by hash task exited");
+            info!("Query blocks by hash task exited");
         }
         _ = &mut store_in_dht_handle => {
-            log::info!("Store in dht task exited");
+            info!("Store in dht task exited");
         }
         _ = &mut query_dht_handle => {
-            log::info!("Query dht task exited");
+            info!("Query dht task exited");
         }
     }
 
-    log::info!("Cluster started");
+    info!("Cluster started");
 }

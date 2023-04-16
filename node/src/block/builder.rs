@@ -1,3 +1,4 @@
+use log::{debug, info};
 use std::{sync::Arc, time, time::Duration};
 
 use crate::block::manager::State;
@@ -49,7 +50,7 @@ impl BlockManagerBuilder {
             //it's helpful to have some sort of notion of progress in time. So we use the concept of height.
             //The genesis block helps to define the start of it.
 
-            log::info!("No last block found in database. Creating genesis block.");
+            info!("No last block found in database. Creating genesis block.");
 
             let genesis_block = Block::new_genesis_block(self.block_producer.peer_id);
             storage.store_block(&genesis_block, vec![])?;
@@ -57,7 +58,7 @@ impl BlockManagerBuilder {
         }
 
         let last_created_block = most_recent_block.expect("Block should be present");
-        log::debug!("Most recent block: {:?}", last_created_block);
+        debug!("Most recent block: {:?}", last_created_block);
 
         let block_signer = BlockSigner::new(self.keypair.clone());
         let message_pool = MessagePool::new();

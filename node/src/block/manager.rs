@@ -7,6 +7,7 @@ use std::{
 
 use anyhow::anyhow;
 use futures::Stream;
+use log::{debug, error, trace};
 use lru::LruCache;
 use thiserror::Error;
 
@@ -107,7 +108,7 @@ pub(crate) struct BlockManager {
 
 impl BlockManager {
     pub(crate) fn on_new_message(&mut self, msg: EphemeraMessage) -> Result<()> {
-        log::debug!("Message received: {:?}", msg);
+        debug!("Message received: {:?}", msg);
 
         let message_hash = msg.hash_with_default_hasher()?;
         if self.message_pool.contains(&message_hash) {
@@ -128,7 +129,7 @@ impl BlockManager {
     ) -> Result<()> {
         let hash = block.hash_with_default_hasher()?;
 
-        log::debug!(
+        debug!(
             "Received block: {:?} from peer {sender:?}",
             block.get_hash()
         );
@@ -161,11 +162,11 @@ impl BlockManager {
     pub(crate) fn sign_block(&mut self, block: &Block) -> Result<Certificate> {
         let hash = block.hash_with_default_hasher()?;
 
-        log::debug!("Signing block: {hash:?}");
+        debug!("Signing block: {hash:?}");
 
         let certificate = self.block_signer.sign_block(block, &hash)?;
 
-        log::trace!("Block certificate: {certificate:?}",);
+        trace!("Block certificate: {certificate:?}",);
 
         Ok(certificate)
     }
@@ -174,7 +175,7 @@ impl BlockManager {
         &mut self,
         messages_to_remove: RemoveMessages,
     ) -> Result<()> {
-        log::debug!("Application rejected last created block");
+        debug!("Application rejected last created block");
 
         let last_produced_block = self.block_chain_state.remove_last_produced_block();
         match messages_to_remove {
@@ -185,11 +186,11 @@ impl BlockManager {
                     .map(Into::into)
                     .collect::<Vec<_>>();
 
-                log::debug!("Removing block messages from pool: all: {messages:?}",);
+                debug!("Removing block messages from pool: all: {messages:?}",);
                 self.message_pool.remove_messages(&messages)?;
             }
             RemoveMessages::Selected(messages) => {
-                log::debug!("Removing block messages from pool: selected: {messages:?}",);
+                debug!("Removing block messages from pool: selected: {messages:?}",);
                 let messages = messages.into_iter().map(Into::into).collect::<Vec<_>>();
                 self.message_pool.remove_messages(messages.as_slice())?;
             }
@@ -199,7 +200,7 @@ impl BlockManager {
 
     /// After a block gets committed, clear up mempool from its messages
     pub(crate) fn on_block_committed(&mut self, block: &Block) -> Result<()> {
-        log::debug!("Block committed: {:?}", block);
+        debug!("Block committed: {:?}", block);
 
         let hash = &block.header.hash;
 
@@ -235,12 +236,12 @@ impl BlockManager {
     }
 
     pub(crate) fn pause(&mut self) {
-        log::debug!("Pausing block production");
+        debug!("Pausing block production");
         self.state = State::Paused;
     }
 
     pub(crate) fn resume(&mut self) {
-        log::debug!("Resuming block production");
+        debug!("Resuming block production");
         self.block_chain_state.last_produced_block.take();
         self.state = State::Running;
     }
@@ -277,10 +278,10 @@ impl Stream for BlockManager {
                         .expect("Block should be present");
 
                     //Use only previous block messages but create new block with new timestamp
-                    log::debug!("Producing block with previous messages");
+                    debug!("Producing block with previous messages");
                     block.messages
                 } else {
-                    log::debug!("Producing block with new messages");
+                    debug!("Producing block with new messages");
                     self.message_pool.get_messages()
                 };
 
@@ -290,7 +291,7 @@ impl Stream for BlockManager {
                     .create_block(new_height, pending_messages);
 
                 if let Ok(block) = created_block {
-                    log::debug!("Created block: {:?}", block);
+                    debug!("Created block: {:?}", block.get_hash());
 
                     let hash = block.get_hash();
                     self.block_chain_state.last_produced_block = Some(block.clone());
@@ -303,7 +304,7 @@ impl Stream for BlockManager {
 
                     Ready(Some((block, certificate)))
                 } else {
-                    log::error!("Error producing block: {:?}", created_block);
+                    error!("Error producing block: {:?}", created_block);
                     Pending
                 }
             }

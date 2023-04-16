@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use chrono::Local;
+use log::{error, info, trace};
 use refinery::Runner;
 use rusqlite::{params, Connection, OptionalExtension};
 
@@ -28,10 +29,10 @@ impl<T> Storage<T> {
     pub fn init(db_path: String, migrations: Runner) -> Self {
         let db_file = PathBuf::from(db_path.clone());
         if db_file.exists() {
-            log::info!("Removing previous database file: {}", db_file.display());
+            info!("Removing previous database file: {}", db_file.display());
             std::fs::remove_file(&db_file).unwrap();
         }
-        log::info!("Using database file: {}", db_file.display());
+        info!("Using database file: {}", db_file.display());
 
         let mut connection = Connection::open(db_path).unwrap();
 
@@ -44,14 +45,14 @@ impl<T> Storage<T> {
     }
 
     pub fn run_migrations(connection: &mut Connection, migrations: Runner) -> anyhow::Result<()> {
-        log::info!("Running database migrations");
+        info!("Running database migrations");
         match migrations.run(connection) {
             Ok(ok) => {
-                log::info!("Database migrations completed:{:?} ", ok);
+                info!("Database migrations completed:{:?} ", ok);
                 Ok(())
             }
             Err(err) => {
-                log::error!("Database migrations failed: {}", err);
+                error!("Database migrations failed: {}", err);
                 Err(anyhow::anyhow!(err))
             }
         }
@@ -81,7 +82,7 @@ impl Storage<MetricsStorageType> {
         start: u64,
         end: u64,
     ) -> anyhow::Result<Option<f32>> {
-        log::trace!(
+        trace!(
             "Getting mixnode average reliability for mixnode {} in interval {} - {}",
             id,
             start,

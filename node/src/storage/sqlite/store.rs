@@ -1,5 +1,6 @@
 use crate::block::types::block::Block;
 use anyhow::Result;
+use log::debug;
 use rusqlite::{params, Connection, OpenFlags};
 
 use crate::config::DbConfig;
@@ -20,8 +21,7 @@ impl DbStore {
         block: &Block,
         certificates: Vec<Certificate>,
     ) -> Result<()> {
-        log::debug!("Storing block: {}", block.header);
-        log::trace!("Storing block certificates: {:?}", certificates);
+        debug!("Storing block: {}", block.header);
 
         let hash = block.header.hash.to_string();
         let height = block.header.height;

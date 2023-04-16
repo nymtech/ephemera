@@ -2,6 +2,7 @@ use crate::block::types::block::Block;
 use crate::block::types::message::EphemeraMessage;
 use crate::codec::Encode;
 use crate::utilities::hash::{EphemeraHasher, HashType, Hasher};
+use log::info;
 
 pub(crate) struct Merkle;
 
@@ -56,7 +57,7 @@ impl Merkle {
                 messages_root = Hasher::digest(&hash).to_vec();
                 break;
             } else {
-                log::info!("Merkle tree has {} hashes", new_hashes.len());
+                info!("Merkle tree has {} hashes", new_hashes.len());
                 iter = new_hashes.into_iter();
             }
         }

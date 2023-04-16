@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 
+use log::{debug, error, trace};
 use lru::LruCache;
 use tokio::sync::oneshot::Sender;
 
@@ -34,7 +35,7 @@ impl ApiCmdProcessor {
         ephemera: &mut Ephemera<A>,
         cmd: ApiCmd,
     ) -> anyhow::Result<()> {
-        log::debug!("Processing API request: {:?}", cmd);
+        debug!("Processing API request: {:?}", cmd);
         match cmd {
             ApiCmd::SubmitEphemeraMessage(api_msg, reply) => {
                 // Ask application to decide if we should accept this message.
@@ -118,7 +119,7 @@ impl ApiCmdProcessor {
                         return Ok(());
                     }
                     Err(err) => {
-                        log::error!("Error sending QueryDht to network: {:?}", err);
+                        error!("Error sending QueryDht to network: {:?}", err);
                         reply
                             .send(Err(ApiError::Internal(err)))
                             .expect("Error sending QueryDht response to api");
@@ -167,7 +168,7 @@ impl ApiCmdProcessor {
     ) -> anyhow::Result<()> {
         let response = match ephemera.application.check_tx(*api_msg.clone()) {
             Ok(true) => {
-                log::trace!("Application accepted ephemera message: {:?}", api_msg);
+                trace!("Application accepted ephemera message: {:?}", api_msg);
 
                 // Send to BlockManager to verify it and put into memory pool
                 let ephemera_msg: message::EphemeraMessage = (*api_msg).try_into()?;
@@ -194,11 +195,11 @@ impl ApiCmdProcessor {
                 }
             }
             Ok(false) => {
-                log::debug!("Application rejected ephemera message: {:?}", api_msg);
+                debug!("Application rejected ephemera message: {:?}", api_msg);
                 Err(ApiError::ApplicationRejectedMessage)
             }
             Err(err) => {
-                log::error!("Application rejected ephemera message: {:?}", err);
+                error!("Application rejected ephemera message: {:?}", err);
                 Err(ApiError::Application(err))
             }
         };

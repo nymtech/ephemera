@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use clap::Parser;
+use log::{error, info};
 
 use crate::config::{Configuration, PeerSetting};
 use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
@@ -19,7 +20,7 @@ pub struct AddPeerCmd {
 
 impl AddPeerCmd {
     pub fn execute(self) {
-        log::info!("Add peer command executed");
+        info!("Add peer command executed");
         match Configuration::try_load_from_home_dir(&self.name) {
             Ok(mut configuration) => {
                 let duplicate_name = configuration.libp2p.peers.iter().any(|peer| {
@@ -30,7 +31,7 @@ impl AddPeerCmd {
                 });
 
                 if duplicate_name {
-                    log::error!("Peer with name '{}' already exists", self.name);
+                    error!("Peer with name '{}' already exists", self.name);
                     return;
                 }
 
@@ -41,11 +42,11 @@ impl AddPeerCmd {
                 });
 
                 if let Err(e) = configuration.try_update_root(self.name.as_str()) {
-                    log::error!("Error saving configuration: {}", e);
+                    error!("Error saving configuration: {}", e);
                 }
             }
             Err(err) => {
-                log::error!("Error loading configuration: {}", err);
+                error!("Error loading configuration: {}", err);
             }
         }
     }
@@ -101,7 +102,7 @@ impl AddLocalPeersCmd {
 
         for (node_name, conf) in configs {
             if let Err(e) = conf.try_update_root(&node_name) {
-                log::error!("Error saving configuration: {}", e);
+                error!("Error saving configuration: {}", e);
             }
         }
     }

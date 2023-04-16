@@ -1,3 +1,4 @@
+use log::trace;
 use tokio::sync::mpsc;
 
 use crate::block::types::message::EphemeraMessage;
@@ -48,7 +49,7 @@ impl EphemeraToNetworkSender {
     }
 
     pub(crate) async fn send_ephemera_event(&mut self, event: EphemeraEvent) -> anyhow::Result<()> {
-        log::trace!("Network event: {:?}", event);
+        trace!("Network event: {:?}", event);
         self.network_event_sender_tx
             .send(event)
             .await

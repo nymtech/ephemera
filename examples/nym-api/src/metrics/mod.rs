@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use log::{debug, error, info};
 use rand::Rng;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::Mutex;
@@ -24,7 +25,7 @@ impl MetricsCollector {
     ) -> MetricsCollector {
         let interval =
             tokio::time::interval(std::time::Duration::from_secs(metrics_interval as u64));
-        log::info!("Metrics collector interval: {:?}", metrics_interval);
+        info!("Metrics collector interval: {:?}", metrics_interval);
 
         MetricsCollector { storage, interval }
     }
@@ -34,12 +35,12 @@ impl MetricsCollector {
             tokio::select! {
                 _ = self.interval.tick() => {
                     if let Err(e) = self.collect().await {
-                        log::error!("Failed to collect metrics: {}", e);
+                        error!("Failed to collect metrics: {}", e);
                         break;
                     }
                 }
                 _ = shutdown.recv() => {
-                    log::info!("Stopping metrics collector");
+                    info!("Stopping metrics collector");
                     break;
                 }
             }
@@ -52,7 +53,7 @@ impl MetricsCollector {
 
         let now: DateTime<Utc> = Utc::now();
 
-        log::info!("Storing metrics for {} mixnodes, {}", NR_OF_MIX_NODES, now);
+        info!("Storing metrics for {} mixnodes, {}", NR_OF_MIX_NODES, now);
         storage.submit_mixnode_statuses(now.timestamp(), metrics)
     }
 
@@ -67,7 +68,7 @@ impl MetricsCollector {
                 reliability,
             });
         }
-        log::debug!("Generated metrics {:?}", metrics);
+        debug!("Generated metrics {:?}", metrics);
         metrics
     }
 }

@@ -2,10 +2,11 @@ use std::fmt::Display;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
+use log::{error, info};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::network::topology::BroadcastTopology;
+use crate::network::membership::BroadcastGroup;
 #[cfg(feature = "rocksdb_storage")]
 use crate::storage::rocksdb::RocksDbStorage;
 #[cfg(feature = "sqlite_storage")]
@@ -174,7 +175,7 @@ where
 
     //opens database and spawns dependent tasks
     pub async fn init_tasks(self) -> anyhow::Result<Ephemera<A>> {
-        log::info!("Initializing ephemera tasks...");
+        info!("Initializing ephemera tasks...");
         cfg_if::cfg_if! {
             if #[cfg(feature = "sqlite_storage")] {
                 let starter = self.connect_sqlite().await?;
@@ -199,35 +200,35 @@ where
     //(also relative to Ephemera).
     //TODO: Need to write down how all these components work together and depend on each other
     async fn start_tasks(&mut self, shutdown_manager: &mut ShutdownManager) -> anyhow::Result<()> {
-        log::info!("Starting network...");
+        info!("Starting network...");
         match self.start_network(shutdown_manager.subscribe()) {
             Ok(nw_task) => {
                 shutdown_manager.add_handle(nw_task);
             }
             Err(err) => {
-                log::error!("Failed to start network: {}", err);
+                error!("Failed to start network: {}", err);
                 return Err(err);
             }
         }
 
-        log::info!("Starting http server...");
+        info!("Starting http server...");
         match self.start_http(shutdown_manager.subscribe()) {
             Ok(http_task) => {
                 shutdown_manager.add_handle(http_task);
             }
             Err(err) => {
-                log::error!("Failed to start http server: {}", err);
+                error!("Failed to start http server: {}", err);
                 return Err(err);
             }
         }
 
-        log::info!("Starting websocket listener...");
+        info!("Starting websocket listener...");
         match self.start_websocket(shutdown_manager.subscribe()).await {
             Ok(ws_task) => {
                 shutdown_manager.add_handle(ws_task);
             }
             Err(err) => {
-                log::error!("Failed to start websocket: {}", err);
+                error!("Failed to start websocket: {}", err);
                 return Err(err);
             }
         }
@@ -244,16 +245,16 @@ where
         let join_handle = tokio::spawn(async move {
             tokio::select! {
                 _ = shutdown.shutdown_signal_rcv.recv() => {
-                    log::info!("Shutting down websocket manager");
+                    info!("Shutting down websocket manager");
                 }
                 ws_stopped = websocket.run() => {
                     match ws_stopped {
-                        Ok(_) => log::info!("Websocket stopped unexpectedly"),
-                        Err(e) => log::error!("Websocket stopped with error: {}", e),
+                        Ok(_) => info!("Websocket stopped unexpectedly"),
+                        Err(e) => error!("Websocket stopped with error: {}", e),
                     }
                 }
             }
-            log::info!("Websocket task finished");
+            info!("Websocket task finished");
         });
 
         Ok(join_handle)
@@ -267,24 +268,24 @@ where
 
             tokio::select! {
                 _ = shutdown.shutdown_signal_rcv.recv() => {
-                    log::info!("Shutting down http server");
+                    info!("Shutting down http server");
                     server_handle.stop(true).await;
                 }
                 http_stopped = http => {
                     match http_stopped {
-                        Ok(_) => log::info!("Http server stopped unexpectedly"),
-                        Err(e) => log::error!("Http server stopped with error: {}", e),
+                        Ok(_) => info!("Http server stopped unexpectedly"),
+                        Err(e) => error!("Http server stopped with error: {}", e),
                         //http_shutdown.notify_error()
                     }
                 }
             }
-            log::info!("Http task finished");
+            info!("Http task finished");
         });
         Ok(join_handle)
     }
 
     fn start_network(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
-        log::info!("Starting network...{:?}", self.peer_discovery.is_some());
+        info!("Starting network...{:?}", self.peer_discovery.is_some());
         let (mut network, from_network, to_network) =
             SwarmNetwork::new(self.node_info.clone(), self.peer_discovery.take().unwrap());
 
@@ -295,16 +296,16 @@ where
         let join_handle = tokio::spawn(async move {
             tokio::select! {
                 _ = shutdown.shutdown_signal_rcv.recv() => {
-                    log::info!("Shutting down network");
+                    info!("Shutting down network");
                 }
                 nw_stopped = network.start() => {
                     match nw_stopped {
-                        Ok(_) => log::info!("Network stopped unexpectedly"),
-                        Err(e) => log::error!("Network stopped with error: {e}",),
+                        Ok(_) => info!("Network stopped unexpectedly"),
+                        Err(e) => error!("Network stopped with error: {e}",),
                     }
                 }
             }
-            log::info!("Network task finished");
+            info!("Network task finished");
         });
         Ok(join_handle)
     }
@@ -326,7 +327,7 @@ where
             broadcaster: self.broadcaster,
             from_network: self.from_network.unwrap(),
             to_network: self.to_network.unwrap(),
-            topology: BroadcastTopology::new(),
+            broadcast_group: BroadcastGroup::new(),
             storage: Arc::new(Mutex::new(self.storage.unwrap())),
             ws_message_broadcast: self.ws_message_broadcast.unwrap(),
             api_listener: self.api_listener,
@@ -340,7 +341,7 @@ where
     //allocate database connection
     #[cfg(feature = "rocksdb_storage")]
     async fn connect_rocksdb(mut self) -> anyhow::Result<Self> {
-        log::info!("Opening database...");
+        info!("Opening database...");
         let database = RocksDbStorage::open(self.config.storage.clone())?;
         self.storage = Some(Box::new(database));
         Ok(self)
@@ -348,7 +349,7 @@ where
 
     #[cfg(feature = "sqlite_storage")]
     async fn connect_sqlite(mut self) -> anyhow::Result<Self> {
-        log::info!("Opening database...");
+        info!("Opening database...");
         let database = SqliteStorage::open(self.config.storage.clone())?;
         self.storage = Some(Box::new(database));
         Ok(self)

@@ -1,9 +1,10 @@
 use actix_web::{get, web, HttpResponse, Responder};
+use log::error;
 
-use crate::api::types::Health;
-use crate::api::types::HealthStatus::Healthy;
-use crate::api::EphemeraExternalApi;
-use crate::ephemera_api::{ApiDhtQueryRequest, ApiDhtQueryResponse};
+use crate::{
+    api::{types::Health, types::HealthStatus::Healthy, EphemeraExternalApi},
+    ephemera_api::{ApiDhtQueryRequest, ApiDhtQueryResponse},
+};
 
 #[utoipa::path(
 responses(
@@ -11,8 +12,6 @@ responses(
 )]
 #[get("/ephemera/node/health")]
 pub(crate) async fn health() -> impl Responder {
-    log::debug!("GET /ephemera/node/health");
-
     HttpResponse::Ok().json(Health { status: Healthy })
 }
 
@@ -28,13 +27,11 @@ pub(crate) async fn block_by_hash(
     hash: web::Path<String>,
     api: web::Data<EphemeraExternalApi>,
 ) -> impl Responder {
-    log::debug!("GET /ephemera/broadcast/block/{hash}",);
-
     match api.get_block_by_id(hash.into_inner()).await {
         Ok(Some(block)) => HttpResponse::Ok().json(block),
         Ok(_) => HttpResponse::NotFound().json("Block not found"),
         Err(err) => {
-            log::error!("Failed to get block by hash: {err}",);
+            error!("Failed to get block by hash: {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
@@ -53,13 +50,11 @@ pub(crate) async fn block_certificates(
     api: web::Data<EphemeraExternalApi>,
 ) -> impl Responder {
     let id = hash.into_inner();
-    log::debug!("GET /ephemera/broadcast/block/certificates/{id}");
-
     match api.get_block_certificates(id.clone()).await {
         Ok(Some(signatures)) => HttpResponse::Ok().json(signatures),
         Ok(_) => HttpResponse::NotFound().json("Certificates not found"),
         Err(err) => {
-            log::error!("Failed to get signatures {err}",);
+            error!("Failed to get signatures {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
@@ -77,13 +72,11 @@ pub(crate) async fn block_by_height(
     height: web::Path<u64>,
     api: web::Data<EphemeraExternalApi>,
 ) -> impl Responder {
-    log::debug!("GET /ephemera/broadcast/block/height/{height}");
-
     match api.get_block_by_height(height.into_inner()).await {
         Ok(Some(block)) => HttpResponse::Ok().json(block),
         Ok(_) => HttpResponse::NotFound().json("Block not found"),
         Err(err) => {
-            log::error!("Failed to get block {err}",);
+            error!("Failed to get block {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
@@ -97,12 +90,10 @@ responses(
 //Need to use plural(blocks), otherwise overlaps with block_by_id route
 #[get("/ephemera/broadcast/blocks/last")]
 pub(crate) async fn last_block(api: web::Data<EphemeraExternalApi>) -> impl Responder {
-    log::debug!("GET /ephemera/broadcast/blocks/last");
-
     match api.get_last_block().await {
         Ok(block) => HttpResponse::Ok().json(block),
         Err(err) => {
-            log::error!("Failed to get block {err}",);
+            error!("Failed to get block {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
@@ -115,12 +106,10 @@ responses(
 )]
 #[get("/ephemera/node/config")]
 pub(crate) async fn get_node_config(api: web::Data<EphemeraExternalApi>) -> impl Responder {
-    log::debug!("GET /ephemera/node/config");
-
     match api.get_node_config().await {
         Ok(config) => HttpResponse::Ok().json(config),
         Err(err) => {
-            log::error!("Failed to get node config {err}",);
+            error!("Failed to get node config {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }
@@ -137,8 +126,6 @@ pub(crate) async fn query_dht(
     api: web::Data<EphemeraExternalApi>,
     key: web::Path<String>,
 ) -> impl Responder {
-    log::debug!("POST /ephemera/dht/query");
-
     let key = ApiDhtQueryRequest::parse_key(key.into_inner().as_str());
 
     match api.query_dht(key).await {
@@ -148,7 +135,7 @@ pub(crate) async fn query_dht(
         }
         Ok(_) => HttpResponse::NotFound().json("Not found"),
         Err(err) => {
-            log::error!("Failed to query dht {err}",);
+            error!("Failed to query dht {err}",);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }

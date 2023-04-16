@@ -1,4 +1,5 @@
 use ephemera::ephemera_api;
+use log::{info, warn};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use ephemera::ephemera_api::{
@@ -22,7 +23,7 @@ impl Node {
         let client = EphemeraHttpClient::new(url.clone());
         let last_block = client.get_last_block().await.unwrap();
         let ephemera_config = client.get_ephemera_config().await.unwrap();
-        log::info!("Node {} config {:?}", id, ephemera_config);
+        info!("Node {} config {:?}", id, ephemera_config);
         Self {
             id,
             url,
@@ -64,7 +65,7 @@ impl Node {
         let height = block.header.height;
         let messages = block.messages.clone();
 
-        log::info!(
+        info!(
             "Block {} height {}, node {}, signatures count {}, messages count {}",
             hash,
             height,
@@ -77,7 +78,7 @@ impl Node {
         self.last_asked_block_height.fetch_add(1, Ordering::Acquire);
 
         if !self.pending_messages.is_empty() {
-            log::info!(
+            info!(
                 "Node {} pending messages count {}",
                 self.id,
                 self.pending_messages.len()
@@ -88,13 +89,13 @@ impl Node {
             }
 
             if !self.pending_messages.is_empty() {
-                log::warn!(
+                warn!(
                     "Node {} pending messages count after new block {}",
                     self.id,
                     self.pending_messages.len()
                 );
             } else {
-                log::info!("Node {} pending messages removed", self.id);
+                info!("Node {} pending messages removed", self.id);
             }
         }
 

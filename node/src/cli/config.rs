@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::Parser;
+use log::info;
 use toml::{Table, Value};
 
 use crate::config::Configuration;
@@ -25,7 +26,7 @@ impl UpdateConfigCmd {
             return;
         }
 
-        log::info!("Updating config: {:?}", self);
+        info!("Updating config: {:?}", self);
 
         let toml_str = fs::read_to_string(path.clone()).unwrap();
         let table = toml_str.parse::<Table>().unwrap();

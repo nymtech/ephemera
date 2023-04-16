@@ -13,6 +13,7 @@ use std::thread::sleep;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
 use chrono::{DateTime, Duration, Utc};
+use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -70,13 +71,13 @@ impl SmartContract {
     }
 
     pub async fn start(args: ContractArgs, ephemera_config: Configuration) {
-        log::info!("Starting smart contract");
+        info!("Starting smart contract");
 
         let mut storage: Storage<ContractStorageType> =
             Storage::init(args.db_path, migrations::migrations::runner());
 
         let epoch = Self::get_epoch(args.epoch_duration_seconds, &mut storage);
-        log::info!("Epoch info: {epoch}");
+        info!("Epoch info: {epoch}");
 
         let smart_contract = SmartContract::new(storage, epoch, ephemera_config);
         let smart_contract = Arc::new(Mutex::new(smart_contract));
@@ -93,13 +94,13 @@ impl SmartContract {
         .unwrap()
         .run();
 
-        log::info!("Smart contract started!");
+        info!("Smart contract started!");
 
         let mut epoch_save_interval = tokio::time::interval(std::time::Duration::from_secs(10));
         loop {
             tokio::select! {
                 _ = &mut server => {
-                    log::info!("Smart contract stopped!");
+                    info!("Smart contract stopped!");
                 }
                 _ = epoch_save_interval.tick() => {
                     smart_contract.lock().await.update_epoch(args.epoch_duration_seconds);
@@ -112,13 +113,13 @@ impl SmartContract {
         let epoch = storage.get_epoch().unwrap();
         match epoch {
             None => {
-                log::info!("No epoch info found, creating new one");
+                info!("No epoch info found, creating new one");
                 let epoch = EpochInfo::new(0, Utc::now().timestamp(), epoch_duration_seconds);
                 storage.save_epoch(&epoch).unwrap();
                 Epoch::new(epoch)
             }
             Some(info) => {
-                log::info!("Found epoch info, starting from it");
+                info!("Found epoch info, starting from it");
                 Epoch::new(info)
             }
         }

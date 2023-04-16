@@ -44,6 +44,7 @@
 //!
 
 use clap::Parser;
+use log::info;
 use tokio::signal::unix::{signal, SignalKind};
 
 use ephemera::configuration::Configuration;
@@ -79,6 +80,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //Wait for Nym-Api to finish
     nym_api.await??;
 
-    log::info!("Nym-Api Ephemera simulation finished");
+    info!("Nym-Api Ephemera simulation finished");
     Ok(())
 }

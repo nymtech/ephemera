@@ -16,6 +16,7 @@
 
 use clap::Parser;
 use ephemera::configuration::Configuration;
+use log::info;
 use tokio::signal::unix::{signal, SignalKind};
 
 use nym_api::contract::SmartContract;
@@ -42,10 +43,10 @@ async fn main() {
         _ = stream_term.recv() => {
         }
         _ = sh => {
-            log::info!("Smart contract exited");
+            info!("Smart contract exited");
         }
         _ = nh => {
-            log::info!("Nym API exited");
+            info!("Nym API exited");
         }
     }
 }

@@ -1,10 +1,10 @@
-use std::str::FromStr;
-
 use futures::StreamExt;
 use libp2p::{
     gossipsub, gossipsub::IdentTopic as Topic, kad, request_response, swarm::SwarmEvent, Multiaddr,
     Swarm,
 };
+use log::{debug, error, info, trace};
+use std::str::FromStr;
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -27,9 +27,9 @@ use crate::{
                 EphemeraToNetworkSender,
             },
             network_sender::{
-                EphemeraNetworkCommunication, NetCommunicationReceiver, NetCommunicationSender,
-                NetworkEvent, TopologyEvent,
-                TopologyEvent::{LocalPeerRemoved, NotEnoughPeers},
+                EphemeraNetworkCommunication, GroupChangeEvent,
+                GroupChangeEvent::{LocalPeerRemoved, NotEnoughPeers},
+                NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
             },
         },
     },
@@ -80,7 +80,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             Multiaddr::from_str(&self.node_info.protocol_address()).expect("Invalid multi-address");
         self.swarm.listen_on(address.clone())?;
 
-        log::info!("Listening on {address:?}");
+        info!("Listening on {address:?}");
         Ok(())
     }
 
@@ -96,7 +96,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     match swarm_event{
                         Some(event) => {
                             if let Err(err) = self.handle_incoming_messages(event).await{
-                                log::error!("Error handling swarm event: {:?}", err);
+                                error!("Error handling swarm event: {:?}", err);
                             }
                         }
                         None => {
@@ -108,7 +108,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     self.process_ephemera_events(event).await;
                 }
                 _ = &mut rendezvous_handle => {
-                    log::info!("Rendezvous behaviour finished");
+                    info!("Rendezvous behaviour finished");
                     return Ok(());
                 }
             }
@@ -142,17 +142,17 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     .put_record(record, quorum)
                 {
                     Ok(ok) => {
-                        log::debug!("StoreDht: {:?}", ok);
+                        debug!("StoreDht: {:?}", ok);
                     }
                     Err(err) => {
-                        log::error!("StoreDht: {:?}", err);
+                        error!("StoreDht: {:?}", err);
                     }
                 }
             }
             EphemeraEvent::QueryDht { key } => {
                 let kad_key = kad::record::Key::new::<Vec<u8>>(key.as_ref());
                 let query_id = self.swarm.behaviour_mut().kademlia.get_record(kad_key);
-                log::trace!("QueryDht: {:?}", query_id);
+                trace!("QueryDht: {:?}", query_id);
             }
         }
     }
@@ -163,10 +163,10 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     ) -> anyhow::Result<()> {
         if let SwarmEvent::Behaviour(b) = swarm_event {
             if let Err(err) = self.process_group_behaviour_event(b).await {
-                log::error!("Error handling behaviour event: {:?}", err);
+                error!("Error handling behaviour event: {:?}", err);
             }
         } else if let Err(err) = self.process_other_swarm_events(swarm_event).await {
-            log::error!("Error handling swarm event: {:?}", err);
+            error!("Error handling swarm event: {:?}", err);
         }
         Ok(())
     }
@@ -178,23 +178,23 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         match event {
             GroupBehaviourEvent::Gossipsub(gs) => {
                 if let Err(err) = self.process_gossipsub_event(gs).await {
-                    log::error!("Error processing gossipsub event: {:?}", err);
+                    error!("Error processing gossipsub event: {:?}", err);
                 }
             }
             GroupBehaviourEvent::RequestResponse(request_response) => {
                 if let Err(err) = self.process_request_response(request_response).await {
-                    log::error!("Error processing request response: {:?}", err);
+                    error!("Error processing request response: {:?}", err);
                 }
             }
 
             GroupBehaviourEvent::PeerDiscovery(event) => {
                 if let Err(err) = self.process_peer_discovery_event(event).await {
-                    log::error!("Error processing rendezvous event: {:?}", err);
+                    error!("Error processing rendezvous event: {:?}", err);
                 }
             }
             GroupBehaviourEvent::Kademlia(ev) => {
                 if let Err(err) = self.process_kad_event(ev).await {
-                    log::error!("Error processing kademlia event: {:?}", err);
+                    error!("Error processing kademlia event: {:?}", err);
                 }
             }
         }
@@ -215,13 +215,13 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             }
 
             gossipsub::Event::Subscribed { peer_id, topic } => {
-                log::trace!("Peer {peer_id:?} subscribed to topic {topic:?}");
+                trace!("Peer {peer_id:?} subscribed to topic {topic:?}");
             }
             gossipsub::Event::Unsubscribed { peer_id, topic } => {
-                log::trace!("Peer {peer_id:?} unsubscribed from topic {topic:?}");
+                trace!("Peer {peer_id:?} unsubscribed from topic {topic:?}");
             }
             gossipsub::Event::GossipsubNotSupported { peer_id } => {
-                log::trace!("Peer {peer_id:?} does not support gossipsub");
+                trace!("Peer {peer_id:?} does not support gossipsub");
             }
         }
         Ok(())
@@ -239,7 +239,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     channel,
                 } => {
                     let rb_id = request.id.clone();
-                    log::debug!("Received request {:?}", request.short_fmt());
+                    debug!("Received request {:?}", request.short_fmt());
                     self.to_ephemera_tx
                         .send_network_event(NetworkEvent::BroadcastMessage(request.into()))
                         .await?;
@@ -249,14 +249,14 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                         .request_response
                         .send_response(channel, RbMsgResponse::new(rb_id))
                     {
-                        log::error!("Error sending response: {:?}", err);
+                        error!("Error sending response: {:?}", err);
                     }
                 }
                 request_response::Message::Response {
                     request_id,
                     response,
                 } => {
-                    log::trace!("Received response {response:?} from peer: {peer:?}, request_id: {request_id:?}",);
+                    trace!("Received response {response:?} from peer: {peer:?}, request_id: {request_id:?}",);
                 }
             },
             request_response::Event::OutboundFailure {
@@ -264,19 +264,17 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 request_id,
                 error,
             } => {
-                log::error!(
-                    "Outbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",
-                );
+                error!("Outbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",);
             }
             request_response::Event::InboundFailure {
                 peer,
                 request_id,
                 error,
             } => {
-                log::error!("Inbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",);
+                error!("Inbound failure: {error:?}, peer:{peer:?}, request_id:{request_id:?}",);
             }
             request_response::Event::ResponseSent { peer, request_id } => {
-                log::trace!("Response sent to peer: {peer:?}, {request_id:?}",);
+                trace!("Response sent to peer: {peer:?}, {request_id:?}",);
             }
         }
         Ok(())
@@ -288,12 +286,12 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     ) -> anyhow::Result<()> {
         match event {
             peer_discovery::behaviour::Event::PeersUpdated => {
-                log::info!(
+                info!(
                     "Peers updated: {:?}",
                     self.swarm.behaviour().rendezvous_behaviour.peer_ids()
                 );
                 let new_peers = self.swarm.behaviour().rendezvous_behaviour.peers();
-                log::info!("New peers: {:?}", new_peers);
+                info!("New peers: {:?}", new_peers);
 
                 let local_peer_id = *self.swarm.local_peer_id();
                 let kademlia = &mut self.swarm.behaviour_mut().kademlia;
@@ -310,19 +308,19 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     .behaviour_mut()
                     .kademlia
                     .get_closest_peers(libp2p::PeerId::random());
-                log::debug!("Neighbours: {:?}", query_id);
+                debug!("Neighbours: {:?}", query_id);
             }
             peer_discovery::behaviour::Event::PeerUpdatePending => {
-                log::info!("Peer update pending");
+                info!("Peer update pending");
             }
             peer_discovery::behaviour::Event::LocalRemoved => {
                 //TODO: should pause all network block and message activities
-                let update = NetworkEvent::TopologyUpdate(LocalPeerRemoved);
+                let update = NetworkEvent::GroupUpdate(LocalPeerRemoved);
                 self.to_ephemera_tx.send_network_event(update).await?;
             }
             peer_discovery::behaviour::Event::NotEnoughPeers => {
                 //TODO: should pause all network block and message activities
-                let update = NetworkEvent::TopologyUpdate(NotEnoughPeers);
+                let update = NetworkEvent::GroupUpdate(NotEnoughPeers);
                 self.to_ephemera_tx.send_network_event(update).await?;
             }
         }
@@ -332,7 +330,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     async fn process_kad_event(&mut self, event: kad::KademliaEvent) -> anyhow::Result<()> {
         match event {
             kad::KademliaEvent::InboundRequest { request } => {
-                log::trace!("Inbound request: {:?}", request);
+                trace!("Inbound request: {:?}", request);
             }
             kad::KademliaEvent::OutboundQueryProgressed {
                 id,
@@ -340,7 +338,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 stats,
                 step,
             } => {
-                log::trace!(
+                trace!(
                     "Outbound query progressed: id:{:?}, result:{:?}, stats:{:?}, step:{:?}",
                     id,
                     result,
@@ -349,10 +347,10 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 );
                 match result {
                     kad::QueryResult::Bootstrap(bt) => {
-                        log::trace!("Bootstrap: {:?}", bt);
+                        trace!("Bootstrap: {:?}", bt);
                     }
                     kad::QueryResult::GetClosestPeers(gcp) => {
-                        log::debug!("GetClosestPeers: {:?}", gcp);
+                        debug!("GetClosestPeers: {:?}", gcp);
                         //TODO: we need also to make sure that we have enough peers
                         // (Repeat if not enough, may need to wait network to stabilize)
 
@@ -380,35 +378,33 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                                 let new_peer_ids =
                                     self.swarm.behaviour().rendezvous_behaviour.peer_ids();
 
-                                let topology_update = NetworkEvent::TopologyUpdate(
-                                    TopologyEvent::PeersUpdated(new_peer_ids),
+                                let group_update = NetworkEvent::GroupUpdate(
+                                    GroupChangeEvent::PeersUpdated(new_peer_ids),
                                 );
-                                self.to_ephemera_tx
-                                    .send_network_event(topology_update)
-                                    .await?;
+                                self.to_ephemera_tx.send_network_event(group_update).await?;
                             }
                             Err(err) => {
-                                log::error!("Error getting closest peers: {:?}", err);
+                                error!("Error getting closest peers: {:?}", err);
                             }
                         }
                     }
                     kad::QueryResult::GetProviders(gp) => {
-                        log::trace!("GetProviders: {:?}", gp);
+                        trace!("GetProviders: {:?}", gp);
                     }
                     kad::QueryResult::StartProviding(sp) => {
-                        log::trace!("StartProviding: {:?}", sp);
+                        trace!("StartProviding: {:?}", sp);
                     }
                     kad::QueryResult::RepublishProvider(rp) => {
-                        log::trace!("RepublishProvider: {:?}", rp);
+                        trace!("RepublishProvider: {:?}", rp);
                     }
                     kad::QueryResult::GetRecord(get_res) => {
-                        log::trace!("GetRecord: {:?}", get_res);
+                        trace!("GetRecord: {:?}", get_res);
                         match get_res {
                             Ok(ok) => {
-                                log::trace!("GetRecordOk: {:?}", ok);
+                                trace!("GetRecordOk: {:?}", ok);
                                 match ok {
                                     kad::GetRecordOk::FoundRecord(fr) => {
-                                        log::debug!("FoundRecord: {:?}", fr);
+                                        debug!("FoundRecord: {:?}", fr);
                                         let record = fr.record;
                                         let event = NetworkEvent::QueryDhtResponse {
                                             key: record.key.to_vec(),
@@ -417,20 +413,20 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                                         self.to_ephemera_tx.send_network_event(event).await?;
                                     }
                                     kad::GetRecordOk::FinishedWithNoAdditionalRecord { .. } => {
-                                        log::trace!("FinishedWithNoAdditionalRecord");
+                                        trace!("FinishedWithNoAdditionalRecord");
                                     }
                                 }
                             }
                             Err(err) => {
-                                log::trace!("Not getting record: {:?}", err);
+                                trace!("Not getting record: {:?}", err);
                             }
                         }
                     }
                     kad::QueryResult::PutRecord(pr) => {
-                        log::debug!("PutRecord: {:?}", pr);
+                        debug!("PutRecord: {:?}", pr);
                     }
                     kad::QueryResult::RepublishRecord(rr) => {
-                        log::debug!("RepublishRecord: {:?}", rr);
+                        debug!("RepublishRecord: {:?}", rr);
                     }
                 }
             }
@@ -441,16 +437,16 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 bucket_range: _,
                 old_peer: _,
             } => {
-                log::debug!("Routing updated: peer:{peer_id}, addresses:{addresses:?}",);
+                debug!("Routing updated: peer:{peer_id}, addresses:{addresses:?}",);
             }
             kad::KademliaEvent::UnroutablePeer { peer } => {
-                log::debug!("Unroutable peer: {:?}", peer);
+                debug!("Unroutable peer: {:?}", peer);
             }
             kad::KademliaEvent::RoutablePeer { peer, address } => {
-                log::debug!("Routable peer: {:?}, address: {:?}", peer, address);
+                debug!("Routable peer: {:?}, address: {:?}", peer, address);
             }
             kad::KademliaEvent::PendingRoutablePeer { peer, address } => {
-                log::debug!("Pending routable peer: {:?}, address: {:?}", peer, address);
+                debug!("Pending routable peer: {:?}, address: {:?}", peer, address);
             }
         }
         Ok(())
@@ -469,7 +465,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 concurrent_dial_errors,
                 established_in,
             } => {
-                log::trace!("Connection established: peer_id:{:?}, endpoint:{:?}, num_established:{:?}, concurrent_dial_errors:{:?}, established_in:{:?}", peer_id, endpoint, num_established, concurrent_dial_errors, established_in);
+                trace!("Connection established: peer_id:{:?}, endpoint:{:?}, num_established:{:?}, concurrent_dial_errors:{:?}, established_in:{:?}", peer_id, endpoint, num_established, concurrent_dial_errors, established_in);
             }
             SwarmEvent::ConnectionClosed {
                 peer_id,
@@ -477,7 +473,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 num_established,
                 cause: _,
             } => {
-                log::trace!(
+                trace!(
                     "Connection closed: peer_id:{:?}, endpoint:{:?}, num_established:{:?}",
                     peer_id,
                     endpoint,
@@ -488,7 +484,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 local_addr,
                 send_back_addr,
             } => {
-                log::trace!(
+                trace!(
                     "Incoming connection: local_addr:{:?}, send_back_addr:{:?}",
                     local_addr,
                     send_back_addr
@@ -499,7 +495,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 send_back_addr,
                 error,
             } => {
-                log::trace!(
+                trace!(
                     "Incoming connection error: local_addr:{:?}, send_back_addr:{:?}, error:{:?}",
                     local_addr,
                     send_back_addr,
@@ -507,14 +503,14 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 );
             }
             SwarmEvent::OutgoingConnectionError { peer_id, error } => {
-                log::trace!(
+                trace!(
                     "Outgoing connection error: peer_id:{:?}, error:{:?}",
                     peer_id,
                     error
                 );
             }
             SwarmEvent::BannedPeer { peer_id, endpoint } => {
-                log::trace!(
+                trace!(
                     "Banned peer: peer_id:{:?}, endpoint:{:?}",
                     peer_id,
                     endpoint
@@ -524,7 +520,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 listener_id,
                 address,
             } => {
-                log::trace!(
+                trace!(
                     "New listen address: listener_id:{:?}, address:{:?}",
                     listener_id,
                     address
@@ -534,7 +530,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 listener_id,
                 address,
             } => {
-                log::trace!(
+                trace!(
                     "Expired listen address: listener_id:{:?}, address:{:?}",
                     listener_id,
                     address
@@ -545,7 +541,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 addresses,
                 reason,
             } => {
-                log::trace!(
+                trace!(
                     "Listener closed: listener_id:{:?}, addresses:{:?}, reason:{:?}",
                     listener_id,
                     addresses,
@@ -553,32 +549,32 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 );
             }
             SwarmEvent::ListenerError { listener_id, error } => {
-                log::trace!(
+                trace!(
                     "Listener error: listener_id:{:?}, error:{:?}",
                     listener_id,
                     error
                 );
             }
             SwarmEvent::Dialing(peer_id) => {
-                log::trace!("Dialing: {peer_id:?}",);
+                trace!("Dialing: {peer_id:?}",);
             }
 
             SwarmEvent::Behaviour(_) => {
-                log::trace!("Unexpected behaviour event");
+                trace!("Unexpected behaviour event");
             }
         }
         Ok(())
     }
 
     async fn send_broadcast_message(&mut self, msg: RbMsg) {
-        log::debug!(
+        debug!(
             "Sending broadcast message: {:?} to all peers",
             msg.short_fmt()
         );
-        log::trace!("Sending broadcast message: {:?}", msg);
+        trace!("Sending broadcast message: {:?}", msg);
 
         for peer in self.swarm.behaviour().rendezvous_behaviour.peer_ids() {
-            log::trace!("Sending broadcast message: {:?} to peer: {peer:?}", msg.id,);
+            trace!("Sending broadcast message: {:?} to peer: {peer:?}", msg.id,);
             if peer.inner() == self.swarm.local_peer_id() {
                 continue;
             }
@@ -590,16 +586,16 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     }
 
     async fn send_ephemera_message(&mut self, msg: EphemeraMessage) {
-        log::trace!("Sending Ephemera message: {:?}", msg);
+        trace!("Sending Ephemera message: {:?}", msg);
         match msg.encode() {
             Ok(vec) => {
                 let topic = self.ephemera_msg_topic.clone();
                 if let Err(err) = self.swarm.behaviour_mut().gossipsub.publish(topic, vec) {
-                    log::error!("Error publishing message: {}", err);
+                    error!("Error publishing message: {}", err);
                 }
             }
             Err(err) => {
-                log::error!("Error serializing message: {}", err);
+                error!("Error serializing message: {}", err);
             }
         }
     }

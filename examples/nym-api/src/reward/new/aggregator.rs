@@ -1,3 +1,4 @@
+use log::{info, trace};
 use std::collections::HashMap;
 
 use crate::contract::MixnodeToReward;
@@ -16,9 +17,9 @@ impl RewardsAggregator {
                     .push(mixnode.performance);
             }
         }
-        log::trace!("Mix rewards by node: {:?}", mix_rewards);
+        trace!("Mix rewards by node: {:?}", mix_rewards);
 
-        log::trace!("Calculating mean average for each node");
+        trace!("Calculating mean average for each node");
         let mut mean_avg = vec![];
         for (mix_id, rewards) in mix_rewards {
             let sum: u8 = rewards.iter().sum();
@@ -28,7 +29,7 @@ impl RewardsAggregator {
                 performance: avg,
             });
         }
-        log::info!("Mean average rewards: {:?}", mean_avg);
+        info!("Mean average rewards: {:?}", mean_avg);
 
         mean_avg
     }

@@ -1,3 +1,4 @@
+use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -26,7 +27,7 @@ impl HttpPeerDiscovery {
 impl PeerDiscovery for HttpPeerDiscovery {
     async fn poll(&mut self, discovery_channel: UnboundedSender<Vec<PeerInfo>>) -> Result<()> {
         let url = format!("http://{}/contract/peer_info", self.smart_contract_url);
-        log::info!("Requesting peers from: {url}");
+        info!("Requesting peers from: {url}");
         let result: Vec<NymPeerInfo> = reqwest::get(url)
             .await
             .map_err(|err| anyhow::anyhow!("Failed to get peers: {err}"))?
@@ -46,7 +47,7 @@ impl PeerDiscovery for HttpPeerDiscovery {
             })
             .collect();
 
-        log::info!("Sending peers: {peers:?}");
+        info!("Sending peers: {peers:?}");
         discovery_channel.send(peers).expect("Failed to send peers");
         Ok(())
     }

@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use log::{debug, error, info, trace, warn};
 use rand::Rng;
 use tokio::task::JoinHandle;
 
@@ -63,16 +64,14 @@ impl Cluster {
                             node.add_pending_message(message);
                         }
                         Err(err) => {
-                            log::error!(
+                            error!(
                                 "Error while submitting message {} to node {}: {}",
-                                label,
-                                node.id,
-                                err
+                                label, node.id, err
                             );
                         }
                     }
                 }
-                log::debug!("Submitted message {} to all nodes", label);
+                debug!("Submitted message {} to all nodes", label);
                 tick_counter += 1;
             }
         });
@@ -116,15 +115,13 @@ impl Cluster {
                             node.add_pending_message(message);
                         }
                         Err(err) => {
-                            log::error!(
+                            error!(
                                 "Error while submitting message {} to node {}: {}",
-                                label,
-                                node.id,
-                                err
+                                label, node.id, err
                             );
                         }
                     }
-                    log::debug!("Submitted message {} to {}", label, node.id);
+                    debug!("Submitted message {} to {}", label, node.id);
                     tick_counter += 1;
                 }
             }
@@ -171,15 +168,13 @@ impl Cluster {
                                 node.add_pending_message(message);
                             }
                             Err(err) => {
-                                log::error!(
+                                error!(
                                     "Error while submitting message {} to node {}: {}",
-                                    label,
-                                    node.id,
-                                    err
+                                    label, node.id, err
                                 );
                             }
                         }
-                        log::debug!("Submitted message {} to {}", label, node.id);
+                        debug!("Submitted message {} to {}", label, node.id);
                         tick_counter += 1;
                     }
                 }
@@ -206,10 +201,9 @@ impl Cluster {
                 for node in nodes.lock().await.iter_mut() {
                     let last_asked_block_height =
                         node.last_asked_block_height.load(Ordering::Relaxed);
-                    log::info!(
+                    info!(
                         "Querying block with height {} from node {}",
-                        last_asked_block_height,
-                        node.id
+                        last_asked_block_height, node.id
                     );
 
                     let mut last_height = last_asked_block_height;
@@ -221,11 +215,7 @@ impl Cluster {
                             .await
                         {
                             Ok(Some((block, certificates))) => {
-                                log::debug!(
-                                    "Block with height {} found node {}",
-                                    last_height,
-                                    node.id
-                                );
+                                debug!("Block with height {} found node {}", last_height, node.id);
                                 node.process_block_with_next_height(block, certificates);
                                 if last_height < last_asked_block_height {
                                     last_height += 1;
@@ -234,19 +224,16 @@ impl Cluster {
                                 }
                             }
                             Ok(None) => {
-                                log::warn!(
+                                warn!(
                                     "Block with height {} not found node {}",
-                                    last_height,
-                                    node.id
+                                    last_height, node.id
                                 );
                                 break;
                             }
                             Err(err) => {
-                                log::error!(
+                                error!(
                                     "Error while querying block with height {} from node {}: {}",
-                                    last_height,
-                                    node.id,
-                                    err
+                                    last_height, node.id, err
                                 );
                                 break;
                             }
@@ -279,12 +266,12 @@ impl Cluster {
                     node.last_block_height
                         .store(block.header.height, Ordering::Release);
 
-                    log::debug!("Last block from node {}: {:?}", node.id, block);
+                    debug!("Last block from node {}: {:?}", node.id, block);
 
                     if node.last_block == block {
-                        log::trace!("Last block from node {} is the same as the last block from the previous query", node.id);
+                        trace!("Last block from node {} is the same as the last block from the previous query", node.id);
                     } else {
-                        log::trace!("Last block from node {} is different from the last block from the previous query", node.id);
+                        trace!("Last block from node {} is different from the last block from the previous query", node.id);
                     }
                 }
             }
@@ -312,7 +299,7 @@ impl Cluster {
                     let hashes = node.pending_block_hashes();
 
                     if !hashes.is_empty() {
-                        log::info!(
+                        info!(
                             "Querying blocks with nr of hashes {:?} from node {}",
                             hashes.len(),
                             node.id
@@ -321,29 +308,27 @@ impl Cluster {
                         for hash in hashes {
                             match node.get_block_by_hash(client, hash.as_str()).await {
                                 Ok(Some(_block)) => {
-                                    log::debug!("Block with hash {} found node {}", hash, node.id);
+                                    debug!("Block with hash {} found node {}", hash, node.id);
                                     node.remove_pending_block_hash(hash.as_str());
                                 }
                                 Ok(None) => {
-                                    log::error!(
+                                    error!(
                                         "Block with hash {} not found for node {}",
-                                        hash,
-                                        node.id
+                                        hash, node.id
                                     );
                                 }
                                 Err(err) => {
-                                    log::error!(
+                                    error!(
                                         "Error while querying block with hash {}: {}",
-                                        hash,
-                                        err
+                                        hash, err
                                     );
                                 }
                             }
                         }
                         if !node.pending_block_hashes().is_empty() {
-                            log::warn!("Node {} still has pending block hashes", node.id);
+                            warn!("Node {} still has pending block hashes", node.id);
                         } else {
-                            log::info!("Node {} has no pending block hashes left", node.id);
+                            info!("Node {} has no pending block hashes left", node.id);
                         }
                     }
                 }
@@ -374,7 +359,7 @@ impl Cluster {
 
                     let key = format!("message_{}", tick_counter);
                     let value = format!("message_{}_{}", tick_counter, node.id);
-                    log::info!("Stored key value pair in DHT: {:?} {:?}", key, value);
+                    info!("Stored key value pair in DHT: {:?} {:?}", key, value);
 
                     let key = key.as_bytes();
                     let value = value.as_bytes();
@@ -407,14 +392,14 @@ impl Cluster {
             loop {
                 interval.tick().await;
 
-                log::info!(
+                info!(
                     "DHT pending stores before queries: {:?}",
                     dht_pending_stores.lock().await.len()
                 );
 
                 let mut found = vec![];
                 for store in dht_pending_stores.lock().await.iter() {
-                    log::info!(
+                    info!(
                         "DHT pending store: {:?}",
                         String::from_utf8_lossy(store.key().as_slice())
                     );
@@ -428,7 +413,7 @@ impl Cluster {
                     let response = client.query_dht_key(request).await.unwrap();
                     match response {
                         Some(response) => {
-                            log::info!(
+                            info!(
                                 "DHT query response: key: {:?}, value: {:?}",
                                 String::from_utf8_lossy(response.key().as_slice()),
                                 String::from_utf8_lossy(response.value().as_slice())
@@ -436,7 +421,7 @@ impl Cluster {
                             found.push(store.key().to_vec());
                         }
                         None => {
-                            log::error!("DHT query response is None");
+                            error!("DHT query response is None");
                         }
                     }
                 }
@@ -446,7 +431,7 @@ impl Cluster {
                     guard.retain(|store| store.key() != key);
                 }
 
-                log::info!("DHT pending stores after queries: {:?}", guard.len());
+                info!("DHT pending stores after queries: {:?}", guard.len());
             }
         });
         Ok(handle)
@@ -458,7 +443,7 @@ impl Cluster {
             avg_interval += node.ephemera_config.block_creation_interval_sec;
         }
         avg_interval /= self.nodes.lock().await.len() as u64;
-        log::info!("Average block creation interval: {} sec", avg_interval);
+        info!("Average block creation interval: {} sec", avg_interval);
         Duration::from_secs(avg_interval)
     }
 

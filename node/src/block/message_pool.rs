@@ -1,3 +1,4 @@
+use log::{debug, trace, warn};
 use std::collections::HashMap;
 
 use crate::block::types::message::EphemeraMessage;
@@ -19,29 +20,28 @@ impl MessagePool {
     }
 
     pub(super) fn add_message(&mut self, msg: EphemeraMessage) -> anyhow::Result<()> {
-        log::debug!("Adding message to pool: {:?}", msg);
+        debug!("Adding message to pool: {:?}", msg);
 
         let msg_hash = msg.hash_with_default_hasher()?;
 
         self.pending_messages.insert(msg_hash, msg);
 
-        log::trace!("Message pool size: {:?}", self.pending_messages.len());
+        trace!("Message pool size: {:?}", self.pending_messages.len());
         Ok(())
     }
 
     pub(super) fn remove_messages(&mut self, messages: &[EphemeraMessage]) -> anyhow::Result<()> {
-        log::debug!("Removing messages from pool: {:?}", messages);
-        log::trace!(
+        trace!(
             "Mempool size before removing messages {}",
             self.pending_messages.len()
         );
         for msg in messages {
             let hash = msg.hash_with_default_hasher()?;
             if self.pending_messages.remove(&hash).is_none() {
-                log::warn!("Message not found in pool: {:?}", msg);
+                warn!("Message not found in pool: {:?}", msg);
             }
         }
-        log::trace!(
+        trace!(
             "Mempool size after removing messages {}",
             self.pending_messages.len()
         );

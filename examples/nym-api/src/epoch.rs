@@ -1,4 +1,5 @@
 use chrono::{DateTime, Duration, NaiveDateTime, Timelike, Utc};
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use tokio::time::{Instant, Interval};
@@ -31,7 +32,7 @@ impl EpochInfo {
 
 impl Epoch {
     pub fn new(info: EpochInfo) -> Self {
-        log::info!("New epoch duration");
+        info!("New epoch duration");
         let start_time = NaiveDateTime::from_timestamp_opt(info.start_time, 0)
             .ok_or("Invalid start time")
             .unwrap();
@@ -65,7 +66,7 @@ impl Epoch {
     }
 
     pub async fn request_epoch(contract_url: String) -> Epoch {
-        log::info!("Getting epoch info from smart contract");
+        info!("Getting epoch info from smart contract");
         let url = format!("http://{contract_url}/contract/epoch");
         let info = reqwest::Client::new()
             .get(&url)
@@ -76,7 +77,7 @@ impl Epoch {
             .await
             .unwrap();
         let epoch = Epoch::new(info);
-        log::info!("Epoch: {}", epoch);
+        info!("Epoch: {}", epoch);
         epoch
     }
 }

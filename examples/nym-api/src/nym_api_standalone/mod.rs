@@ -1,5 +1,5 @@
+use log::{error, info};
 use std::sync::Arc;
-
 use tokio::sync::Mutex;
 
 use metrics::MetricsCollector;
@@ -36,13 +36,13 @@ impl NymApi {
             tokio::select! {
                 _ = metrics.interval.tick() => {
                     if let Err(err) = metrics.collect().await {
-                        log::error!("Metrics collector failed: {}", err);
+                        error!("Metrics collector failed: {}", err);
                     }
                 }
                 _ = reward.epoch.wait_epoch_end() => {
-                    log::info!("Rewarding epoch ...");
+                    info!("Rewarding epoch ...");
                     if let Err(err) = reward.perform_epoch_operations().await {
-                        log::error!("Reward calculator failed: {}", err);
+                        error!("Reward calculator failed: {}", err);
                     }
                 }
             }

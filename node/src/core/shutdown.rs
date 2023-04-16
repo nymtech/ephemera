@@ -1,3 +1,4 @@
+use log::info;
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 
@@ -43,9 +44,9 @@ impl ShutdownManager {
     }
 
     pub async fn stop(self) {
-        log::info!("Starting Ephemera shutdown");
+        info!("Starting Ephemera shutdown");
         self.shutdown_tx.send(()).unwrap();
-        log::info!("Waiting for tasks to finish");
+        info!("Waiting for tasks to finish");
         for handle in self.handles.into_iter() {
             handle.await.unwrap();
         }

@@ -3,6 +3,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 
+use log::{error, info};
 use serde_derive::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -147,7 +148,7 @@ impl Configuration {
     pub fn try_update_root(&self, node_name: &str) -> Result<()> {
         let file_path = Configuration::ephemera_config_file_root(node_name)?;
         if !file_path.exists() {
-            log::error!(
+            error!(
                 "Configuration file does not exist {}",
                 file_path.to_str().unwrap()
             );
@@ -185,9 +186,9 @@ impl Configuration {
         );
 
         if file_path.exists() {
-            log::info!("Updating configuration file: '{}'", file_path.display());
+            info!("Updating configuration file: '{}'", file_path.display());
         } else {
-            log::info!("Writing configuration to file: '{}'", file_path.display());
+            info!("Writing configuration to file: '{}'", file_path.display());
         }
 
         let mut file = std::fs::File::create(&file_path)?;

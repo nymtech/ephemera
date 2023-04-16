@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use actix_web::{get, post, web, HttpRequest, HttpResponse};
 use lazy_static::lazy_static;
+use log::{error, info};
 use tokio::sync::Mutex;
 
 use ephemera::crypto::EphemeraPublicKey;
@@ -20,7 +21,7 @@ pub(crate) async fn submit_reward(
     message: web::Json<Vec<MixnodeToReward>>,
     contract: web::Data<Arc<Mutex<SmartContract>>>,
 ) -> HttpResponse {
-    log::info!("POST /contract/submit_reward {:?}", message);
+    info!("POST /contract/submit_reward {:?}", message);
 
     let nym_api_id = req
         .headers()
@@ -30,11 +31,11 @@ pub(crate) async fn submit_reward(
         .unwrap();
     let rewards = message.into_inner();
 
-    log::info!(
+    info!(
         "Received {} reward submissions from {nym_api_id}",
         rewards.len(),
     );
-    log::info!("Reward info {:?}", rewards);
+    info!("Reward info {:?}", rewards);
 
     match contract
         .lock()
@@ -44,7 +45,7 @@ pub(crate) async fn submit_reward(
     {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(err) => {
-            log::error!(
+            error!(
                 "Failed to submit message, only first Nym-Api succeeds: {}",
                 err
             );
@@ -57,11 +58,11 @@ pub(crate) async fn submit_reward(
 pub(crate) async fn get_epoch(contract: web::Data<Arc<Mutex<SmartContract>>>) -> HttpResponse {
     match contract.lock().await.get_epoch_from_db().await {
         Ok(epoch) => {
-            log::info!("GET /contract/epoch {:?}", epoch);
+            info!("GET /contract/epoch {:?}", epoch);
             HttpResponse::Ok().json(epoch)
         }
         Err(err) => {
-            log::error!("Error getting epoch: {}", err);
+            error!("Error getting epoch: {}", err);
             HttpResponse::InternalServerError().finish()
         }
     }
@@ -69,7 +70,7 @@ pub(crate) async fn get_epoch(contract: web::Data<Arc<Mutex<SmartContract>>>) ->
 
 #[get("/contract/peer_info")]
 pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>) -> HttpResponse {
-    log::info!("GET /contract/peer_info");
+    info!("GET /contract/peer_info");
 
     let mut peers: Vec<NymPeerInfo> = vec![];
     for (i, (peer_id, peer)) in contract
@@ -82,7 +83,7 @@ pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>)
         .enumerate()
     {
         if !ping_health(i).await {
-            log::info!("Skipping peer {} as it seems down", peer_id);
+            info!("Skipping peer {} as it seems down", peer_id);
             continue;
         }
 
@@ -93,9 +94,9 @@ pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>)
         });
     }
 
-    log::info!("Found {} peers", peers.len());
+    info!("Found {} peers", peers.len());
     for peer in peers.iter() {
-        log::info!("Peer address: {:?}", peer.address);
+        info!("Peer address: {:?}", peer.address);
     }
 
     HttpResponse::Ok().json(peers)
@@ -103,7 +104,7 @@ pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>)
 
 async fn ping_health(node_id: usize) -> bool {
     let url = format!("http://127.0.0.1:700{node_id}/ephemera/node/health",);
-    log::info!("Pinging health endpoint at {}", url);
+    info!("Pinging health endpoint at {}", url);
     let response = HTTP_CLIENT.get(url).send().await;
 
     if response.is_err() {

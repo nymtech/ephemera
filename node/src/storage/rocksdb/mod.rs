@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use log::info;
 use rocksdb::{TransactionDB, TransactionDBOptions};
 
 use crate::block::types::block::Block;
@@ -24,7 +25,7 @@ const PREFIX_CERTIFICATES: &str = "block_certificates";
 
 impl RocksDbStorage {
     pub fn open(db_conf: DbConfig) -> anyhow::Result<Self> {
-        log::info!("Opening RocksDB database at {}", db_conf.rocket_path);
+        info!("Opening RocksDB database at {}", db_conf.rocket_path);
 
         let mut options = rocksdb::Options::default();
         options.create_if_missing(db_conf.create_if_not_exists);
@@ -39,7 +40,7 @@ impl RocksDbStorage {
         let db_query = DbQuery::new(db);
         let storage = Self { db_store, db_query };
 
-        log::info!("Opened RocksDB database at {}", db_conf.rocket_path);
+        info!("Opened RocksDB database at {}", db_conf.rocket_path);
         Ok(storage)
     }
 }

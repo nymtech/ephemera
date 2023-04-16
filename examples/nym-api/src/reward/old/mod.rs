@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use log::{debug, info};
 
 use crate::reward::{EpochOperations, RewardManager, V1};
 
@@ -7,11 +8,11 @@ impl EpochOperations for RewardManager<V1> {
     async fn perform_epoch_operations(&mut self) -> anyhow::Result<()> {
         let start = self.epoch.current_epoch_start_time().timestamp() as u64;
         let end = self.epoch.current_epoch_end_time().timestamp() as u64;
-        log::info!("Calculating rewards for interval {} - {}", start, end);
+        info!("Calculating rewards for interval {} - {}", start, end);
 
         let rewards = self.calculate_rewards_for_previous_epoch().await?;
         let nr_of_rewards = rewards.len();
-        log::debug!("Calculated rewards: {:?}", rewards);
+        debug!("Calculated rewards: {:?}", rewards);
 
         self.submit_rewards_to_contract(rewards).await?;
 

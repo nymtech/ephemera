@@ -2,12 +2,13 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::Mutex;
+use log::{debug, error, info, trace};
+use tokio::{sync::broadcast::Receiver, sync::Mutex};
 
-use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
-use ephemera::ephemera_api;
-use ephemera::ephemera_api::{ApiBlock, ApiEphemeraMessage, ApiError, EphemeraExternalApi};
+use ephemera::{
+    crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair},
+    ephemera_api::{self, ApiBlock, ApiEphemeraMessage, ApiError, EphemeraExternalApi},
+};
 
 use crate::contract::MixnodeToReward;
 use crate::epoch::Epoch;
@@ -61,7 +62,7 @@ where
         aggregator: Option<RewardsAggregator>,
         epoch: Epoch,
     ) -> Self {
-        log::info!(
+        info!(
             "Starting RewardManager with epoch nr {}",
             epoch.current_epoch_numer()
         );
@@ -79,13 +80,13 @@ where
         loop {
             tokio::select! {
                 _ = receiver.recv() => {
-                    log::info!("Shutting down reward manager");
+                    info!("Shutting down reward manager");
                     break;
                 }
                 _ =  self.epoch.wait_epoch_end() => {
-                    log::info!("Rewarding epoch {} ...", self.epoch.current_epoch_numer());
+                    info!("Rewarding epoch {} ...", self.epoch.current_epoch_numer());
                     if let Err(err) = self.perform_epoch_operations().await {
-                        log::error!("Reward calculator failed: {}", err);
+                        error!("Reward calculator failed: {}", err);
                     }
                 }
             }
@@ -97,10 +98,10 @@ where
     ) -> anyhow::Result<Vec<MixnodeToReward>> {
         let start = self.epoch.current_epoch_start_time().timestamp() as u64;
         let end = self.epoch.current_epoch_end_time().timestamp() as u64;
-        log::info!("Calculating rewards for interval {} - {}", start, end);
+        info!("Calculating rewards for interval {} - {}", start, end);
 
         let mix_nodes = self.get_mix_nodes_to_reward();
-        log::debug!("Mix nodes to reward: {:?}", mix_nodes);
+        debug!("Mix nodes to reward: {:?}", mix_nodes);
 
         let storage = self.storage.lock().await;
 
@@ -124,7 +125,7 @@ where
             "http://{}/contract/submit_rewards",
             self.args.smart_contract_url
         );
-        log::info!("Submitting rewards to {}", url);
+        info!("Submitting rewards to {}", url);
         let response = reqwest::Client::new()
             .post(url.clone())
             .header(HTTP_NYM_API_HEADER, self.args.nym_api_id.clone())
@@ -132,7 +133,7 @@ where
             .send()
             .await?;
 
-        log::info!("Response from contract: {:?}", response);
+        info!("Response from contract: {:?}", response);
 
         if !response.status().is_success() {
             return Err(anyhow::anyhow!(
@@ -165,7 +166,7 @@ where
     }
 
     pub(crate) async fn store_in_dht(&self, epoch_id: u64) -> anyhow::Result<()> {
-        log::info!("Storing ourselves as winner in DHT for epoch id: {epoch_id:?}");
+        info!("Storing ourselves as winner in DHT for epoch id: {epoch_id:?}");
 
         let access = self
             .ephemera_access
@@ -178,7 +179,7 @@ where
         let value = keypair.public_key().to_base58();
 
         access.api.store_in_dht(key, value.into_bytes()).await?;
-        log::info!("Sent store request to DHT");
+        info!("Sent store request to DHT");
         Ok(())
     }
 
@@ -192,12 +193,12 @@ where
 
         match access.api.query_dht(key).await? {
             None => {
-                log::info!("No winner found for epoch id from DHT: {epoch_id:?}");
+                info!("No winner found for epoch id from DHT: {epoch_id:?}");
                 Ok(None)
             }
             Some((_, peer_id)) => {
                 let peer_id = PeerId::from_utf8(peer_id).expect("Invalid peer id");
-                log::info!("Winner found for epoch id from DHT: {epoch_id:?} - {peer_id:?}");
+                info!("Winner found for epoch id from DHT: {epoch_id:?} - {peer_id:?}");
                 Ok(Some(peer_id))
             }
         }
@@ -208,7 +209,7 @@ where
         rewards: Vec<MixnodeToReward>,
     ) -> anyhow::Result<()> {
         let ephemera_msg = self.create_ephemera_message(rewards)?;
-        log::debug!("Sending rewards to ephemera: {:?}", ephemera_msg);
+        debug!("Sending rewards to ephemera: {:?}", ephemera_msg);
 
         let access = self
             .ephemera_access
@@ -246,20 +247,20 @@ where
         nr_of_rewards: usize,
         block: ApiBlock,
     ) -> anyhow::Result<()> {
-        log::info!(
+        info!(
             "Calculating aggregated rewards from block with height: {:?}",
             block.header.height
         );
         let mut mix_node_rewards = vec![];
 
         for message in block.messages {
-            log::trace!("Message: {}", message);
+            trace!("Message: {}", message);
             let mix_node_reward: Vec<MixnodeToReward> = serde_json::from_slice(&message.data)?;
             mix_node_rewards.push(mix_node_reward);
         }
 
         let aggregated_rewards = self.aggregator().aggregate(mix_node_rewards);
-        log::debug!("Aggregated rewards: {:?}", aggregated_rewards);
+        debug!("Aggregated rewards: {:?}", aggregated_rewards);
 
         self.submit_rewards_to_contract(aggregated_rewards).await?;
 
@@ -267,7 +268,7 @@ where
             .lock()
             .await
             .save_rewarding_results(self.epoch.current_epoch_numer(), nr_of_rewards)?;
-        log::info!(
+        info!(
             "Saved rewarding results for epoch: {:?}",
             self.epoch.current_epoch_numer()
         );

@@ -1,3 +1,4 @@
+use log::{error, trace};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Row};
 
 use crate::block::types::block::Block;
@@ -16,8 +17,6 @@ impl DbQuery {
     }
 
     pub(crate) fn get_block_by_hash(&self, block_hash: String) -> anyhow::Result<Option<Block>> {
-        log::trace!("Getting block by hash: {}", block_hash);
-
         let mut stmt = self
             .connection
             .prepare_cached("SELECT block FROM blocks WHERE block_hash = ?1")?;
@@ -26,17 +25,15 @@ impl DbQuery {
             .optional()?;
 
         if let Some(block) = &block {
-            log::trace!("Found block: {}", block.header);
+            trace!("Found block: {}", block.header);
         } else {
-            log::trace!("Block not found: {}", block_hash);
+            trace!("Block not found: {}", block_hash);
         };
 
         Ok(block)
     }
 
     pub(crate) fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
-        log::trace!("Getting last block");
-
         let mut stmt = self
             .connection
             .prepare_cached("SELECT block FROM blocks where id = (select max(id) from blocks)")?;
@@ -44,17 +41,15 @@ impl DbQuery {
         let block = stmt.query_row(params![], Self::map_block()).optional()?;
 
         if let Some(block) = &block {
-            log::trace!("Found last block: {}", block.header);
+            trace!("Found last block: {}", block.header);
         } else {
-            log::trace!("Last block not found");
+            trace!("Last block not found");
         };
 
         Ok(block)
     }
 
     pub(crate) fn get_block_by_height(&self, height: u64) -> anyhow::Result<Option<Block>> {
-        log::trace!("Getting block by height: {}", height);
-
         let mut stmt = self
             .connection
             .prepare_cached("SELECT block FROM blocks WHERE height = ?1")?;
@@ -63,9 +58,9 @@ impl DbQuery {
             .optional()?;
 
         if let Some(block) = &block {
-            log::trace!("Found block: {}", block.header);
+            trace!("Found block: {}", block.header);
         } else {
-            log::trace!("Block not found: {}", height);
+            trace!("Block not found: {}", height);
         };
 
         Ok(block)
@@ -75,8 +70,6 @@ impl DbQuery {
         &self,
         block_hash: String,
     ) -> anyhow::Result<Option<Vec<Certificate>>> {
-        log::trace!("Getting block certificates by block hash {}", block_hash);
-
         let mut stmt = self
             .connection
             .prepare_cached("SELECT certificates FROM block_certificates where block_hash = ?1")?;
@@ -86,7 +79,7 @@ impl DbQuery {
                 let certificates: Vec<u8> = row.get(0)?;
                 let certificates = serde_json::from_slice::<Vec<Certificate>>(&certificates)
                     .map_err(|e| {
-                        log::error!("Error deserializing certificates: {}", e);
+                        error!("Error deserializing certificates: {}", e);
                         rusqlite::Error::InvalidQuery {}
                     })?;
                 Ok(certificates)
@@ -94,9 +87,9 @@ impl DbQuery {
             .optional()?;
 
         if signatures.is_some() {
-            log::trace!("Found block {} certificates", block_hash);
+            trace!("Found block {} certificates", block_hash);
         } else {
-            log::trace!("Certificates not found");
+            trace!("Certificates not found");
         };
 
         Ok(signatures)
@@ -106,7 +99,7 @@ impl DbQuery {
         |row| {
             let body: Vec<u8> = row.get(0)?;
             let block = serde_json::from_slice::<Block>(&body).map_err(|e| {
-                log::error!("Error deserializing block: {}", e);
+                error!("Error deserializing block: {}", e);
                 rusqlite::Error::InvalidQuery {}
             })?;
             Ok(block)

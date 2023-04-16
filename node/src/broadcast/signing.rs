@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use log::{debug, trace};
 use lru::LruCache;
 
 use crate::{
@@ -39,7 +40,7 @@ impl BlockSigner {
         block: &Block,
         hash: &HashType,
     ) -> anyhow::Result<Certificate> {
-        log::debug!("Signing block: {:?}", block);
+        debug!("Signing block: {:?}", block.get_hash());
 
         let certificate = block.sign(self.signing_keypair.as_ref())?;
         self.add_certificate(hash, certificate.clone());
@@ -53,7 +54,7 @@ impl BlockSigner {
         block: &Block,
         certificate: &Certificate,
     ) -> anyhow::Result<()> {
-        log::trace!("Verifying block: {block:?} against certificate {certificate:?}");
+        trace!("Verifying block: {block:?} against certificate {certificate:?}");
 
         let raw_block: RawBlock = (*block).clone().into();
         let raw_block = raw_block.encode()?;
@@ -70,7 +71,7 @@ impl BlockSigner {
     }
 
     fn add_certificate(&mut self, hash: &HashType, certificate: Certificate) {
-        log::trace!("Adding certificate to block: {}", hash);
+        trace!("Adding certificate to block: {}", hash);
         self.verified_signatures
             .get_or_insert_mut(hash.to_owned(), HashSet::new)
             .insert(certificate);

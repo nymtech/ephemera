@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::block::types::block::Block;
 use crate::storage::rocksdb::{block_hash_key, block_height_key, certificates_key, last_block_key};
+use log::{debug, trace};
 use rocksdb::{TransactionDB, WriteBatchWithTransaction};
 
 use crate::utilities::crypto::Certificate;
@@ -20,8 +21,8 @@ impl DbStore {
         block: &Block,
         certificates: Vec<Certificate>,
     ) -> anyhow::Result<()> {
-        log::debug!("Storing block: {}", block.header);
-        log::trace!("Storing block certificates: {}", certificates.len());
+        debug!("Storing block: {}", block.header);
+        trace!("Storing block certificates: {}", certificates.len());
 
         let hash_str = block.header.hash.to_string();
 

@@ -10,6 +10,7 @@ use libp2p::{
     yamux::YamuxConfig,
     PeerId as Libp2pPeerId, Transport,
 };
+use log::info;
 
 use crate::{
     broadcast::RbMsg,
@@ -105,7 +106,7 @@ pub(crate) fn create_gossipsub(local_key: Arc<Keypair>, topic: &Topic) -> gossip
     )
     .expect("Correct configuration");
 
-    log::info!("Subscribing to topic: {}", topic);
+    info!("Subscribing to topic: {}", topic);
     behaviour.subscribe(topic).expect("Valid topic");
     behaviour
 }

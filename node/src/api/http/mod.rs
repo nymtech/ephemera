@@ -1,4 +1,5 @@
 use actix_web::{dev::Server, http::KeepAlive, web::Data, App, HttpServer};
+use log::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -71,7 +72,7 @@ fn swagger_ui() -> SwaggerUi {
 /// to the Swagger UI and OpenAPI spec.
 fn print_startup_messages(info: &NodeInfo) {
     let http_root = info.api_address_http();
-    log::info!("Server running on {}", http_root);
-    log::info!("Swagger UI: {}/swagger-ui/", http_root);
-    log::info!("OpenAPI spec is at: {}/api-doc/openapi.json", http_root);
+    info!("Server running on {}", http_root);
+    info!("Swagger UI: {}/swagger-ui/", http_root);
+    info!("OpenAPI spec is at: {}/api-doc/openapi.json", http_root);
 }

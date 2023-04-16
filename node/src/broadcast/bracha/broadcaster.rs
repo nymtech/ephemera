@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 
+use log::{debug, trace};
 use lru::LruCache;
 
 use crate::{
@@ -63,7 +64,7 @@ impl Broadcaster {
     }
 
     pub(crate) async fn new_broadcast(&mut self, block: Block) -> anyhow::Result<ProtocolResponse> {
-        log::debug!("Starting broadcast for new block {:?}", block.get_hash());
+        debug!("Starting broadcast for new block {:?}", block.get_hash());
         let rb_msg = RawRbMsg::new(block, self.local_peer_id);
         self.handle(rb_msg).await
     }
@@ -72,31 +73,31 @@ impl Broadcaster {
         let block = &rb_msg.block();
         let hash = block.hash_with_default_hasher()?;
 
-        log::debug!("Processing new broadcast message: {:?}", rb_msg.short_fmt());
+        debug!("Processing new broadcast message: {:?}", rb_msg.short_fmt());
 
         let ctx = self
             .contexts
             .get_or_insert(hash, || ProtocolContext::new(hash, self.local_peer_id));
 
         if ctx.delivered {
-            log::debug!("Block {hash:?} already delivered");
+            debug!("Block {hash:?} already delivered");
             return Ok(ProtocolResponse::drop());
         }
 
         match rb_msg.message_type.clone() {
             Echo(_) => {
-                log::trace!("Processing ECHO {:?}", rb_msg.id);
+                trace!("Processing ECHO {:?}", rb_msg.id);
                 self.process_echo(rb_msg, hash).await
             }
             Vote(_) => {
-                log::trace!("Processing VOTE {:?}", rb_msg.id);
+                trace!("Processing VOTE {:?}", rb_msg.id);
                 self.process_vote(rb_msg, hash).await
             }
         }
     }
 
-    pub(crate) fn topology_updated(&mut self, size: usize) {
-        self.quorum.update_topology_size(size);
+    pub(crate) fn group_updated(&mut self, size: usize) {
+        self.quorum.update_group_size(size);
     }
 
     async fn process_echo(
@@ -107,14 +108,14 @@ impl Broadcaster {
         let ctx = self.contexts.get_mut(&hash).unwrap();
 
         if self.local_peer_id != rb_msg.original_sender {
-            log::trace!("Adding echo from {:?}", rb_msg.original_sender);
+            trace!("Adding echo from {:?}", rb_msg.original_sender);
             ctx.add_echo(rb_msg.original_sender);
         }
 
         if !ctx.echoed() {
             ctx.add_echo(self.local_peer_id);
 
-            log::trace!("Sending echo reply for {hash:?}",);
+            trace!("Sending echo reply for {hash:?}",);
             return Ok(ProtocolResponse::broadcast(
                 rb_msg.echo_reply(self.local_peer_id, rb_msg.block()),
             ));
@@ -128,7 +129,7 @@ impl Broadcaster {
         {
             ctx.add_vote(self.local_peer_id);
 
-            log::trace!("Sending vote reply for {hash:?}",);
+            trace!("Sending vote reply for {hash:?}",);
             return Ok(ProtocolResponse::broadcast(
                 rb_msg.vote_reply(self.local_peer_id, rb_msg.block()),
             ));
@@ -146,7 +147,7 @@ impl Broadcaster {
         let ctx = self.contexts.get_mut(&hash).unwrap();
 
         if self.local_peer_id != rb_msg.original_sender {
-            log::trace!("Adding vote from {:?}", rb_msg.original_sender);
+            trace!("Adding vote from {:?}", rb_msg.original_sender);
             ctx.add_vote(rb_msg.original_sender);
         }
 
@@ -157,7 +158,7 @@ impl Broadcaster {
         {
             ctx.add_vote(self.local_peer_id);
 
-            log::trace!("Sending vote reply for {hash:?}",);
+            trace!("Sending vote reply for {hash:?}",);
             return Ok(ProtocolResponse::broadcast(
                 rb_msg.vote_reply(self.local_peer_id, block.clone()),
             ));
@@ -168,7 +169,7 @@ impl Broadcaster {
             .check_threshold(ctx, rb_msg.message_type.clone().into())
             .is_deliver()
         {
-            log::trace!("Commit complete for {:?}", rb_msg.id);
+            trace!("Commit complete for {:?}", rb_msg.id);
 
             ctx.delivered = true;
 
@@ -189,7 +190,7 @@ mod tests {
 
     //3.make sure that duplicate messages doesn't have impact
 
-    //4. "Ideally" make sure that when topology changes, the ongoing broadcast can deal with it
+    //4. "Ideally" make sure that when group changes, the ongoing broadcast can deal with it
 
     use std::iter;
 
@@ -210,7 +211,7 @@ mod tests {
         let block_creator_peer_id = peers[1];
 
         let mut broadcaster = Broadcaster::new(local_peer_id);
-        broadcaster.topology_updated(peers.len());
+        broadcaster.group_updated(peers.len());
 
         let (block_hash, block) = create_block(block_creator_peer_id);
 

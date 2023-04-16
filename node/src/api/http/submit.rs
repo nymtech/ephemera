@@ -1,7 +1,10 @@
 use actix_web::{post, web, HttpRequest, HttpResponse};
+use log::{debug, error};
 
-use crate::api::types::{ApiDhtStoreRequest, ApiEphemeraMessage};
-use crate::api::{ApiError, EphemeraExternalApi};
+use crate::api::{
+    types::{ApiDhtStoreRequest, ApiEphemeraMessage},
+    ApiError, EphemeraExternalApi,
+};
 
 #[utoipa::path(
 request_body = ApiSignedMessage,
@@ -16,17 +19,15 @@ pub(crate) async fn submit_message(
     message: web::Json<ApiEphemeraMessage>,
     api: web::Data<EphemeraExternalApi>,
 ) -> HttpResponse {
-    log::debug!("POST /ephemera/broadcast/submit_message {:?}", message);
-
     match api.send_ephemera_message(message.into_inner()).await {
         Ok(_) => HttpResponse::Ok().json("Message submitted"),
         Err(err) => match err {
             ApiError::DuplicateMessage => {
-                log::debug!("Message already submitted {err:?}");
+                debug!("Message already submitted {err:?}");
                 HttpResponse::BadRequest().json("Message already submitted")
             }
             _ => {
-                log::error!("Error submitting message: {}", err);
+                error!("Error submitting message: {}", err);
                 HttpResponse::InternalServerError().json("Server failed to process request")
             }
         },
@@ -48,7 +49,6 @@ pub(crate) async fn store_in_dht(
     api: web::Data<EphemeraExternalApi>,
 ) -> HttpResponse {
     let request = request.into_inner();
-    log::debug!("POST /ephemera/dht/store {:?}", request);
 
     let key = request.key();
     let value = request.value();
@@ -56,7 +56,7 @@ pub(crate) async fn store_in_dht(
     match api.store_in_dht(key, value).await {
         Ok(_) => HttpResponse::Ok().json("Store request submitted"),
         Err(err) => {
-            log::error!("Error storing in dht: {}", err);
+            error!("Error storing in dht: {}", err);
             HttpResponse::InternalServerError().json("Server failed to process request")
         }
     }

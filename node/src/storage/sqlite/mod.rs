@@ -1,3 +1,4 @@
+use log::{error, info};
 use rusqlite::Connection;
 
 use crate::block::types::block::Block;
@@ -31,7 +32,7 @@ impl SqliteStorage {
         let mut connection = Connection::open_with_flags(db_conf.sqlite_path.clone(), flags)?;
         Self::run_migrations(&mut connection)?;
 
-        log::info!("Starting db backend with path: {}", db_conf.sqlite_path);
+        info!("Starting db backend with path: {}", db_conf.sqlite_path);
         let db_store = DbStore::open(db_conf.clone(), flags)?;
         let db_query = DbQuery::open(db_conf, flags)?;
         let storage = Self { db_store, db_query };
@@ -39,14 +40,14 @@ impl SqliteStorage {
     }
 
     pub fn run_migrations(connection: &mut Connection) -> anyhow::Result<()> {
-        log::info!("Running database migrations");
+        info!("Running database migrations");
         match migrations::migrations::runner().run(connection) {
             Ok(ok) => {
-                log::info!("Database migrations completed:{:?} ", ok);
+                info!("Database migrations completed:{:?} ", ok);
                 Ok(())
             }
             Err(err) => {
-                log::error!("Database migrations failed: {}", err);
+                error!("Database migrations failed: {}", err);
                 Err(anyhow::anyhow!(err))
             }
         }

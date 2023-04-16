@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::anyhow;
+use log::info;
 
 use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
@@ -76,7 +77,7 @@ impl NymApiEphemeraPeerInfo {
                     continue;
                 }
 
-                log::info!("Loading config for node {}", node_name);
+                info!("Loading config for node {}", node_name);
 
                 let conf = Configuration::try_load_from_home_dir(node_name)
                     .unwrap_or_else(|_| panic!("Error loading configuration for node {node_name}"));
@@ -98,7 +99,7 @@ impl NymApiEphemeraPeerInfo {
 
                 peers.insert(peer_id, peer);
 
-                log::info!("Loaded config for node {}", node_name);
+                info!("Loaded config for node {}", node_name);
             }
         }
 

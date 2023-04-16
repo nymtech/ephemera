@@ -1,3 +1,4 @@
+use log::trace;
 use thiserror::Error;
 
 use crate::api::types::{ApiBlock, ApiEphemeraMessage};
@@ -63,17 +64,17 @@ pub struct DefaultApplication;
 /// Default application which doesn't do any validation.
 impl Application for DefaultApplication {
     fn check_tx(&self, tx: ApiEphemeraMessage) -> Result<bool> {
-        log::trace!("ApplicationPlaceholder::check_tx: {tx:?}");
+        trace!("ApplicationPlaceholder::check_tx: {tx:?}");
         Ok(true)
     }
 
     fn check_block(&self, block: &ApiBlock) -> Result<CheckBlockResult> {
-        log::trace!("ApplicationPlaceholder::accept_block: {block:?}");
+        trace!("ApplicationPlaceholder::accept_block: {block:?}");
         Ok(CheckBlockResult::Accept)
     }
 
     fn deliver_block(&self, block: ApiBlock) -> Result<()> {
-        log::trace!("ApplicationPlaceholder::deliver_block: {block:?}");
+        trace!("ApplicationPlaceholder::deliver_block: {block:?}");
         Ok(())
     }
 }

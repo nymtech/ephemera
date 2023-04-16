@@ -2,12 +2,13 @@ use std::net::IpAddr;
 use std::str::FromStr;
 
 use ::libp2p::{multiaddr::Protocol, Multiaddr};
+use log::info;
 use thiserror::Error;
 
 pub(crate) mod discovery;
 pub(crate) mod libp2p;
+pub(crate) mod membership;
 pub(crate) mod peer;
-pub(crate) mod topology;
 
 #[derive(Error, Debug)]
 pub enum AddressError {
@@ -42,7 +43,7 @@ impl FromStr for Address {
         let address: Option<Multiaddr> = match Multiaddr::from_str(s) {
             Ok(multiaddr) => Some(multiaddr),
             Err(err) => {
-                log::info!("Failed to parse multiaddr: {}", err);
+                info!("Failed to parse multiaddr: {}", err);
                 None
             }
         };
@@ -64,7 +65,7 @@ impl FromStr for Address {
                 Some(multiaddr)
             }
             Err(err) => {
-                log::info!("Failed to parse socket addr: {err}");
+                info!("Failed to parse socket addr: {err}");
                 None
             }
         });
