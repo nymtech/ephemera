@@ -18,9 +18,8 @@ use crate::{
     network::libp2p::behaviours::peer_discovery,
     network::{
         discovery::PeerDiscovery,
-        libp2p::behaviours::{
-            broadcast_messages::{RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse},
-            peer_discovery::behaviour::Behaviour,
+        libp2p::behaviours::broadcast_messages::{
+            RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
         },
         peer::ToPeerId,
     },
@@ -31,7 +30,7 @@ use crate::{
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
 pub(crate) struct GroupNetworkBehaviour<P: PeerDiscovery> {
-    pub(crate) rendezvous_behaviour: Behaviour<P>,
+    pub(crate) peer_discovery: peer_discovery::behaviour::Behaviour<P>,
     pub(crate) gossipsub: gossipsub::Behaviour,
     pub(crate) request_response: request_response::Behaviour<RbMsgMessagesCodec>,
     pub(crate) kademlia: kad::Kademlia<kad::store::MemoryStore>,
@@ -84,7 +83,7 @@ pub(crate) fn create_behaviour<P: PeerDiscovery + 'static>(
     let kademlia = create_kademlia(keypair);
 
     GroupNetworkBehaviour {
-        rendezvous_behaviour,
+        peer_discovery: rendezvous_behaviour,
         gossipsub,
         request_response,
         kademlia,
@@ -123,8 +122,8 @@ pub(crate) fn create_request_response() -> request_response::Behaviour<RbMsgMess
 pub(crate) fn create_rendezvous<P: PeerDiscovery + 'static>(
     peer_discovery: P,
     local_peer_id: PeerId,
-) -> Behaviour<P> {
-    Behaviour::new(peer_discovery, local_peer_id)
+) -> peer_discovery::behaviour::Behaviour<P> {
+    peer_discovery::behaviour::Behaviour::new(peer_discovery, local_peer_id.into())
 }
 
 pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::store::MemoryStore> {

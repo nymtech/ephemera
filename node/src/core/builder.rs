@@ -6,7 +6,7 @@ use log::{error, info};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::network::membership::BroadcastGroup;
+use crate::network::group::BroadcastGroup;
 #[cfg(feature = "rocksdb_storage")]
 use crate::storage::rocksdb::RocksDbStorage;
 #[cfg(feature = "sqlite_storage")]

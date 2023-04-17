@@ -1,25 +1,22 @@
-use std::io::Write;
 use std::{path::PathBuf, sync::Arc};
 
-use async_trait::async_trait;
 use clap::Parser;
 use log::trace;
-use serde::{Deserialize, Serialize};
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::mpsc::UnboundedSender,
 };
 
-use crate::cli::peers::ConfigPeers;
 use crate::{
     api::application::CheckBlockResult,
+    cli::peers::ConfigPeers,
     codec::EphemeraEncoder,
     config::Configuration,
     core::builder::EphemeraStarter,
-    crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey},
+    crypto::EphemeraKeypair,
+    crypto::Keypair,
     ephemera_api::{
-        ApiBlock, ApiEphemeraMessage, Application, DefaultApplication, RawApiEphemeraMessage,
-        Result,
+        ApiBlock, ApiEphemeraMessage, Application, DummyApplication, RawApiEphemeraMessage, Result,
     },
     peer_discovery::{self, PeerDiscovery, PeerInfo},
     utilities::encoding::Encoder,
@@ -40,7 +37,7 @@ impl RunExternalNodeCmd {
 
         let ephemera = EphemeraStarter::new(conf.clone())
             .unwrap()
-            .with_application(DefaultApplication)
+            .with_application(DummyApplication)
             .with_peer_discovery(ConfigPeers::load()?)
             .init_tasks()
             .await
@@ -108,11 +105,19 @@ impl Application for SignatureVerificationApplication {
     }
 }
 
-struct DummyPeerDiscovery;
+#[async_trait::async_trait]
+impl PeerDiscovery for ConfigPeers {
+    async fn poll(
+        &mut self,
+        discovery_channel: UnboundedSender<Vec<PeerInfo>>,
+    ) -> peer_discovery::Result<()> {
+        let peer_info = self
+            .peers
+            .iter()
+            .map(|peer| PeerInfo::try_from(peer.clone()))
+            .collect::<anyhow::Result<Vec<PeerInfo>>>()?;
 
-#[async_trait]
-impl PeerDiscovery for DummyPeerDiscovery {
-    async fn poll(&mut self, _: UnboundedSender<Vec<PeerInfo>>) -> peer_discovery::Result<()> {
+        discovery_channel.send(peer_info).unwrap();
         Ok(())
     }
 

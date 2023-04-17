@@ -1,17 +1,15 @@
 //! This is used to add a peer to the configuration file. Only used for testing purposes.
-use std::collections::HashMap;
+
 use std::io::Write;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::config::Configuration;
 use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
-use crate::peer_discovery;
-use crate::peer_discovery::{PeerDiscovery, PeerInfo};
+
+use crate::peer_discovery::PeerInfo;
 
 const PEERS_CONFIG_FILE: &str = "peers.toml";
 
@@ -24,7 +22,7 @@ pub struct PeerSetting {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ConfigPeers {
-    peers: Vec<PeerSetting>,
+    pub(crate) peers: Vec<PeerSetting>,
 }
 
 impl ConfigPeers {
@@ -84,27 +82,6 @@ impl TryFrom<PeerSetting> for PeerInfo {
             address: setting.address,
             pub_key,
         })
-    }
-}
-
-#[async_trait::async_trait]
-impl PeerDiscovery for ConfigPeers {
-    async fn poll(
-        &mut self,
-        discovery_channel: UnboundedSender<Vec<PeerInfo>>,
-    ) -> peer_discovery::Result<()> {
-        let peer_info = self
-            .peers
-            .iter()
-            .map(|peer| PeerInfo::try_from(peer.clone()))
-            .collect::<anyhow::Result<Vec<PeerInfo>>>()?;
-
-        discovery_channel.send(peer_info).unwrap();
-        Ok(())
-    }
-
-    fn get_poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(60 * 60 * 24)
     }
 }
 

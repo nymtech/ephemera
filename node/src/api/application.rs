@@ -2,7 +2,6 @@ use log::trace;
 use thiserror::Error;
 
 use crate::api::types::{ApiBlock, ApiEphemeraMessage};
-use crate::peer_discovery::PeerId;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RemoveMessages {
@@ -58,23 +57,24 @@ pub trait Application {
     fn deliver_block(&self, block: ApiBlock) -> Result<()>;
 }
 
+/// Dummy application which doesn't do any validation.
+/// Might be useful for testing.
 #[derive(Default)]
-pub struct DefaultApplication;
+pub struct DummyApplication;
 
-/// Default application which doesn't do any validation.
-impl Application for DefaultApplication {
+impl Application for DummyApplication {
     fn check_tx(&self, tx: ApiEphemeraMessage) -> Result<bool> {
-        trace!("ApplicationPlaceholder::check_tx: {tx:?}");
+        trace!("check_tx: {tx:?}");
         Ok(true)
     }
 
     fn check_block(&self, block: &ApiBlock) -> Result<CheckBlockResult> {
-        trace!("ApplicationPlaceholder::accept_block: {block:?}");
+        trace!("accept_block: {block:?}");
         Ok(CheckBlockResult::Accept)
     }
 
     fn deliver_block(&self, block: ApiBlock) -> Result<()> {
-        trace!("ApplicationPlaceholder::deliver_block: {block:?}");
+        trace!("deliver_block: {block:?}");
         Ok(())
     }
 }

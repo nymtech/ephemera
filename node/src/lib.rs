@@ -31,7 +31,7 @@ pub use crate::core::shutdown::ShutdownHandle;
 pub mod ephemera_api {
     pub use crate::api::{
         application::{
-            Application, ApplicationError, CheckBlockResult, DefaultApplication, RemoveMessages,
+            Application, ApplicationError, CheckBlockResult, DummyApplication, RemoveMessages,
             Result,
         },
         http::client::{EphemeraHttpClient, Error},
@@ -45,7 +45,7 @@ pub mod ephemera_api {
 
 pub mod peer_discovery {
     pub use super::network::{
-        discovery::{PeerDiscovery, PeerInfo, Result},
+        discovery::{DummyPeerDiscovery, PeerDiscovery, PeerInfo, Result},
         peer::{PeerId, ToPeerId},
     };
 }

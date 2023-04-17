@@ -1,9 +1,11 @@
 use futures::StreamExt;
+use libp2p::swarm::{NetworkBehaviour, SwarmBuilder};
 use libp2p::{
     gossipsub, gossipsub::IdentTopic as Topic, kad, request_response, swarm::SwarmEvent, Multiaddr,
     Swarm,
 };
 use log::{debug, error, info, trace};
+use std::collections::HashSet;
 use std::str::FromStr;
 use tokio::task::JoinHandle;
 
@@ -62,7 +64,8 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
 
         let transport = create_transport(local_key.clone());
         let behaviour = create_behaviour(local_key, ephemera_msg_topic.clone(), peer_discovery);
-        let swarm = Swarm::with_tokio_executor(transport, behaviour, peer_id.into());
+
+        let swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, peer_id.into()).build();
 
         let network = SwarmNetwork {
             node_info,
@@ -116,7 +119,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     async fn start_peer_discovery(&mut self) -> anyhow::Result<JoinHandle<()>> {
         self.swarm
             .behaviour_mut()
-            .rendezvous_behaviour
+            .peer_discovery
             .spawn_peer_discovery()
             .await
     }
@@ -283,22 +286,25 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         event: peer_discovery::behaviour::Event,
     ) -> anyhow::Result<()> {
         match event {
-            peer_discovery::behaviour::Event::PeersUpdated => {
-                info!(
-                    "Peers updated: {:?}",
-                    self.swarm.behaviour().rendezvous_behaviour.peer_ids()
-                );
-                let new_peers = self.swarm.behaviour().rendezvous_behaviour.peers();
-                info!("New peers: {:?}", new_peers);
+            peer_discovery::behaviour::Event::PeersUpdated(peers_ids) => {
+                info!("Peers updated: {:?}", peers_ids);
 
                 let local_peer_id = *self.swarm.local_peer_id();
-                let kademlia = &mut self.swarm.behaviour_mut().kademlia;
-
-                for peer in new_peers {
-                    if *peer.peer_id.inner() == local_peer_id {
+                for peer_id in peers_ids {
+                    if peer_id == local_peer_id {
                         continue;
                     }
-                    kademlia.add_address(peer.peer_id.inner(), peer.address.inner());
+                    let address = self
+                        .swarm
+                        .behaviour_mut()
+                        .peer_discovery
+                        .addresses_of_peer(&peer_id);
+                    if let Some(address) = address.first() {
+                        self.swarm
+                            .behaviour_mut()
+                            .kademlia
+                            .add_address(&peer_id, address.clone());
+                    }
                 }
 
                 let query_id = self
@@ -348,36 +354,31 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                         trace!("Bootstrap: {:?}", bt);
                     }
                     kad::QueryResult::GetClosestPeers(gcp) => {
-                        debug!("GetClosestPeers: {:?}", gcp);
+                        trace!("GetClosestPeers: {:?}", gcp);
                         //TODO: we need also to make sure that we have enough peers
                         // (Repeat if not enough, may need to wait network to stabilize)
-
-                        //TODO: kad seems to get multiple responses for single query
                         match gcp {
                             Ok(cp) => {
                                 if cp.peers.is_empty() {
                                     return Ok(());
                                 }
-                                let previous_peer_ids = self
-                                    .swarm
-                                    .behaviour()
-                                    .rendezvous_behaviour
-                                    .previous_peer_ids();
 
                                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
-                                for peer_id in previous_peer_ids {
-                                    gossipsub.remove_explicit_peer(peer_id.inner());
-                                }
-
                                 for peer_id in cp.peers {
                                     gossipsub.add_explicit_peer(&peer_id);
                                 }
 
-                                let new_peer_ids =
-                                    self.swarm.behaviour().rendezvous_behaviour.peer_ids();
-
+                                let active_peers = self
+                                    .swarm
+                                    .behaviour_mut()
+                                    .peer_discovery
+                                    .active_peer_ids_with_local();
+                                let active_peers = active_peers
+                                    .into_iter()
+                                    .map(|peer_id| peer_id.into())
+                                    .collect::<HashSet<_>>();
                                 let group_update = NetworkEvent::GroupUpdate(
-                                    GroupChangeEvent::PeersUpdated(new_peer_ids),
+                                    GroupChangeEvent::PeersUpdated(active_peers),
                                 );
                                 self.to_ephemera_tx.send_network_event(group_update).await?;
                             }
@@ -507,6 +508,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     error
                 );
             }
+            #[allow(deprecated)]
             SwarmEvent::BannedPeer { peer_id, endpoint } => {
                 trace!(
                     "Banned peer: peer_id:{:?}, endpoint:{:?}",
@@ -570,16 +572,14 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             msg.short_fmt()
         );
         trace!("Sending broadcast message: {:?}", msg);
-
-        for peer in self.swarm.behaviour().rendezvous_behaviour.peer_ids() {
+        let local_peer_id = *self.swarm.local_peer_id();
+        let behaviours = self.swarm.behaviour_mut();
+        for peer in behaviours.peer_discovery.active_peer_ids() {
             trace!("Sending broadcast message: {:?} to peer: {peer:?}", msg.id,);
-            if peer.inner() == self.swarm.local_peer_id() {
+            if *peer == local_peer_id {
                 continue;
             }
-            self.swarm
-                .behaviour_mut()
-                .request_response
-                .send_request(peer.inner(), msg.clone());
+            behaviours.request_response.send_request(peer, msg.clone());
         }
     }
 

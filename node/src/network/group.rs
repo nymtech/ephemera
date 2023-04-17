@@ -27,7 +27,7 @@ impl BroadcastGroup {
         }
     }
 
-    pub(crate) fn add_snapshot(&mut self, snapshot: Vec<PeerId>) {
+    pub(crate) fn add_snapshot(&mut self, snapshot: HashSet<PeerId>) {
         self.current_id += 1;
         self.snapshots
             .put(self.current_id, snapshot.into_iter().collect());

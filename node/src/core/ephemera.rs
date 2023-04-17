@@ -21,11 +21,11 @@ use crate::{
         shutdown::ShutdownManager,
     },
     network::{
+        group::BroadcastGroup,
         libp2p::{
             ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender},
             network_sender::{NetCommunicationReceiver, NetworkEvent},
         },
-        membership::BroadcastGroup,
     },
     storage::EphemeraDatabase,
     utilities::crypto::Certificate,
@@ -221,7 +221,7 @@ impl<A: Application> Ephemera<A> {
             GroupChangeEvent::LocalPeerRemoved | GroupChangeEvent::NotEnoughPeers => {
                 info!("Group update: Local peer removed or not enough peers");
                 self.broadcaster.group_updated(0);
-                self.broadcast_group.add_snapshot(vec![]);
+                self.broadcast_group.add_snapshot(Default::default());
                 self.block_manager.pause();
             }
         }

@@ -1,7 +1,9 @@
 use crate::peer_discovery::PeerId;
 
 pub(crate) mod behaviour;
+mod connections;
 mod handler;
+mod membership;
 
 const MAX_DIAL_ATTEMPT_ROUNDS: usize = 6;
 

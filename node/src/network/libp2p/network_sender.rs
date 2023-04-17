@@ -1,4 +1,5 @@
 use log::trace;
+use std::collections::HashSet;
 use tokio::sync::mpsc;
 
 use crate::block::types::message::EphemeraMessage;
@@ -7,7 +8,7 @@ use crate::network::peer::PeerId;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum GroupChangeEvent {
-    PeersUpdated(Vec<PeerId>),
+    PeersUpdated(HashSet<PeerId>),
     LocalPeerRemoved,
     NotEnoughPeers,
 }

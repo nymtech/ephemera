@@ -6,8 +6,8 @@ use log::info;
 use thiserror::Error;
 
 pub(crate) mod discovery;
+pub(crate) mod group;
 pub(crate) mod libp2p;
-pub(crate) mod membership;
 pub(crate) mod peer;
 
 #[derive(Error, Debug)]
@@ -22,8 +22,8 @@ pub enum AddressError {
 pub struct Address(pub Multiaddr);
 
 impl Address {
-    pub fn inner(&self) -> Multiaddr {
-        self.0.clone()
+    pub fn inner(&self) -> &Multiaddr {
+        &self.0
     }
 }
 

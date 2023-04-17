@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
+use log::trace;
 use thiserror::Error;
 
 use crate::crypto::PublicKey;
@@ -77,4 +78,21 @@ pub trait PeerDiscovery: Send + Sync {
     /// # Returns
     /// * `std::time::Duration` - The interval between each poll.
     fn get_poll_interval(&self) -> std::time::Duration;
+}
+
+/// A peer discovery mechanism that does nothing.
+/// Might be useful for testing.
+pub struct DummyPeerDiscovery;
+
+#[async_trait]
+impl PeerDiscovery for DummyPeerDiscovery {
+    async fn poll(&mut self, _: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>) -> Result<()> {
+        trace!("DummyPeerDiscovery::poll()");
+        Ok(())
+    }
+
+    fn get_poll_interval(&self) -> std::time::Duration {
+        trace!("DummyPeerDiscovery::get_poll_interval()");
+        std::time::Duration::from_secs(60 * 60 * 24)
+    }
 }
