@@ -1,8 +1,6 @@
 # Ephemera peer discovery example using HTTP API
 
-This example is a HTTP resource where Ephemera PeerDiscovery HTTP implementation is tested. It allows to change Ephemera
-group membership
-dynamically and to see how it affects the network behavior.
+This example provides peers over http. It allows to change Ephemera group membership dynamically and to see how it affects the network behavior.
 
 It expects that local Ephemera cluster is running.
 
@@ -12,6 +10,8 @@ It expects that local Ephemera cluster is running.
 
 Full Ephemera cluster is running and is configured to use PeerDiscovery HTTP implementation which connects to this
 example.
+
+Peers config is read from `~/.ephemera/peers.toml`.
 
 ### Scenario 1 - Checking how the cluster behaves when a single node is removed from the cluster
 

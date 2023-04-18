@@ -64,7 +64,8 @@ pub type Result<T> = std::result::Result<T, PeerDiscoveryError>;
 #[async_trait]
 pub trait PeerDiscovery: Send + Sync {
     /// Ephemera will call this method to poll for new peers.
-    /// The implementation should send the new peers to the discovery_channel.
+    ///
+    /// Implementation of this trait sends current peers to the discovery_channel using the provided channel.
     ///
     /// # Arguments
     /// * `discovery_channel` - The channel to send the new peers to.
@@ -120,7 +121,7 @@ pub struct PeerSetting {
     pub address: String,
     ///Serialized public key.
     ///
-    /// # Example
+    /// # Converting to string and back example
     ///```
     /// use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
     ///
@@ -132,14 +133,14 @@ pub struct PeerSetting {
     ///
     /// assert_eq!(public_key, public_key_parsed);
     /// ```
-    pub pub_key: String,
+    pub public_key: String,
 }
 
 impl TryFrom<PeerSetting> for PeerInfo {
     type Error = anyhow::Error;
 
     fn try_from(setting: PeerSetting) -> std::result::Result<Self, Self::Error> {
-        let pub_key = setting.pub_key.parse::<PublicKey>()?;
+        let pub_key = setting.public_key.parse::<PublicKey>()?;
         Ok(PeerInfo {
             name: setting.name,
             address: setting.address,
@@ -150,7 +151,7 @@ impl TryFrom<PeerSetting> for PeerInfo {
 
 ///[PeerDiscovery] that reads the peers from a toml config file.
 ///
-/// # Example
+/// # Configuration example
 /// ```toml
 /// [[peers]]
 /// name = "node1"
@@ -249,7 +250,7 @@ pub struct JsonPeerInfo {
     pub address: String,
     ///Serialized public key.
     ///
-    /// # Example
+    /// # Converting to string and back example
     ///```
     /// use ephemera::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair, PublicKey};
     ///
@@ -290,7 +291,7 @@ impl TryFrom<JsonPeerInfo> for PeerInfo {
 ///[PeerDiscovery] that reads peers from a http endpoint.
 ///
 /// The endpoint must return a json array of [JsonPeerInfo].
-/// # Example
+/// # Configuration example
 /// ```json
 /// [
 ///  {

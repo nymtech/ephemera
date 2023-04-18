@@ -5,6 +5,7 @@ use clap::Parser;
 use log::trace;
 use tokio::signal::unix::{signal, SignalKind};
 
+use crate::peer_discovery::HttpPeerDiscovery;
 use crate::{
     api::application::CheckBlockResult,
     cli::PEERS_CONFIG_FILE,
@@ -33,19 +34,16 @@ impl RunExternalNodeCmd {
             Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
-        let peers_conf_path = Configuration::ephemera_root_dir()
-            .unwrap()
-            .join(PEERS_CONFIG_FILE);
-        let peers_conf =
-            match ConfigPeerDiscovery::init(peers_conf_path, Duration::from_secs(60 * 60 * 24)) {
-                Ok(conf) => conf,
-                Err(err) => anyhow::bail!("Error loading peers file: {err:?}"),
-            };
+        let config_peer_discovery = Self::config_peer_discovery()?;
+        let http_peer_discovery = Self::http_peer_discovery(
+            "http://localhost:8000/peers".to_string(),
+            Duration::from_secs(60),
+        )?;
 
         let ephemera = EphemeraStarter::new(ephemera_conf.clone())
             .unwrap()
             .with_application(DummyApplication)
-            .with_peer_discovery(peers_conf)
+            .with_peer_discovery(http_peer_discovery)
             .init_tasks()
             .await
             .unwrap();
@@ -71,6 +69,27 @@ impl RunExternalNodeCmd {
         shutdown.await;
         ephemera_handle.await.unwrap();
         Ok(())
+    }
+
+    fn config_peer_discovery() -> anyhow::Result<ConfigPeerDiscovery> {
+        let peers_conf_path = Configuration::ephemera_root_dir()
+            .unwrap()
+            .join(PEERS_CONFIG_FILE);
+
+        let peers_conf =
+            match ConfigPeerDiscovery::init(peers_conf_path, Duration::from_secs(60 * 60 * 24)) {
+                Ok(conf) => conf,
+                Err(err) => anyhow::bail!("Error loading peers file: {err:?}"),
+            };
+        Ok(peers_conf)
+    }
+
+    fn http_peer_discovery(
+        url: String,
+        reload_interval: Duration,
+    ) -> anyhow::Result<HttpPeerDiscovery> {
+        let http_peer_discovery = HttpPeerDiscovery::new(url, reload_interval);
+        Ok(http_peer_discovery)
     }
 }
 

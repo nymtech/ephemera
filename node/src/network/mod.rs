@@ -16,7 +16,7 @@ use crate::crypto::PublicKey;
 
 pub(crate) type PeerIdType = Libp2pPeerId;
 
-/// Identifier of a peer of the network.
+/// Unique identifier of a peer.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PeerId(pub(crate) PeerIdType);
 
@@ -73,7 +73,7 @@ pub trait ToPeerId {
 pub struct Peer {
     /// The peer's ID. It identifies the peer uniquely and is derived from its public key.
     ///
-    /// # Example
+    /// # Deriving PeerId from PublicKey example
     ///
     /// ```
     /// use ephemera::crypto::{EphemeraKeypair, Keypair, PublicKey};
@@ -101,8 +101,12 @@ pub enum AddressError {
     ParsingError(String),
 }
 
-/// A wrapper around a [`Multiaddr`].
-/// See [libp2p/multiaddress](https://github.com/libp2p/specs/blob/master/addressing/README.md)
+/// Ephemera node address.
+///
+/// Supported formats:
+/// 1. `<IP>:<PORT>`
+/// 2. `/ip4/<IP>/tcp/<PORT>` - this is format used by libp2p multiaddr.
+/// See [libp2p/multiaddress](https://github.com/libp2p/specs/blob/master/addressing/README.md) for more details.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Address(pub Multiaddr);
 
@@ -118,9 +122,6 @@ impl From<Multiaddr> for Address {
     }
 }
 
-/// Supported formats:
-/// 1. `<IP>:<PORT>`
-/// 2. `/ip4/<IP>/tcp/<PORT>` - this is the format used by libp2p multiaddr
 impl FromStr for Address {
     type Err = AddressError;
 

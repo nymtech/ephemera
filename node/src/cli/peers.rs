@@ -52,7 +52,7 @@ impl CreateLocalPeersConfiguration {
                 let peer = PeerSetting {
                     name: node_name.to_string(),
                     address: format!("/ip4/{}/tcp/{}", node_info.ip, conf.libp2p.port),
-                    pub_key: keypair.public_key().to_base58(),
+                    public_key: keypair.public_key().to_base58(),
                 };
                 peers.push(peer);
 

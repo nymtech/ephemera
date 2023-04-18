@@ -10,6 +10,10 @@ mod cluster;
 mod node;
 mod util;
 
+const EPHEMERA_IP: &str = "127.0.0.1";
+// Node 1 http port is 7000, Node2 http port is 7001, etc.
+const HTTP_API_PORT_BASE: u16 = 7000;
+
 #[derive(Parser, Clone)]
 #[command(name = "cluster-http-api")]
 #[command(about = "Ephemera cluster http, meant to test cluster behaviour over http api.", long_about = None)]
@@ -35,7 +39,11 @@ async fn main() {
 
     let mut nodes = vec![];
     for i in 0..args.nr_of_nodes {
-        let node = node::Node::init(i, format!("http://127.0.0.1:700{}", i)).await;
+        let node = node::Node::init(
+            i,
+            format!("http://{}:{}", EPHEMERA_IP, HTTP_API_PORT_BASE as usize + i),
+        )
+        .await;
         nodes.push(node);
     }
 

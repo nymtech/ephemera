@@ -4,6 +4,7 @@ pub(crate) mod behaviour;
 mod connections;
 mod handler;
 mod membership;
+mod peers_requester;
 
 const MAX_DIAL_ATTEMPT_ROUNDS: usize = 6;
 

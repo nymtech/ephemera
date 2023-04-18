@@ -50,7 +50,7 @@ pub mod peer {
 pub mod peer_discovery {
     pub use super::network::peer_discovery::{
         ConfigPeerDiscovery, DummyPeerDiscovery, HttpPeerDiscovery, JsonPeerInfo, PeerDiscovery,
-        PeerInfo, Result,
+        PeerInfo, PeerSetting, Result,
     };
 }
 

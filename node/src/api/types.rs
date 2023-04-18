@@ -107,7 +107,7 @@ impl RawApiEphemeraMessage {
 
     /// Signs the message with the given keypair.
     ///
-    /// # Example
+    /// # Signing example
     ///
     /// ```
     /// use ephemera::codec::Encode;
@@ -172,8 +172,7 @@ pub struct ApiEphemeraConfig {
     pub websocket_address: String,
     /// Node's public key.
     ///
-    /// # Example
-    ///
+    /// # Converting to string and back example
     /// ```
     /// use ephemera::crypto::{EphemeraKeypair, Keypair, PublicKey};
     ///

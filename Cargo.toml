@@ -6,12 +6,14 @@ members = [
     "examples/http-ws",
     "examples/nym-api",
     "examples/cluster-http-api",
+    "examples/peer_discovery_http",
 ]
 
 default-members = [
     "node",
-    "examples/nym-api",
+    "examples/http-ws",
     "examples/cluster-http-api",
+    "examples/peer_discovery_http"
 ]
 
 [profile.release]

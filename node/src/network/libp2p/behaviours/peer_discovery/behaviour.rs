@@ -54,6 +54,7 @@ use libp2p_identity::PeerId;
 use log::{debug, error, trace, warn};
 use tokio::{task::JoinHandle, time};
 
+use crate::network::libp2p::behaviours::peer_discovery::peers_requester::PeersRequester;
 use crate::peer::Peer;
 use crate::{
     network::libp2p::behaviours::{
@@ -110,8 +111,6 @@ pub(crate) struct Behaviour<P: PeerDiscovery> {
     local_peer_id: PeerId,
     /// Peer discovery trait. It's an external trait that provides us with new peers.
     peer_discovery: Option<P>,
-    /// Interval to check for new peers. It's the value returned by the discovery trait[PeerDiscovery::get_poll_interval].
-    peer_discovery_interval_sec: u64,
     /// Channel to send new peers to the PeerDiscovery trait.
     discovery_channel_tx: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
     /// Channel to receive new peers from the PeerDiscovery trait.
@@ -131,7 +130,6 @@ impl<'a, P: PeerDiscovery + 'static> Behaviour<P> {
             memberships: Memberships::new(),
             local_peer_id,
             peer_discovery: Some(peer_discovery),
-            peer_discovery_interval_sec: 0,
             discovery_channel_tx: tx,
             discovery_channel_rcv: rcv,
             state: State::WaitingPeers,
@@ -151,23 +149,15 @@ impl<'a, P: PeerDiscovery + 'static> Behaviour<P> {
 
     /// Starts to poll the peer discovery trait.
     pub(crate) async fn spawn_peer_discovery(&mut self) -> anyhow::Result<JoinHandle<()>> {
-        let tx = self.discovery_channel_tx.clone();
-        let mut peer_discovery = self
+        let peer_discovery = self
             .peer_discovery
             .take()
             .ok_or(anyhow::anyhow!("Peer discovery already spawned"))?;
 
-        self.peer_discovery_interval_sec = peer_discovery.get_poll_interval().as_secs();
+        let join_handle =
+            PeersRequester::spawn_peer_requester(peer_discovery, self.discovery_channel_tx.clone())
+                .await?;
 
-        let join_handle = tokio::spawn(async move {
-            let mut interval = tokio::time::interval(peer_discovery.get_poll_interval());
-            loop {
-                interval.tick().await;
-                if let Err(err) = peer_discovery.poll(tx.clone()).await {
-                    error!("Error while polling peer discovery: {}", err);
-                }
-            }
-        });
         Ok(join_handle)
     }
 }
