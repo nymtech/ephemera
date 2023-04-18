@@ -32,7 +32,7 @@ async fn main() {
 
     let nh = tokio::spawn(NymApi::run(args.clone()));
 
-    let ephemera_config = Configuration::try_load(args.ephemera_config.clone().into()).unwrap();
+    let ephemera_config = Configuration::try_load(args.ephemera_config.clone()).unwrap();
     let sh = tokio::spawn(SmartContract::start(contract_args, ephemera_config));
 
     let mut stream_int = signal(SignalKind::interrupt()).unwrap();

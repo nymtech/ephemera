@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use log::info;
 use tokio::sync::broadcast::Sender;
@@ -9,19 +10,18 @@ use tokio::task::JoinHandle;
 use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, Keypair};
 use ephemera::ephemera_api::EphemeraExternalApi;
+use ephemera::peer_discovery::HttpPeerDiscovery;
 use ephemera::{Ephemera, EphemeraStarter, ShutdownHandle};
 use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;
 use crate::nym_api_ephemera::application::RewardsEphemeraApplication;
-use crate::nym_api_ephemera::peer_discovery::HttpPeerDiscovery;
 use crate::reward::new::aggregator::RewardsAggregator;
 use crate::reward::{EphemeraAccess, RewardManager, V2};
 use crate::storage::db::{MetricsStorageType, Storage};
 use crate::{metrics, Args};
 
 pub(crate) mod application;
-pub(crate) mod peer_discovery;
 
 mod migrations {
     use refinery::embed_migrations;
@@ -91,7 +91,8 @@ impl NymApi {
             RewardsEphemeraApplication::init(ephemera_config.clone())?;
 
         //Peer discovery for Ephemera
-        let peer_discovery = HttpPeerDiscovery::new(args.smart_contract_url.clone());
+        let url = format!("http://{}/contract/peer_info", args.smart_contract_url);
+        let peer_discovery = HttpPeerDiscovery::new(url, Duration::from_secs(60));
 
         //EPHEMERA
         let ephemera_builder = EphemeraStarter::new(ephemera_config.clone())?;

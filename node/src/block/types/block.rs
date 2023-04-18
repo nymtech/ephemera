@@ -2,13 +2,13 @@ use std::fmt::{Debug, Display};
 
 use serde::{Deserialize, Serialize};
 
-use crate::codec::{Decode, EphemeraEncoder};
-use crate::utilities::encoding::{Decoder, EphemeraDecoder};
-use crate::utilities::hash::{HashType, Hasher};
 use crate::{
     block::types::message::EphemeraMessage,
+    codec::{Decode, EphemeraEncoder},
     crypto::Keypair,
-    network::peer::PeerId,
+    peer::PeerId,
+    utilities::encoding::{Decoder, EphemeraDecoder},
+    utilities::hash::{HashType, Hasher},
     utilities::{
         crypto::Certificate,
         encoding::{Encode, Encoder},

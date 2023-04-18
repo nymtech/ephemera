@@ -1,15 +1,13 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
+use std::time::Duration;
 
 use clap::Parser;
 use log::trace;
-use tokio::{
-    signal::unix::{signal, SignalKind},
-    sync::mpsc::UnboundedSender,
-};
+use tokio::signal::unix::{signal, SignalKind};
 
 use crate::{
     api::application::CheckBlockResult,
-    cli::peers::ConfigPeers,
+    cli::PEERS_CONFIG_FILE,
     codec::EphemeraEncoder,
     config::Configuration,
     core::builder::EphemeraStarter,
@@ -18,7 +16,7 @@ use crate::{
     ephemera_api::{
         ApiBlock, ApiEphemeraMessage, Application, DummyApplication, RawApiEphemeraMessage, Result,
     },
-    peer_discovery::{self, PeerDiscovery, PeerInfo},
+    network::peer_discovery::ConfigPeerDiscovery,
     utilities::encoding::Encoder,
 };
 
@@ -30,15 +28,24 @@ pub struct RunExternalNodeCmd {
 
 impl RunExternalNodeCmd {
     pub async fn execute(&self) -> anyhow::Result<()> {
-        let conf = match Configuration::try_load(PathBuf::from(self.config_file.as_str())) {
+        let ephemera_conf = match Configuration::try_load(self.config_file.clone()) {
             Ok(conf) => conf,
             Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
-        let ephemera = EphemeraStarter::new(conf.clone())
+        let peers_conf_path = Configuration::ephemera_root_dir()
+            .unwrap()
+            .join(PEERS_CONFIG_FILE);
+        let peers_conf =
+            match ConfigPeerDiscovery::init(peers_conf_path, Duration::from_secs(60 * 60 * 24)) {
+                Ok(conf) => conf,
+                Err(err) => anyhow::bail!("Error loading peers file: {err:?}"),
+            };
+
+        let ephemera = EphemeraStarter::new(ephemera_conf.clone())
             .unwrap()
             .with_application(DummyApplication)
-            .with_peer_discovery(ConfigPeers::load()?)
+            .with_peer_discovery(peers_conf)
             .init_tasks()
             .await
             .unwrap();
@@ -102,26 +109,5 @@ impl Application for SignatureVerificationApplication {
     fn deliver_block(&self, _block: ApiBlock) -> Result<()> {
         trace!("SignatureVerificationApplicationHook::deliver_block");
         Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl PeerDiscovery for ConfigPeers {
-    async fn poll(
-        &mut self,
-        discovery_channel: UnboundedSender<Vec<PeerInfo>>,
-    ) -> peer_discovery::Result<()> {
-        let peer_info = self
-            .peers
-            .iter()
-            .map(|peer| PeerInfo::try_from(peer.clone()))
-            .collect::<anyhow::Result<Vec<PeerInfo>>>()?;
-
-        discovery_channel.send(peer_info).unwrap();
-        Ok(())
-    }
-
-    fn get_poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(60 * 60 * 24)
     }
 }

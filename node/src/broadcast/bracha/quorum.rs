@@ -131,13 +131,11 @@ impl BrachaQuorum {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        broadcast::{
-            bracha::quorum::{BrachaAction, BrachaMessageType, BrachaQuorum},
-            ProtocolContext,
-        },
-        network::peer::PeerId,
+    use crate::broadcast::{
+        bracha::quorum::{BrachaAction, BrachaMessageType, BrachaQuorum},
+        ProtocolContext,
     };
+    use crate::peer::PeerId;
 
     #[test]
     fn test_max_faulty_nodes() {

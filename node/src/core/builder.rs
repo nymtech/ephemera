@@ -6,12 +6,16 @@ use log::{error, info};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::network::group::BroadcastGroup;
 #[cfg(feature = "rocksdb_storage")]
 use crate::storage::rocksdb::RocksDbStorage;
 #[cfg(feature = "sqlite_storage")]
 use crate::storage::sqlite::SqliteStorage;
+
 use crate::storage::EphemeraDatabase;
+
+use crate::broadcast::group::BroadcastGroup;
+use crate::peer::{PeerId, ToPeerId};
+use crate::peer_discovery::PeerDiscovery;
 use crate::{
     api::{application::Application, http, ApiListener, EphemeraExternalApi},
     block::{builder::BlockManagerBuilder, manager::BlockManager},
@@ -22,13 +26,9 @@ use crate::{
         shutdown::{Shutdown, ShutdownHandle, ShutdownManager},
     },
     crypto::Keypair,
-    network::{
-        discovery::PeerDiscovery,
-        libp2p::{
-            ephemera_sender::EphemeraToNetworkSender, network_sender::NetCommunicationReceiver,
-            swarm_network::SwarmNetwork,
-        },
-        peer::{PeerId, ToPeerId},
+    network::libp2p::{
+        ephemera_sender::EphemeraToNetworkSender, network_sender::NetCommunicationReceiver,
+        swarm_network::SwarmNetwork,
     },
     utilities::crypto::key_manager::KeyManager,
     websocket::ws_manager::{WsManager, WsMessageBroadcaster},

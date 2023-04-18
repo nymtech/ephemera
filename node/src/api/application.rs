@@ -43,8 +43,8 @@ pub type Result<T> = std::result::Result<T, ApplicationError>;
 /// B) They should not wait on a lock
 /// C) They should not panic
 pub trait Application {
-    /// Check Tx is called upon receiving a new transaction from the mempool.
-    /// It's up to the application to decide whether the transaction is valid or not.
+    /// It's called when receiving a new message from network before adding it to the mempool.
+    /// It's up to the application to decide whether the message is valid or not.
     /// Basic check could for example be signature verification.
     fn check_tx(&self, message: ApiEphemeraMessage) -> Result<bool>;
 

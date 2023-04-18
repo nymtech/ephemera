@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_logging();
 
     let args = Args::parse();
-    let ephemera_config = Configuration::try_load(args.ephemera_config.clone().into()).unwrap();
+    let ephemera_config = Configuration::try_load(args.ephemera_config.clone()).unwrap();
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
     let nym_api = tokio::spawn(NymApi::run(args, ephemera_config, shutdown_rx));

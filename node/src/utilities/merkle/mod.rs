@@ -97,6 +97,7 @@ impl Merkle {
 #[cfg(test)]
 mod tests {
     use crate::crypto::EphemeraKeypair;
+    use crate::peer::PeerId;
     use crate::{
         block::{
             types::block::{Block, RawBlock, RawBlockHeader},
@@ -104,7 +105,6 @@ mod tests {
         },
         codec::Encode,
         crypto::Keypair,
-        network::peer::PeerId,
         utilities::{crypto::Certificate, hash::Hasher, merkle::Merkle},
     };
 

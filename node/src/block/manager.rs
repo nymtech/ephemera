@@ -11,6 +11,8 @@ use log::{debug, error, trace};
 use lru::LruCache;
 use thiserror::Error;
 
+use crate::network::PeerId;
+use crate::peer::ToPeerId;
 use crate::{
     api::application::RemoveMessages,
     block::{
@@ -20,7 +22,6 @@ use crate::{
     },
     broadcast::signing::BlockSigner,
     config::BlockConfig,
-    network::peer::{PeerId, ToPeerId},
     utilities::{crypto::Certificate, hash::HashType},
 };
 
@@ -49,7 +50,7 @@ pub(crate) struct BlockChainState {
 impl BlockChainState {
     pub(crate) fn new(last_committed_block: Block) -> Self {
         Self {
-            //1000 is just a "big enough"
+            //1000 is just a "big enough".
             last_blocks: LruCache::new(NonZeroUsize::new(1000).unwrap()),
             last_produced_block: None,
             last_committed_block,
@@ -94,7 +95,7 @@ pub(crate) struct BlockManager {
     pub(crate) config: BlockConfig,
     /// Block producer. Simple helper that creates blocks
     pub(crate) block_producer: BlockProducer,
-    /// Message pool. Contains all messages that we received from the network and not included in any(committed) block yet
+    /// Message pool. Contains all messages that we received from the network and not included in any(committed) block yet.
     pub(crate) message_pool: MessagePool,
     /// Delay between block creation attempts.
     pub(crate) delay: tokio::time::Interval,
@@ -236,12 +237,12 @@ impl BlockManager {
     }
 
     pub(crate) fn pause(&mut self) {
-        debug!("Pausing block production");
+        debug!("Stopping block production");
         self.state = State::Paused;
     }
 
     pub(crate) fn resume(&mut self) {
-        debug!("Resuming block production");
+        debug!("Starting block production");
         self.block_chain_state.last_produced_block.take();
         self.state = State::Running;
     }
@@ -277,7 +278,7 @@ impl Stream for BlockManager {
                         .clone()
                         .expect("Block should be present");
 
-                    //Use only previous block messages but create new block with new timestamp
+                    //Use only previous block messages but create new block with new timestamp.
                     debug!("Producing block with previous messages");
                     block.messages
                 } else {
@@ -323,7 +324,6 @@ mod test {
 
     use crate::crypto::{EphemeraKeypair, Keypair};
     use crate::ephemera_api::RawApiEphemeraMessage;
-    use crate::network::peer::{PeerId, ToPeerId};
 
     use super::*;
 

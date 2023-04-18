@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
+use crate::peer::PeerId;
 use log::warn;
 use lru::LruCache;
 
-use crate::network::peer::PeerId;
 use crate::utilities::hash::HashType;
 
 pub(crate) struct BroadcastGroup {

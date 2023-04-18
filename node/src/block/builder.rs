@@ -2,6 +2,7 @@ use log::{debug, info};
 use std::{sync::Arc, time, time::Duration};
 
 use crate::block::manager::State;
+use crate::peer::ToPeerId;
 use crate::{
     block::{
         manager::{BlockChainState, BlockManager},
@@ -12,7 +13,6 @@ use crate::{
     broadcast::signing::BlockSigner,
     config::BlockConfig,
     crypto::Keypair,
-    network::peer::ToPeerId,
     storage::EphemeraDatabase,
 };
 

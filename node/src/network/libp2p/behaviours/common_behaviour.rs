@@ -12,18 +12,15 @@ use libp2p::{
 };
 use log::info;
 
+use crate::peer::{PeerId, ToPeerId};
+use crate::peer_discovery::PeerDiscovery;
 use crate::{
     broadcast::RbMsg,
     crypto::Keypair,
-    network::libp2p::behaviours::peer_discovery,
-    network::{
-        discovery::PeerDiscovery,
-        libp2p::behaviours::broadcast_messages::{
-            RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
-        },
-        peer::ToPeerId,
+    network::libp2p::behaviours::broadcast_messages::{
+        RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
     },
-    peer_discovery::PeerId,
+    network::libp2p::behaviours::peer_discovery,
     utilities::hash::{EphemeraHasher, Hasher},
 };
 

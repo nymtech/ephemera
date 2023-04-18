@@ -11,7 +11,7 @@ async fn main() {
     pretty_env_logger::init();
 
     let args = ContractArgs::parse();
-    let ephemera_config = Configuration::try_load(args.ephemera_config.clone().into()).unwrap();
+    let ephemera_config = Configuration::try_load(args.ephemera_config.clone()).unwrap();
 
     let sh = tokio::spawn(async move { SmartContract::start(args, ephemera_config).await });
 

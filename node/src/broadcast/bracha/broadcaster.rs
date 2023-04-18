@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 use log::{debug, trace};
 use lru::LruCache;
 
+use crate::peer::PeerId;
 use crate::{
     block::types::block::Block,
     broadcast::{
@@ -11,7 +12,6 @@ use crate::{
         MessageType::{Echo, Vote},
         ProtocolContext, RawRbMsg, Status,
     },
-    network::peer::PeerId,
     utilities::hash::HashType,
 };
 
@@ -197,11 +197,11 @@ mod tests {
     use assert_matches::assert_matches;
 
     use crate::broadcast::bracha::broadcaster::ProtocolResponse;
+    use crate::peer::PeerId;
     use crate::utilities::hash::HashType;
     use crate::{
         block::types::block::{Block, RawBlock, RawBlockHeader},
         broadcast::{self, bracha::broadcaster::Broadcaster, RawRbMsg},
-        network::peer::PeerId,
     };
 
     #[tokio::test]

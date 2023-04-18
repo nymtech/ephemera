@@ -3,11 +3,11 @@ use std::thread;
 
 use clap::Parser;
 
+use ephemera::peer::ToPeerId;
 use ephemera::{
     codec::Encode,
     crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair},
     ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage},
-    peer_discovery::ToPeerId,
 };
 
 use crate::http_client::SignedMessageClient;

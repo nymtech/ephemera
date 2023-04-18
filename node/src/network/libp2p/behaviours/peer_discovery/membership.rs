@@ -4,10 +4,9 @@
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 
+use crate::peer::Peer;
 use libp2p_identity::PeerId;
 use lru::LruCache;
-
-use crate::network::peer::Peer;
 
 /// Peer discovery returns list of peers. But it is up to the Ephemera user to decide
 /// how reliable the list is. For example, it can contain peers who are offline.
@@ -20,7 +19,11 @@ pub(crate) enum MembershipKind {
     /// For example, if the threshold is 0.5, then at least 50% of the peers need to be available.
     Threshold(f64),
     /// Membership is defined by peers who are online.
+    /// Although it's possible to define it as threshold 0.0, this adds more readability and safety.
     AnyOnline,
+    /// It's required that all peers are online.
+    /// Although it's possible to define it as threshold 1.0, this adds more readability and safety.
+    AllOnline,
 }
 
 impl MembershipKind {
@@ -31,6 +34,7 @@ impl MembershipKind {
                 connected_peers >= minimum_available_nodes
             }
             MembershipKind::AnyOnline => connected_peers > 0,
+            MembershipKind::AllOnline => connected_peers == total_number_of_peers,
         }
     }
 }
@@ -57,10 +61,6 @@ impl Memberships {
     pub(crate) fn current(&mut self) -> &Membership {
         //Unwrap is safe because we always have current membership
         self.snapshots.get(&self.current).unwrap()
-    }
-
-    pub(crate) fn previous(&mut self) -> Option<&Membership> {
-        self.snapshots.get(&(self.current - 1))
     }
 
     pub(crate) fn update(&mut self, membership: Membership) {

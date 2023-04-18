@@ -73,12 +73,6 @@ impl ConnectedPeers {
         self.connections.contains_key(peer_id)
     }
 
-    pub(crate) fn are_peers_connected(&self, peer_ids: &[libp2p_identity::PeerId]) -> bool {
-        peer_ids
-            .iter()
-            .all(|peer_id| self.is_peer_connected(peer_id))
-    }
-
     pub(crate) fn all_connected_peers_ref(&self) -> Vec<&libp2p_identity::PeerId> {
         self.connections.keys().collect()
     }

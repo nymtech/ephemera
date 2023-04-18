@@ -4,7 +4,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::EphemeraKeypair;
-use crate::network::peer::{PeerId, ToPeerId};
+use crate::peer::{PeerId, ToPeerId};
 use crate::utilities::crypto::keypair::KeyPairError;
 use crate::utilities::crypto::{EphemeraPublicKey, Signature};
 

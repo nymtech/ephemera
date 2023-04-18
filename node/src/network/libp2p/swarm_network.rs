@@ -9,30 +9,27 @@ use std::collections::HashSet;
 use std::str::FromStr;
 use tokio::task::JoinHandle;
 
+use crate::peer_discovery::PeerDiscovery;
 use crate::{
     block::types::message::EphemeraMessage,
     broadcast::RbMsg,
     codec::Encode,
     core::builder::NodeInfo,
-    network::{
-        discovery::PeerDiscovery,
-        libp2p::{
-            behaviours::peer_discovery,
-            behaviours::{
-                broadcast_messages::RbMsgResponse,
-                common_behaviour::{
-                    create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
-                },
+    network::libp2p::{
+        behaviours::peer_discovery,
+        behaviours::{
+            broadcast_messages::RbMsgResponse,
+            common_behaviour::{
+                create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
             },
-            ephemera_sender::{
-                EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver,
-                EphemeraToNetworkSender,
-            },
-            network_sender::{
-                EphemeraNetworkCommunication, GroupChangeEvent,
-                GroupChangeEvent::{LocalPeerRemoved, NotEnoughPeers},
-                NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
-            },
+        },
+        ephemera_sender::{
+            EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
+        },
+        network_sender::{
+            EphemeraNetworkCommunication, GroupChangeEvent,
+            GroupChangeEvent::{LocalPeerRemoved, NotEnoughPeers},
+            NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
         },
     },
 };

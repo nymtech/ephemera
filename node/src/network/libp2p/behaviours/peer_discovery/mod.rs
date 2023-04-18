@@ -1,4 +1,4 @@
-use crate::peer_discovery::PeerId;
+use crate::peer::PeerId;
 
 pub(crate) mod behaviour;
 mod connections;

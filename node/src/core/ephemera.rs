@@ -7,6 +7,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::api::application::CheckBlockResult;
+use crate::broadcast::group::BroadcastGroup;
 use crate::network::libp2p::network_sender::GroupChangeEvent;
 use crate::{
     api::{application::Application, ApiListener},
@@ -20,12 +21,9 @@ use crate::{
         builder::{EphemeraHandle, NodeInfo},
         shutdown::ShutdownManager,
     },
-    network::{
-        group::BroadcastGroup,
-        libp2p::{
-            ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender},
-            network_sender::{NetCommunicationReceiver, NetworkEvent},
-        },
+    network::libp2p::{
+        ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender},
+        network_sender::{NetCommunicationReceiver, NetworkEvent},
     },
     storage::EphemeraDatabase,
     utilities::crypto::Certificate,

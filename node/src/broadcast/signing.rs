@@ -83,7 +83,7 @@ mod test {
     use crate::block::types::block::RawBlockHeader;
     use crate::block::types::message::{EphemeraMessage, RawEphemeraMessage};
     use crate::crypto::EphemeraKeypair;
-    use crate::network::peer::ToPeerId;
+    use crate::peer::ToPeerId;
 
     use super::*;
 

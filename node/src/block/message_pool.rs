@@ -1,5 +1,13 @@
-use log::{debug, trace, warn};
+//! Message pool for ephemera messages
+//!
+//! It stores pending Ephemera messages which will be added to the next block.
+//! It doesn't have any other logic than just storing messages.
+//!
+//! It's up to the user provided [crate::ephemera_api::Application::check_tx] to decide which messages to include.
+
 use std::collections::HashMap;
+
+use log::{debug, trace, warn};
 
 use crate::block::types::message::EphemeraMessage;
 use crate::utilities::hash::HashType;

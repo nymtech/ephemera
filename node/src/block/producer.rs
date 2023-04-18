@@ -1,10 +1,8 @@
-use crate::{
-    block::{
-        types::block::{Block, RawBlock, RawBlockHeader},
-        types::message::EphemeraMessage,
-    },
-    network::peer::PeerId,
+use crate::block::{
+    types::block::{Block, RawBlock, RawBlockHeader},
+    types::message::EphemeraMessage,
 };
+use crate::peer::PeerId;
 use log::{debug, trace};
 
 pub(crate) struct BlockProducer {

@@ -43,10 +43,14 @@ pub mod ephemera_api {
     };
 }
 
+pub mod peer {
+    pub use super::network::{Peer, PeerId, ToPeerId};
+}
+
 pub mod peer_discovery {
-    pub use super::network::{
-        discovery::{DummyPeerDiscovery, PeerDiscovery, PeerInfo, Result},
-        peer::{PeerId, ToPeerId},
+    pub use super::network::peer_discovery::{
+        ConfigPeerDiscovery, DummyPeerDiscovery, HttpPeerDiscovery, JsonPeerInfo, PeerDiscovery,
+        PeerInfo, Result,
     };
 }
 

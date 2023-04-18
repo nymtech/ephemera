@@ -6,6 +6,8 @@ pub mod init;
 pub mod peers;
 pub mod run_node;
 
+pub const PEERS_CONFIG_FILE: &str = "peers.toml";
+
 #[derive(Parser, Debug, Clone)]
 #[command()]
 pub struct Cli {

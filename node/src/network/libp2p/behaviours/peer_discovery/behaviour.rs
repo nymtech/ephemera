@@ -54,16 +54,16 @@ use libp2p_identity::PeerId;
 use log::{debug, error, trace, warn};
 use tokio::{task::JoinHandle, time};
 
-use crate::network::libp2p::behaviours::peer_discovery::membership::{Membership, Memberships};
-use crate::network::{
-    discovery::{PeerDiscovery, PeerInfo},
-    libp2p::behaviours::{
+use crate::peer::Peer;
+use crate::{
+    network::libp2p::behaviours::{
         peer_discovery::connections::ConnectedPeers,
         peer_discovery::membership::MembershipKind,
+        peer_discovery::membership::{Membership, Memberships},
         peer_discovery::MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO,
         peer_discovery::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS},
     },
-    peer::Peer,
+    peer_discovery::{PeerDiscovery, PeerInfo},
 };
 
 /// PeerDiscovery state when we are trying to connect to new peers.

@@ -5,10 +5,9 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use tokio::sync::Mutex;
 
-use ephemera::crypto::EphemeraPublicKey;
+use ephemera::peer_discovery::JsonPeerInfo;
 
 use crate::contract::{MixnodeToReward, SmartContract};
-use crate::nym_api_ephemera::peer_discovery::NymPeerInfo;
 use crate::HTTP_NYM_API_HEADER;
 
 lazy_static! {
@@ -72,7 +71,7 @@ pub(crate) async fn get_epoch(contract: web::Data<Arc<Mutex<SmartContract>>>) ->
 pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>) -> HttpResponse {
     info!("GET /contract/peer_info");
 
-    let mut peers: Vec<NymPeerInfo> = vec![];
+    let mut peers: Vec<JsonPeerInfo> = vec![];
     for (i, (peer_id, peer)) in contract
         .lock()
         .await
@@ -87,10 +86,10 @@ pub(crate) async fn get_nym_apis(contract: web::Data<Arc<Mutex<SmartContract>>>)
             continue;
         }
 
-        peers.push(NymPeerInfo {
+        peers.push(JsonPeerInfo {
             name: peer_id.to_string(),
             address: peer.address,
-            pub_key: peer.public_key.to_base58(),
+            public_key: peer.public_key.to_string(),
         });
     }
 

@@ -2,6 +2,8 @@
 
 This example connects to an Ephemera node.
 
+## How it works
+
 1) Submits signed messages to the node
 2) Listens WS for new blocks
 3) Queries the node for received blocks over http API and compares them with the ones received via WS

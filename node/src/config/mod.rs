@@ -76,9 +76,9 @@ impl BlockConfig {
 
 #[derive(Debug, Error)]
 pub enum ConfigurationError {
-    #[error("Configuration file exists: '{}'", .0)]
+    #[error("Configuration file exists: '{0}'")]
     ConfigurationFileExists(String),
-    #[error("Configuration file does not exists: '{}'", .0)]
+    #[error("Configuration file does not exists: '{0}'")]
     ConfigurationFileDoesNotExists(String),
     #[error("Configuration file does not exist")]
     IoError(#[from] std::io::Error),
@@ -92,9 +92,9 @@ const EPHEMERA_CONFIG_FILE: &str = "ephemera.toml";
 type Result<T> = std::result::Result<T, ConfigurationError>;
 
 impl Configuration {
-    pub fn try_load(path: PathBuf) -> Result<Configuration> {
+    pub fn try_load<P: Into<PathBuf>>(path: P) -> Result<Configuration> {
         let config = config::Config::builder()
-            .add_source(config::File::from(path))
+            .add_source(config::File::from(path.into()))
             .build()
             .map_err(|e| ConfigurationError::Other(e.to_string()))?;
 

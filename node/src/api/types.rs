@@ -21,12 +21,12 @@ use std::fmt::Display;
 use thiserror::Error;
 use utoipa::ToSchema;
 
+use crate::peer::PeerId;
 use crate::{
     block::types::{block::Block, block::BlockHeader, message::EphemeraMessage},
     codec::{Decode, Encode, EphemeraEncoder},
     crypto::{Keypair, PublicKey},
     ephemera_api::ApplicationError,
-    network::peer::PeerId,
     utilities::{
         crypto::{Certificate, Signature},
         encoding::{Decoder, Encoder, EphemeraDecoder},

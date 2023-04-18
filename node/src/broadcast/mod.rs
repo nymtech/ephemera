@@ -39,7 +39,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{
     block::types::block::Block,
-    network::peer::PeerId,
+    peer::PeerId,
     utilities::{
         crypto::Certificate,
         hash::HashType,
@@ -49,6 +49,7 @@ use crate::{
 };
 
 pub(crate) mod bracha;
+pub(crate) mod group;
 pub(crate) mod signing;
 
 #[derive(Debug, Clone)]
