@@ -11,8 +11,8 @@ use crate::crypto::PublicKey;
 use crate::network::Address;
 use crate::peer::{Peer, PeerId};
 
+/// Information about an Ephemera peer.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-/// Information about a peer.
 pub struct PeerInfo {
     /// The name of the peer. Can be arbitrary.
     pub name: String,
@@ -68,9 +68,6 @@ pub trait PeerDiscovery: Send + Sync {
     ///
     /// # Arguments
     /// * `discovery_channel` - The channel to send the new peers to.
-    ///
-    /// # Returns
-    /// * `Result<()>` - An error if the polling failed.
     async fn poll(
         &mut self,
         discovery_channel: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,

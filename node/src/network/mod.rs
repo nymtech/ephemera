@@ -77,7 +77,7 @@ pub struct Peer {
     ///
     /// ```
     /// use ephemera::crypto::{EphemeraKeypair, Keypair, PublicKey};
-    /// use ephemera::peer_discovery::{PeerId, ToPeerId};
+    /// use ephemera::peer::{PeerId, ToPeerId};
     ///
     /// let public_key = Keypair::generate(None).public_key();
     ///
