@@ -1,3 +1,7 @@
+//TODO:WIP: Implement simple simple SYNC protocol
+//Because each Ephemera instance requests peers at arbitrary time, a node needs to notify other
+//peers when it has just requested an update. That helps to keep the whole cluster in sync and avoid
+//nodes' membership diverging.
 use std::task::{Context, Poll};
 
 use libp2p::{
