@@ -1,4 +1,4 @@
-# Ephemera embedded API demonstration
+# Ephemera embedded API demonstration / test to verify blocks 
 
 This example connects to an Ephemera node.
 

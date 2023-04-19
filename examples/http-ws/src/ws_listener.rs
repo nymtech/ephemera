@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use reqwest::{IntoUrl, Url};
 
 use ephemera::ephemera_api::ApiBlock;

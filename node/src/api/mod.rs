@@ -40,6 +40,7 @@ pub(crate) enum ApiCmd {
     QueryDht(DhtKey, oneshot::Sender<Result<Option<DhtKV>>>),
     StoreInDht(DhtKey, DhtValue, oneshot::Sender<Result<()>>),
     EphemeraConfig(oneshot::Sender<Result<ApiEphemeraConfig>>),
+    BroadcastGroup(oneshot::Sender<Result<ApiEphemeraConfig>>),
 }
 
 impl Display for ApiCmd {
@@ -60,6 +61,9 @@ impl Display for ApiCmd {
             }
             ApiCmd::EphemeraConfig(_) => {
                 write!(f, "EphemeraConfig")
+            }
+            ApiCmd::BroadcastGroup(_) => {
+                write!(f, "BroadcastGroup")
             }
         }
     }

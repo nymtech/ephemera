@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use log::{debug, error, info};
+use log::{error, info};
 use tokio::task::JoinHandle;
 
 use crate::peer_discovery::{PeerDiscovery, PeerInfo};
@@ -73,10 +73,11 @@ impl PeersRequester {
                             requester.interval =
                                 tokio::time::interval(peer_discovery.get_poll_interval());
                         } else if requester.max_failed_retry_count == 0 {
-                            debug!("Max failed retry count reached, switching to normal interval");
-                            if let Err(err) = tx.send(vec![]) {
-                                error!("Error while sending empty peer list: {}", err);
-                            }
+                            info!("Max failed retry count reached, switching to normal interval");
+                            info!("If the problem persists, please check your peer discovery implementation");
+                            info!("Returning empty list of peers to Behaviour");
+                            info!("If you want to request peers before configured peer discovery interval passes, please restart Ephemera");
+                            tx.send(vec![]).expect("Failed to send peers");
                         }
                         requester.max_failed_retry_count -= 1;
                     }

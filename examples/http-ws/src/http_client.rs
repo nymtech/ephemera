@@ -1,7 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use reqwest::{IntoUrl, StatusCode, Url};
-
 use ephemera::crypto::Keypair;
 use ephemera::ephemera_api;
 use ephemera::ephemera_api::EphemeraHttpClient;

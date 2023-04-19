@@ -57,35 +57,5 @@ From the top-level directory:
 ### Run the example
 
 ```bash
-  cargo run -- --help
-```
-
-```text
-Ephemera http and ws external interfaces example
-
-Usage: ephemera-http-ws-example [OPTIONS] --host <HOST> --http-port <HTTP_PORT> --ws-port <WS_PORT>
-
-Options:
-      --host <HOST>
-          
-      --http-port <HTTP_PORT>
-          
-      --ws-port <WS_PORT>
-          
-      --messages-frequency-ms <MESSAGES_FREQUENCY_MS>
-          [default: 1000]
-      --block-query-frequency-sec <BLOCK_QUERY_FREQUENCY_SEC>
-          [default: 10]
-  -h, --help
-          Print help information
-```
-
-```bash
-  cargo run -- --nr-of-nodes 3
-```
-
-## Stop the cluster
-
-```bash
-../../scripts/local-cluster stop
+  cargo run
 ```

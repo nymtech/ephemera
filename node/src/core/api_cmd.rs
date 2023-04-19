@@ -157,6 +157,9 @@ impl ApiCmdProcessor {
                     .send(Ok(api_config))
                     .expect("Error sending EphemeraConfig response to api");
             }
+            ApiCmd::BroadcastGroup(_) => {
+                //TODO: return current broadcast group
+            }
         }
         Ok(())
     }

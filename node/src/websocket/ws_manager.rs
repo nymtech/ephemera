@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use anyhow::Result;
 use futures_util::SinkExt;
 use log::{debug, error, info};
+use tokio::sync::broadcast::error::RecvError;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::broadcast,
@@ -37,20 +38,14 @@ impl WsConnection {
                 Ok(msg) => {
                     debug!("Sending message to {}", self.address);
                     if let Err(err) = self.socket.send(msg).await {
-                        error!(
-                            "Error sending message to websocket client: {:?}, dropping connection",
-                            err
-                        );
-                        break;
+                        error!("Error sending message to websocket client: {:?}", err);
                     }
                 }
                 Err(e) => {
-                    //TODO:: shutdown?
-                    error!(
-                        "Error receiving message from broadcast channel: {:?}, dropping connection",
-                        e
-                    );
-                    break;
+                    if RecvError::Closed == e {
+                        error!("Error while receiving message from broadcast channel: {:?}, closing connection", e);
+                        break;
+                    }
                 }
             }
         }

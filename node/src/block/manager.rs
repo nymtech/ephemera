@@ -237,12 +237,12 @@ impl BlockManager {
     }
 
     pub(crate) fn pause(&mut self) {
-        debug!("Stopping block production");
+        debug!("Stopping blocks creation");
         self.state = State::Paused;
     }
 
     pub(crate) fn resume(&mut self) {
-        debug!("Starting block production");
+        debug!("Starting blocks creation");
         self.block_chain_state.last_produced_block.take();
         self.state = State::Running;
     }

@@ -34,7 +34,7 @@ impl RunExternalNodeCmd {
             Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
-        let config_peer_discovery = Self::config_peer_discovery()?;
+        let _config_peer_discovery = Self::config_peer_discovery()?;
         let http_peer_discovery = Self::http_peer_discovery(
             "http://localhost:8000/peers".to_string(),
             Duration::from_secs(60),

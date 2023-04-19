@@ -1,8 +1,27 @@
-# Scripts
+# Scripts to run local cluster
 
 ## Configuration, Output
 
 All output goes to into $HOME/.ephemera directory.
+
+## Build
+
+Run:
+```bash
+./local-cluster
+```
+```text
+Please specify a subcommand of:
+`init`
+`run`
+`run_node`
+`stop`
+`clear`
+`delete`
+`update_config`
+`stop_node`
+
+```
 
 ## Create new cluster
 
@@ -34,11 +53,29 @@ Creates configuration for new cluster of nodes in `~/.ephemera` directory.
 ## Clean cluster generated data
 
 ```bash
-./local-cluster clean
+./local-cluster clear
 ```
 
 ## Delete cluster configuration and data
 
 ```bash
 ./local-cluster delete
+```
+
+## Update cluster configuration
+
+```bash
+./local-cluster update_config -n node1 -k block.producer -v false
+```
+
+## Start single node
+
+```bash
+./local-cluster run_node -n node1
+```
+
+## Stop single node
+
+```bash
+./local-cluster stop_node -n node1
 ```

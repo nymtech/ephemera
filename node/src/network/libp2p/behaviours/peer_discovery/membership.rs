@@ -27,7 +27,9 @@ pub(crate) enum MembershipKind {
 }
 
 impl MembershipKind {
-    pub(crate) fn accept(&self, connected_peers: usize, total_number_of_peers: usize) -> bool {
+    pub(crate) fn accept(&self, membership: &Membership) -> bool {
+        let total_number_of_peers = membership.all_members.len();
+        let connected_peers = membership.connected_peers.len();
         match self {
             MembershipKind::Threshold(threshold) => {
                 let minimum_available_nodes = (total_number_of_peers as f64 * threshold) as usize;
@@ -89,7 +91,7 @@ impl Memberships {
 pub(crate) struct Membership {
     local_peer_id: PeerId,
     all_members: HashMap<PeerId, Peer>,
-    active_members: HashSet<PeerId>,
+    connected_peers: HashSet<PeerId>,
 }
 
 impl Membership {
@@ -100,7 +102,7 @@ impl Membership {
         Self {
             local_peer_id,
             all_members,
-            active_members: HashSet::new(),
+            connected_peers: HashSet::new(),
         }
     }
 
@@ -108,30 +110,38 @@ impl Membership {
         Self {
             local_peer_id: PeerId::random(),
             all_members,
-            active_members: HashSet::new(),
+            connected_peers: HashSet::new(),
         }
     }
 
-    pub(crate) fn add_active_peer(&mut self, peer_id: PeerId) {
-        self.active_members.insert(peer_id);
+    pub(crate) fn includes_local(&self) -> bool {
+        self.all_members.contains_key(&self.local_peer_id)
     }
 
-    pub(crate) fn all_peer_ids_ref(&self) -> HashSet<&PeerId> {
+    pub(crate) fn peer_connected(&mut self, peer_id: PeerId) {
+        self.connected_peers.insert(peer_id);
+    }
+
+    pub(crate) fn peer_disconnected(&mut self, peer_id: &PeerId) {
+        self.connected_peers.remove(peer_id);
+    }
+
+    pub(crate) fn all_ids_ref(&self) -> HashSet<&PeerId> {
         self.all_members.keys().collect()
     }
 
-    pub(crate) fn active_peer_ids(&self) -> HashSet<PeerId> {
-        self.active_members.clone()
+    pub(crate) fn connected_peer_ids(&self) -> HashSet<PeerId> {
+        self.connected_peers.clone()
     }
 
-    pub(crate) fn active_peer_ids_with_local(&self) -> HashSet<PeerId> {
-        let mut active_peers = self.active_members.clone();
+    pub(crate) fn connected_peer_ids_with_local(&self) -> HashSet<PeerId> {
+        let mut active_peers = self.connected_peers.clone();
         active_peers.insert(self.local_peer_id);
         active_peers
     }
 
-    pub(crate) fn active_peer_ids_ref(&self) -> HashSet<&PeerId> {
-        self.active_members.iter().collect()
+    pub(crate) fn connected_ids_ref(&self) -> HashSet<&PeerId> {
+        self.connected_peers.iter().collect()
     }
 
     pub(crate) fn peer_address(&self, peer_id: &PeerId) -> Option<&libp2p::Multiaddr> {

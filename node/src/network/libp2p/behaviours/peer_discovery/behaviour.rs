@@ -30,42 +30,42 @@
 //a)when peer disconnects, we try to dial it and if that fails, we update group.
 //b)when peer connects, we will update the group.
 
-use std::time::Duration;
 use std::{
     collections::HashMap,
     collections::HashSet,
     fmt::Debug,
     task::{Context, Poll},
 };
+use std::time::Duration;
 
-use libp2p::core::Endpoint;
-use libp2p::swarm::ConnectionDenied;
 use libp2p::{
-    swarm::ToSwarm,
+    Multiaddr,
     swarm::{
         behaviour::ConnectionEstablished,
-        dial_opts::{DialOpts, PeerCondition},
-        ConnectionClosed, ConnectionId, DialFailure, FromSwarm, NetworkBehaviour, PollParameters,
+        ConnectionClosed,
+        ConnectionId, dial_opts::{DialOpts, PeerCondition}, DialFailure, FromSwarm, NetworkBehaviour, PollParameters,
         THandlerInEvent, THandlerOutEvent,
     },
-    Multiaddr,
+    swarm::ToSwarm,
 };
+use libp2p::core::Endpoint;
+use libp2p::swarm::ConnectionDenied;
 use libp2p_identity::PeerId;
 use log::{debug, error, trace, warn};
 use tokio::{task::JoinHandle, time};
 
-use crate::network::libp2p::behaviours::peer_discovery::peers_requester::PeersRequester;
-use crate::peer::Peer;
 use crate::{
     network::libp2p::behaviours::{
-        peer_discovery::connections::ConnectedPeers,
-        peer_discovery::membership::MembershipKind,
-        peer_discovery::membership::{Membership, Memberships},
-        peer_discovery::MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO,
         peer_discovery::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS},
+        peer_discovery::connections::ConnectedPeers,
+        peer_discovery::membership::{Membership, Memberships},
+        peer_discovery::membership::MembershipKind,
+        peer_discovery::MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO,
     },
     peer_discovery::{PeerDiscovery, PeerInfo},
 };
+use crate::network::libp2p::behaviours::peer_discovery::peers_requester::PeersRequester;
+use crate::peer::Peer;
 
 /// PeerDiscovery state when we are trying to connect to new peers.
 ///
@@ -140,11 +140,11 @@ impl<'a, P: PeerDiscovery + 'static> Behaviour<P> {
 
     /// Returns the list of peers that are part of current group.
     pub(crate) fn active_peer_ids(&mut self) -> HashSet<&PeerId> {
-        self.memberships.current().active_peer_ids_ref()
+        self.memberships.current().connected_ids_ref()
     }
 
     pub(crate) fn active_peer_ids_with_local(&mut self) -> HashSet<PeerId> {
-        self.memberships.current().active_peer_ids_with_local()
+        self.memberships.current().connected_peer_ids_with_local()
     }
 
     /// Starts to poll the peer discovery trait.
@@ -205,36 +205,39 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
     fn on_swarm_event(&mut self, event: FromSwarm<Self::ConnectionHandler>) {
         match event {
             FromSwarm::ConnectionEstablished(ConnectionEstablished {
-                peer_id,
-                connection_id: _,
-                endpoint,
-                failed_addresses: _,
-                other_established: _,
-            }) => {
+                                                 peer_id,
+                                                 connection_id: _,
+                                                 endpoint,
+                                                 failed_addresses: _,
+                                                 other_established: _,
+                                             }) => {
                 self.all_connections
                     .insert(peer_id, endpoint.clone().into());
                 if let Some(pending) = self.memberships.pending_mut() {
-                    pending.add_active_peer(peer_id);
+                    pending.peer_connected(peer_id);
                 }
                 debug!("{:?}", self.all_connections);
             }
 
             FromSwarm::ConnectionClosed(ConnectionClosed {
-                peer_id,
-                connection_id: _,
-                endpoint,
-                handler: _,
-                remaining_established: _,
-            }) => {
+                                            peer_id,
+                                            connection_id: _,
+                                            endpoint,
+                                            handler: _,
+                                            remaining_established: _,
+                                        }) => {
                 self.all_connections
                     .remove(&peer_id, &endpoint.clone().into());
+                if let Some(pending) = self.memberships.pending_mut() {
+                    pending.peer_disconnected(&peer_id);
+                }
                 debug!("{:?}", self.all_connections);
             }
             FromSwarm::DialFailure(DialFailure {
-                peer_id: Some(peer_id),
-                error,
-                connection_id: _,
-            }) => {
+                                       peer_id: Some(peer_id),
+                                       error,
+                                       connection_id: _,
+                                   }) => {
                 trace!("Dial failure: {:?} {:?}", peer_id, error);
             }
             _ => {}
@@ -247,8 +250,7 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
         _peer_id: PeerId,
         _connection_id: ConnectionId,
         _event: THandlerOutEvent<Self>,
-    ) {
-    }
+    ) {}
 
     fn poll(
         &mut self,
@@ -285,10 +287,11 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
 
                     //If we are not part of the new membership, notify immediately
                     if !new_peers.contains_key(&self.local_peer_id) {
+                        debug!("Local peer is not part of the new membership. Notifying immediately.");
+                        let pending_membership = Membership::new(new_peers.clone());
+                        self.memberships.set_pending(pending_membership);
                         self.state = State::NotifyPeersUpdated;
                         return Poll::Pending;
-                    } else {
-                        new_peers.remove(&self.local_peer_id);
                     }
 
                     let mut pending_membership =
@@ -297,7 +300,7 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
 
                     for peer_id in new_peers.keys() {
                         if self.all_connections.is_peer_connected(peer_id) {
-                            pending_membership.add_active_peer(*peer_id);
+                            pending_membership.peer_connected(*peer_id);
                         } else {
                             pending_update.waiting_to_dial.insert(*peer_id);
                         }
@@ -320,14 +323,17 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
                 }
             }
             State::WaitingDial(PendingPeersUpdate {
-                waiting_to_dial,
-                dial_attempts,
-                interval_between_dial_attempts,
-            }) => {
+                                   waiting_to_dial,
+                                   dial_attempts,
+                                   interval_between_dial_attempts,
+                               }) => {
                 //Refresh the list of connected peers
                 for peer_id in self.all_connections.all_connected_peers_ref() {
                     waiting_to_dial.remove(peer_id);
                 }
+
+                //FIXME
+                waiting_to_dial.remove(&self.local_peer_id);
 
                 let pending_membership = self
                     .memberships
@@ -340,7 +346,6 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
                 match next_waiting {
                     Some(peer_id) => {
                         waiting_to_dial.remove(&peer_id);
-                        println!("waiting_to_dial: {:?}", waiting_to_dial.len());
 
                         let address = pending_membership
                             .peer_address(&peer_id)
@@ -357,32 +362,16 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
                         Poll::Ready(ToSwarm::Dial { opts })
                     }
                     None => {
-                        let all_new_peer_ids = pending_membership.all_peer_ids_ref();
+                        let all_peers = pending_membership.all_ids_ref();
+                        let connected_peers = pending_membership.connected_ids_ref();
 
-                        let mut connected_peers = HashSet::new();
-                        for peer_id in &all_new_peer_ids {
-                            if self.all_connections.is_peer_connected(peer_id) {
-                                connected_peers.insert(*peer_id);
-                            }
-                        }
-                        let all_connected = connected_peers.len() == all_new_peer_ids.len();
+                        //Exclude local peer
+                        let all_connected = connected_peers.len() == all_peers.len() - 1;
+
                         if all_connected || *dial_attempts >= MAX_DIAL_ATTEMPT_ROUNDS {
-                            let membership_accepted = self
-                                .membership_kind
-                                .accept(connected_peers.len(), all_new_peer_ids.len());
-
-                            debug!("Membership accepted: {}", membership_accepted);
-
-                            if !membership_accepted {
-                                warn!("Failed to establish connections to enough peers.");
-
-                                interval_between_dial_attempts.take();
-                                self.state = State::WaitingPeers;
-                                return Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers));
-                            } else {
-                                self.state = State::NotifyPeersUpdated;
-                                return Poll::Pending;
-                            }
+                            interval_between_dial_attempts.take();
+                            self.state = State::NotifyPeersUpdated;
+                            return Poll::Pending;
                         } else {
                             //Try again few times before notifying the rest of the system about membership update.
                             //Dialing attempt
@@ -398,25 +387,39 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
                                 *interval_between_dial_attempts =
                                     Some(time::interval_at(start_at, Duration::from_secs(10)));
                             }
-                            waiting_to_dial
-                                .extend(all_new_peer_ids.difference(&connected_peers).cloned());
+                            if *dial_attempts > 0 {
+                                waiting_to_dial
+                                    .extend(all_peers.difference(&connected_peers).cloned());
+                            }
                         }
                         Poll::Pending
                     }
                 }
             }
             State::NotifyPeersUpdated => {
-                let mut pending = self.memberships.remove_pending();
-                let active_peers = match pending.take() {
-                    Some(membership) => {
-                        let active_peer_ids = membership.active_peer_ids();
-                        self.memberships.update(membership);
-                        active_peer_ids
+                if let Some(membership) = self.memberships.remove_pending() {
+                    self.memberships.update(membership);
+                }
+
+                let membership = self.memberships.current();
+                debug!("Membership: {:?}", membership);
+
+                let event = if membership.includes_local() {
+                    if self.membership_kind.accept(membership) {
+                        debug!("Membership accepted by kind: {:?}", self.membership_kind);
+                        Event::PeersUpdated(membership.connected_peer_ids())
+                    } else {
+                        debug!("Membership rejected by kind: {:?}", self.membership_kind);
+                        Event::NotEnoughPeers
                     }
-                    None => self.memberships.current().active_peer_ids(),
+                } else {
+                    debug!("Membership does not include local peer");
+                    Event::LocalRemoved
                 };
+
+
                 self.state = State::WaitingPeers;
-                Poll::Ready(ToSwarm::GenerateEvent(Event::PeersUpdated(active_peers)))
+                Poll::Ready(ToSwarm::GenerateEvent(event))
             }
         }
     }
