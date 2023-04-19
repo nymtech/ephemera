@@ -1,59 +1,70 @@
-## Ephemera - _lightweight_ reliable broadcast protocol
+# Ephemera - _lightweight_ reliable broadcast protocol
 
-### General Info
+Ephemera does reliable broadcast for blocks.
 
-* Accepts signed messages from clients which go to mempool
-    * Messages are signed by the client
+## Short Overview
 
-* Puts the messages from mempool into a block and runs reliable broadcast protocol to disseminate the block
-    * Blocks are signed by the node
+All Ephemera nodes accept messages submitted by clients. Node then gossips these to other nodes in the cluster. After certain interval,
+a node collects messages and produces a block. Then it does reliable broadcast for the block with other nodes in the cluster.
 
-### Websocket
+Ephemera doesn't have the concept of leader(at the moment).  It's up to an 'Application' to decide which block to use. 
+For example in case of Nym-Api, it is the first block submitted to a "Smart Contract".
 
-Finalized blocks are sent to websocket subscribers
+At the same time, the purpose of blocks is to reach to consensus about which messages are included. It's just that Ephemera doesn't make the final decision,
+instead it leaves that to an application.
 
-### Database
+## Main concepts
 
-Finalized blocks are also stored in database
+- **Node** - a single instance of Ephemera.
+- **Cluster** - a set of nodes participating in reliable broadcast.
+- **EphemeraMessage** - a message submitted by a client.
+- **Block** - a set of messages collected by a node.
+- **Application(ABCI)** - a trait which Ephemera users implement to accept messages and blocks.
+  - check_tx
+  - check_block
+  - accept_block
 
-It uses RocksDB.
-
-### How to run
+## How to run
 
 [README](../scripts/README.md)
 
-### Ephemera CLI
+## HTTP API
 
-#### Usage
+See [Rust](src/api/http/mod.rs)
 
-```bash
-../target/release/ephemera --help
-```
+- `/ephemera/node/health`
+- `/ephemera/broadcast/block/{hash}`
+- `/ephemera/broadcast/block/certificates/{hash}`
+- `/ephemera/broadcast/block/height/{height}`
+- `/ephemera/broadcast/blocks/last`
+- `/ephemera/node/config`
+- `/ephemera/dht/query/{key}`
 
-#### Init
+- `/ephemera/broadcast/submit_message`
+- `/ephemera/dht/store`
 
-```bash
-../target/release/ephemera init --help
-```
+## Rust API
 
-#### Run
+See [Rust](src/api/mod.rs)
 
-```bash
-../target/release/ephemera run-node --help
-```
+## Application(Ephemera ABCI)
 
-### Update config
+See [Rust](src/api/application.rs)
 
-```bash
-../target/release/ephemera update-config --help
-```
+## Examples
 
-### Examples
+### Ephemera HTTP and WS external interfaces example
 
-#### Example Application: http-ws
+See [README.md](../examples/http-ws/README.md)
 
-[README](../examples/http-ws/README.md)
+### Nym Api simulation
 
-#### Example Application: metrics-aggregator
+See [README.md](../examples/nym-api/README.md)
 
-[README](../examples/metrics-aggregator/README.md)
+### Http API example
+
+See [README.md](../examples/cluster-http-api/README.md)
+
+### Peer discovery over HTTP API
+
+See [README.md](../examples/peer_discovery_http/README.md)

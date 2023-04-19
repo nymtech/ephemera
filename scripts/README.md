@@ -4,6 +4,17 @@
 
 All output goes to into $HOME/.ephemera directory.
 
+## Ports
+
+Ports are rather arbitrary at the moment. They are incremented by 1 for each node.
+
+See in `scripts/local-cluster`:
+```text
+WS_PORT=6000
+EPHEMERA_PORT=3000
+HTTP_API_PORT=7000
+```
+
 ## Build
 
 Run:
