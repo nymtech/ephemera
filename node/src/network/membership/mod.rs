@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use log::{debug, trace};
+use log::{debug};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -52,26 +52,26 @@ impl TryFrom<PeerInfo> for Peer {
 }
 
 #[derive(Error, Debug)]
-pub enum PeerDiscoveryError {
+pub enum MembersProviderError {
     //Just a placeholder for now
-    #[error("PeerDiscoveryError::GeneralError: {0}")]
+    #[error("GeneralError: {0}")]
     GeneralError(#[from] anyhow::Error),
 }
 
-pub type Result<T> = std::result::Result<T, PeerDiscoveryError>;
+pub type Result<T> = std::result::Result<T, MembersProviderError>;
 
-/// The PeerDiscovery trait allows the user to implement their own peer discovery mechanism.
+/// The MembersProvider trait allows the user to implement their own peers membership source mechanism.
 #[async_trait]
-pub trait PeerDiscovery: Send + Sync {
+pub trait MembersProvider: Send + Sync {
     /// Ephemera will call this method to poll for new peers.
     ///
-    /// Implementation of this trait sends current peers to the discovery_channel using the provided channel.
+    /// Implementation of this trait sends current peers to the members_channel using the provided channel.
     ///
     /// # Arguments
-    /// * `discovery_channel` - The channel to send the new peers to.
+    /// * `members_channel` - The channel to send the new peers to.
     async fn poll(
         &mut self,
-        discovery_channel: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
+        members_channel: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
     ) -> Result<()>;
 
     /// Ephemera will call this method to get the interval between each poll.
@@ -81,25 +81,23 @@ pub trait PeerDiscovery: Send + Sync {
     fn get_poll_interval(&self) -> std::time::Duration;
 }
 
-/// A peer discovery mechanism that does nothing.
+/// A membership provider that does nothing.
 /// Might be useful for testing.
-pub struct DummyPeerDiscovery;
+pub struct DummyMembersProvider;
 
 #[async_trait]
-impl PeerDiscovery for DummyPeerDiscovery {
+impl MembersProvider for DummyMembersProvider {
     async fn poll(&mut self, _: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>) -> Result<()> {
-        trace!("DummyPeerDiscovery::poll()");
         Ok(())
     }
 
     fn get_poll_interval(&self) -> std::time::Duration {
-        trace!("DummyPeerDiscovery::get_poll_interval()");
         std::time::Duration::from_secs(60 * 60 * 24)
     }
 }
 
 #[derive(Error, Debug)]
-pub enum ConfigPeerDiscoveryError {
+pub enum ConfigMembersProviderError {
     #[error("ConfigDoesNotExist: '{0}'")]
     DoesNotExist(String),
     #[error("ParsingFailed: {0}")]
@@ -149,7 +147,7 @@ impl TryFrom<PeerSetting> for PeerInfo {
     }
 }
 
-///[PeerDiscovery] that reads the peers from a toml config file.
+///[MembersProvider] that reads the peers from a toml config file.
 ///
 /// # Configuration example
 /// ```toml
@@ -163,16 +161,16 @@ impl TryFrom<PeerSetting> for PeerInfo {
 /// address = "/ip4/127.0.0.1/tcp/3001"
 /// pub_key = "4XTTMFQt2tgNRmwRgEAaGQe2NXygsK6Vr3pkuBfYezhDfoVty"
 /// ```
-pub struct ConfigPeerDiscovery {
+pub struct ConfigMembersProvider {
     reload_interval: std::time::Duration,
     config_location: PathBuf,
 }
 
-impl ConfigPeerDiscovery {
+impl ConfigMembersProvider {
     pub fn init<I: Into<PathBuf>>(
         path: I,
         reload_interval: std::time::Duration,
-    ) -> std::result::Result<Self, ConfigPeerDiscoveryError> {
+    ) -> std::result::Result<Self, ConfigMembersProviderError> {
         Ok(Self {
             reload_interval,
             config_location: path.into(),
@@ -192,7 +190,7 @@ impl ConfigPeers {
 
     pub(crate) fn try_load<I: Into<PathBuf>>(
         path: I,
-    ) -> std::result::Result<ConfigPeers, ConfigPeerDiscoveryError> {
+    ) -> std::result::Result<ConfigPeers, ConfigMembersProviderError> {
         let path = path.into();
         let config = config::Config::builder()
             .add_source(config::File::from(path))
@@ -204,7 +202,7 @@ impl ConfigPeers {
     pub(crate) fn try_write<I: Into<PathBuf>>(
         &self,
         path: I,
-    ) -> std::result::Result<(), ConfigPeerDiscoveryError> {
+    ) -> std::result::Result<(), ConfigMembersProviderError> {
         let config = toml::to_string(&self)?;
 
         let config = format!(
@@ -219,10 +217,10 @@ impl ConfigPeers {
 }
 
 #[async_trait::async_trait]
-impl PeerDiscovery for ConfigPeerDiscovery {
+impl MembersProvider for ConfigMembersProvider {
     async fn poll(
         &mut self,
-        discovery_channel: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
+        members_provider_ch: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
     ) -> Result<()> {
         let config_peers = ConfigPeers::try_load(self.config_location.clone())
             .map_err(|err| anyhow::anyhow!(err))?;
@@ -233,7 +231,7 @@ impl PeerDiscovery for ConfigPeerDiscovery {
             .map(|peer| PeerInfo::try_from(peer.clone()))
             .collect::<anyhow::Result<Vec<PeerInfo>>>()?;
 
-        discovery_channel.send(peer_info).unwrap();
+        members_provider_ch.send(peer_info).unwrap();
         Ok(())
     }
 
@@ -288,7 +286,7 @@ impl TryFrom<JsonPeerInfo> for PeerInfo {
     }
 }
 
-///[PeerDiscovery] that reads peers from a http endpoint.
+///[MembersProvider] that reads peers from a http endpoint.
 ///
 /// The endpoint must return a json array of [JsonPeerInfo].
 /// # Configuration example
@@ -306,24 +304,24 @@ impl TryFrom<JsonPeerInfo> for PeerInfo {
 ///   }
 /// ]
 /// ```
-pub struct HttpPeerDiscovery {
+pub struct HttpMembersProvider {
     /// The interval at which the peers are reloaded.
     reload_interval: std::time::Duration,
     /// The url of the http endpoint.
-    discovery_url: String,
+    members_url: String,
 }
 
-impl HttpPeerDiscovery {
-    pub fn new(discovery_url: String, reload_interval: std::time::Duration) -> Self {
+impl HttpMembersProvider {
+    pub fn new(members_url: String, reload_interval: std::time::Duration) -> Self {
         Self {
             reload_interval,
-            discovery_url,
+            members_url,
         }
     }
 
     async fn request_peers(&self) -> Result<Vec<PeerInfo>> {
-        debug!("Requesting peers from: {:?}", self.discovery_url);
-        let json_peers: Vec<JsonPeerInfo> = reqwest::get(&self.discovery_url)
+        debug!("Requesting peers from: {:?}", self.members_url);
+        let json_peers: Vec<JsonPeerInfo> = reqwest::get(&self.members_url)
             .await
             .map_err(|err| anyhow::anyhow!("Failed to get peers: {err}"))?
             .json()
@@ -340,15 +338,15 @@ impl HttpPeerDiscovery {
 }
 
 #[async_trait::async_trait]
-impl PeerDiscovery for HttpPeerDiscovery {
+impl MembersProvider for HttpMembersProvider {
     async fn poll(
         &mut self,
-        discovery_channel: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
+        members_provider_ch: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
     ) -> Result<()> {
         let peers = self.request_peers().await?;
 
         debug!("Sending peers: {peers:?}");
-        discovery_channel.send(peers).expect("Failed to send peers");
+        members_provider_ch.send(peers).expect("Failed to send peers");
         Ok(())
     }
 

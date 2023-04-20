@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::utilities::encoding::varint_bytes::{read_length_prefixed, write_length_prefixed};
 
 //Useful for versioning
-pub const PROTOCOL_NAME: &[u8] = b"/ephemera/peer-discovery/1.0.0";
+pub const PROTOCOL_NAME: &[u8] = b"/ephemera/membership/1.0.0";
 
 pub(crate) struct Protocol;
 
@@ -35,7 +35,7 @@ impl<C> InboundUpgrade<C> for Protocol
     where
         C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    type Output = Framed<C, PeerDiscoveryCodec>;
+    type Output = Framed<C, MembershipCodec>;
     type Error = anyhow::Error;
     type Future = Pin<Box<dyn Future<Output=Result<Self::Output, Self::Error>> + Send>>;
 
@@ -44,7 +44,7 @@ impl<C> InboundUpgrade<C> for Protocol
             "Inbound upgrade for protocol: {}",
             String::from_utf8_lossy(PROTOCOL_NAME)
         );
-        Box::pin(future::ok(Framed::new(socket, PeerDiscoveryCodec {})))
+        Box::pin(future::ok(Framed::new(socket, MembershipCodec {})))
     }
 }
 
@@ -52,7 +52,7 @@ impl<C> OutboundUpgrade<C> for Protocol
     where
         C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    type Output = Framed<C, PeerDiscoveryCodec>;
+    type Output = Framed<C, MembershipCodec>;
     type Error = anyhow::Error;
     type Future = Pin<Box<dyn Future<Output=Result<Self::Output, Self::Error>> + Send>>;
 
@@ -61,7 +61,7 @@ impl<C> OutboundUpgrade<C> for Protocol
             "Outbound upgrade for protocol: {}",
             String::from_utf8_lossy(PROTOCOL_NAME)
         );
-        Box::pin(future::ok(Framed::new(socket, PeerDiscoveryCodec {})))
+        Box::pin(future::ok(Framed::new(socket, MembershipCodec {})))
     }
 }
 
@@ -70,9 +70,9 @@ pub(crate) enum ProtocolMessage {
     Sync,
 }
 
-pub(crate) struct PeerDiscoveryCodec {}
+pub(crate) struct MembershipCodec {}
 
-impl Encoder for PeerDiscoveryCodec {
+impl Encoder for MembershipCodec {
     type Item = ProtocolMessage;
     type Error = anyhow::Error;
 
@@ -83,7 +83,7 @@ impl Encoder for PeerDiscoveryCodec {
     }
 }
 
-impl Decoder for PeerDiscoveryCodec {
+impl Decoder for MembershipCodec {
     type Item = ProtocolMessage;
     type Error = anyhow::Error;
 

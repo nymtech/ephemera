@@ -20,17 +20,17 @@ use crate::{
         RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
     },
     peer::{PeerId, ToPeerId},
-    peer_discovery::PeerDiscovery,
     utilities::hash::{EphemeraHasher, Hasher},
 };
+use crate::network::membership::MembersProvider;
 
 pub(crate) mod request_response;
-pub(crate) mod peer_discovery;
+pub(crate) mod membership;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
-pub(crate) struct GroupNetworkBehaviour<P: PeerDiscovery> {
-    pub(crate) peer_discovery: peer_discovery::behaviour::Behaviour<P>,
+pub(crate) struct GroupNetworkBehaviour<P: MembersProvider> {
+    pub(crate) members_provider: membership::behaviour::Behaviour<P>,
     pub(crate) gossipsub: gossipsub::Behaviour,
     pub(crate) request_response: libp2p_request_response::Behaviour<RbMsgMessagesCodec>,
     pub(crate) kademlia: kad::Kademlia<kad::store::MemoryStore>,
@@ -41,7 +41,7 @@ pub(crate) struct GroupNetworkBehaviour<P: PeerDiscovery> {
 pub(crate) enum GroupBehaviourEvent {
     Gossipsub(gossipsub::Event),
     RequestResponse(libp2p_request_response::Event<RbMsg, RbMsgResponse>),
-    PeerDiscovery(peer_discovery::behaviour::Event),
+    Membership(membership::behaviour::Event),
     Kademlia(kad::KademliaEvent),
     // Ping(ping::Event)
 }
@@ -58,9 +58,9 @@ impl From<libp2p_request_response::Event<RbMsg, RbMsgResponse>> for GroupBehavio
     }
 }
 
-impl From<peer_discovery::behaviour::Event> for GroupBehaviourEvent {
-    fn from(event: peer_discovery::behaviour::Event) -> Self {
-        GroupBehaviourEvent::PeerDiscovery(event)
+impl From<membership::behaviour::Event> for GroupBehaviourEvent {
+    fn from(event: membership::behaviour::Event) -> Self {
+        GroupBehaviourEvent::Membership(event)
     }
 }
 
@@ -78,21 +78,21 @@ impl From<kad::KademliaEvent> for GroupBehaviourEvent {
 
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
-//Peer discovery takes care of locating peers
-pub(crate) fn create_behaviour<P: PeerDiscovery + 'static>(
+//Membership takes care of providing peers who are part of the reliable broadcast group
+pub(crate) fn create_behaviour<P: MembersProvider + 'static>(
     keypair: Arc<Keypair>,
     ephemera_msg_topic: Topic,
-    peer_discovery: P,
+    members_provider: P,
 ) -> GroupNetworkBehaviour<P> {
     let local_peer_id = keypair.peer_id();
     let gossipsub = create_gossipsub(keypair.clone(), &ephemera_msg_topic);
     let request_response = create_request_response();
-    let rendezvous_behaviour = create_rendezvous(peer_discovery, local_peer_id);
+    let rendezvous_behaviour = create_rendezvous(members_provider, local_peer_id);
     let kademlia = create_kademlia(keypair);
     // let ping = ping::Behaviour::new(Default::default());
 
     GroupNetworkBehaviour {
-        peer_discovery: rendezvous_behaviour,
+        members_provider: rendezvous_behaviour,
         gossipsub,
         request_response,
         kademlia,
@@ -129,11 +129,11 @@ pub(crate) fn create_request_response() -> libp2p_request_response::Behaviour<Rb
     )
 }
 
-pub(crate) fn create_rendezvous<P: PeerDiscovery + 'static>(
-    peer_discovery: P,
+pub(crate) fn create_rendezvous<P: MembersProvider + 'static>(
+    members_provider: P,
     local_peer_id: PeerId,
-) -> peer_discovery::behaviour::Behaviour<P> {
-    peer_discovery::behaviour::Behaviour::new(peer_discovery, local_peer_id.into())
+) -> membership::behaviour::Behaviour<P> {
+    membership::behaviour::Behaviour::new(members_provider, local_peer_id.into())
 }
 
 pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::store::MemoryStore> {

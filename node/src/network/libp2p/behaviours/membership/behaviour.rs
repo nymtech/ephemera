@@ -1,4 +1,4 @@
-//! # Peer discovery behaviour.
+//! # Membership behaviour.
 //!
 //! Ephemera `reliable broadcast` needs to know the list of peers who participate in the protocol.
 //! Also it's not enough to have just the list but to make sure that they are actually online.
@@ -6,19 +6,19 @@
 //!
 //! This behaviour is responsible for discovering peers and keeping the list of peers up to date.
 //!
-//! User provides a [PeerDiscovery] trait implementation to the [Behaviour] which is responsible for fetching the list of peers.
+//! User provides a [MembersProvider] trait implementation to the [Behaviour] which is responsible for fetching the list of peers.
 //!
 //! [Behaviour] accepts only peers that are actually online.
 //!
 //! When peers become available or unavailable, [Behaviour] adjusts the list of connected peers accordingly and notifies `reliable broadcast`
 //! about the membership change.
 //!
-//! It is configurable what `threshold` of peers(from the total list provided by [PeerDiscovery]) should be available at any given time.
+//! It is configurable what `threshold` of peers(from the total list provided by [MembersProvider]) should be available at any given time.
 //! Or if just to use all peers who are online. See [MembershipKind] for more details.
 //!
-//! Ideally [PeerDiscovery] can depend on a resource that gives reliable results. Some kind of registry which itself keeps track of actually online nodes.
-//! As Ephemera uses only peers provided by [PeerDiscovery], it depends on its accuracy.
-//! At the same time it tries to be flexible and robust to handle less reliable [PeerDiscovery] implementations.
+//! Ideally [MembersProvider] can depend on a resource that gives reliable results. Some kind of registry which itself keeps track of actually online nodes.
+//! As Ephemera uses only peers provided by [MembersProvider], it depends on its accuracy.
+//! At the same time it tries to be flexible and robust to handle less reliable [MembersProvider] implementations.
 
 // When peer gets disconnected, we try to dial it and if that fails, we update group.
 // (it may connect us meanwhile).
@@ -55,21 +55,25 @@ use log::{debug, error, trace, warn};
 use tokio::{task::JoinHandle, time};
 
 use crate::{
-    network::libp2p::behaviours::{
-        peer_discovery::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS},
-        peer_discovery::connections::ConnectedPeers,
-        peer_discovery::membership::{Membership, Memberships},
-        peer_discovery::membership::MembershipKind,
-        peer_discovery::MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO,
+    network::{
+        libp2p::{
+            behaviours::{
+                membership::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS},
+                membership::connections::ConnectedPeers,
+                membership::handler::ToHandler,
+                membership::membership::{Membership, Memberships},
+                membership::membership::MembershipKind,
+                membership::MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO,
+                membership::peers_requester::PeersRequester,
+                membership::protocol::ProtocolMessage,
+            }
+        }
     },
-    peer_discovery::{PeerDiscovery, PeerInfo},
+    peer::Peer,
 };
-use crate::network::libp2p::behaviours::peer_discovery::handler::ToHandler;
-use crate::network::libp2p::behaviours::peer_discovery::peers_requester::PeersRequester;
-use crate::network::libp2p::behaviours::peer_discovery::protocol::ProtocolMessage;
-use crate::peer::Peer;
+use crate::network::membership::{MembersProvider, PeerInfo};
 
-/// PeerDiscovery state when we are trying to connect to new peers.
+/// MembersProvider state when we are trying to connect to new peers.
 ///
 /// We try to connect few times before giving up. Generally speaking an another peer is either online or offline
 /// at any given time. But it has been helpful for testing when whole cluster comes up around the same time.
@@ -94,9 +98,9 @@ impl SyncPeers {
     }
 }
 
-/// PeerDiscovery behaviour states.
+/// MembersProvider behaviour states.
 enum State {
-    /// Waiting for new peers from the discovery trait.
+    /// Waiting for new peers from the members provider trait.
     WaitingPeers,
     /// Trying to connect to new peers.
     WaitingDial(PendingPeersUpdate),
@@ -107,28 +111,28 @@ enum State {
 
 /// Events that can be emitted by the `Behaviour`.
 pub(crate) enum Event {
-    /// We have received new peers from the discovery trait.
+    /// We have received new peers from the members provider trait.
     /// We are going to try to connect to them.
     PeerUpdatePending,
     /// We have finished trying to connect to new peers and going to report it.
     PeersUpdated(HashSet<PeerId>),
-    /// PeerDiscovery trait reported us new peers and this set doesn't contain our local peer.
+    /// MembersProvider trait reported us new peers and this set doesn't contain our local peer.
     LocalRemoved,
-    /// PeerDiscovery trait reported us new peers and we failed to connect to enough of them.
+    /// MembersProvider trait reported us new peers and we failed to connect to enough of them.
     NotEnoughPeers,
 }
 
-pub(crate) struct Behaviour<P: PeerDiscovery> {
+pub(crate) struct Behaviour<P: MembersProvider> {
     /// All peers that are part of the current group.
     memberships: Memberships,
     /// Local peer id.
     local_peer_id: PeerId,
-    /// Peer discovery trait. It's an external trait that provides us with new peers.
-    peer_discovery: Option<P>,
-    /// Channel to send new peers to the PeerDiscovery trait.
-    discovery_channel_tx: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
-    /// Channel to receive new peers from the PeerDiscovery trait.
-    discovery_channel_rcv: tokio::sync::mpsc::UnboundedReceiver<Vec<PeerInfo>>,
+    /// [MembersProvider] trait. It's an external trait that provides us with new peers.
+    members_provider: Option<P>,
+    /// Channel to send new peers to the MembersProvider trait.
+    members_provider_tx: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
+    /// Channel to receive new peers from the MembersProvider trait.
+    members_provider_rcv: tokio::sync::mpsc::UnboundedReceiver<Vec<PeerInfo>>,
     /// Current state of the behaviour.
     state: State,
     /// Current state of all incoming and outgoing connections.
@@ -137,15 +141,15 @@ pub(crate) struct Behaviour<P: PeerDiscovery> {
     membership_kind: MembershipKind,
 }
 
-impl<'a, P: PeerDiscovery + 'static> Behaviour<P> {
-    pub(crate) fn new(peer_discovery: P, local_peer_id: PeerId) -> Self {
+impl<'a, P: MembersProvider + 'static> Behaviour<P> {
+    pub(crate) fn new(members_provider: P, local_peer_id: PeerId) -> Self {
         let (tx, rcv) = tokio::sync::mpsc::unbounded_channel();
         Behaviour {
             memberships: Memberships::new(),
             local_peer_id,
-            peer_discovery: Some(peer_discovery),
-            discovery_channel_tx: tx,
-            discovery_channel_rcv: rcv,
+            members_provider: Some(members_provider),
+            members_provider_tx: tx,
+            members_provider_rcv: rcv,
             state: State::WaitingPeers,
             all_connections: Default::default(),
             membership_kind: MembershipKind::Threshold(MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO),
@@ -161,22 +165,22 @@ impl<'a, P: PeerDiscovery + 'static> Behaviour<P> {
         self.memberships.current().connected_peer_ids_with_local()
     }
 
-    /// Starts to poll the peer discovery trait.
-    pub(crate) async fn spawn_peer_discovery(&mut self) -> anyhow::Result<JoinHandle<()>> {
-        let peer_discovery = self
-            .peer_discovery
+    /// Starts to poll the [MembersProvider] trait.
+    pub(crate) async fn spawn_members_provider(&mut self) -> anyhow::Result<JoinHandle<()>> {
+        let members_provider = self
+            .members_provider
             .take()
-            .ok_or(anyhow::anyhow!("Peer discovery already spawned"))?;
+            .ok_or(anyhow::anyhow!("Members provider already spawned"))?;
 
         let join_handle =
-            PeersRequester::spawn_peer_requester(peer_discovery, self.discovery_channel_tx.clone())
+            PeersRequester::spawn_peer_requester(members_provider, self.members_provider_tx.clone())
                 .await?;
 
         Ok(join_handle)
     }
 }
 
-impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
+impl<P: MembersProvider + 'static> NetworkBehaviour for Behaviour<P> {
     type ConnectionHandler = Handler;
     type OutEvent = Event;
 
@@ -190,6 +194,17 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
         Ok(())
     }
 
+    fn handle_established_inbound_connection(
+        &mut self,
+        _connection_id: ConnectionId,
+        peer: PeerId,
+        _local_addr: &Multiaddr,
+        _remote_addr: &Multiaddr,
+    ) -> Result<THandler<Self>, ConnectionDenied> {
+        debug!("Established inbound connection with peer: {:?}", peer);
+        Ok(Handler::new())
+    }
+
     fn handle_pending_outbound_connection(
         &mut self,
         _connection_id: ConnectionId,
@@ -201,17 +216,6 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
             Some(peer_id) => Ok(self.addresses_of_peer(&peer_id)),
             None => Ok(vec![]),
         }
-    }
-
-    fn handle_established_inbound_connection(
-        &mut self,
-        _connection_id: ConnectionId,
-        peer: PeerId,
-        _local_addr: &Multiaddr,
-        _remote_addr: &Multiaddr,
-    ) -> Result<THandler<Self>, ConnectionDenied> {
-        debug!("Established inbound connection with peer: {:?}", peer);
-        Ok(Handler::new())
     }
 
     fn handle_established_outbound_connection(
@@ -228,7 +232,7 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
         Ok(Handler::new())
     }
 
-    ///`Peer discovery` behaviour is responsible for providing addresses to another Swarm behaviours.
+    ///Membership behaviour is responsible for providing addresses to another Swarm behaviours.
     fn addresses_of_peer(&mut self, peer_id: &PeerId) -> Vec<Multiaddr> {
         self.memberships
             .current()
@@ -299,14 +303,14 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
     ) -> Poll<ToSwarm<Self::OutEvent, THandlerInEvent<Self>>> {
         match &mut self.state {
             State::WaitingPeers => {
-                if let Poll::Ready(Some(peers)) = self.discovery_channel_rcv.poll_recv(cx) {
-                    debug!("Received peers from peer discovery: {:?}", peers);
+                if let Poll::Ready(Some(peers)) = self.members_provider_rcv.poll_recv(cx) {
+                    debug!("Received peers from peer provider: {:?}", peers);
 
                     if peers.is_empty() {
                         //Not sure what to do here. Tempted to think that if this happens
-                        //we should ignore it and assume that this is a bug in the discovery service.
+                        //we should ignore it and assume that this is a bug in the membership service.
 
-                        warn!("Received empty peers from discovery. To try again before preconfigured interval, please restart the node.");
+                        warn!("Received empty peers from provider. To try again before preconfigured interval, please restart the node.");
                         return Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers));
                     }
 

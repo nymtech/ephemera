@@ -6,12 +6,12 @@ members = [
     "examples/http-ws",
     "examples/nym-api",
     "examples/cluster-http-api",
-    "examples/peer_discovery_http",
+    "examples/members_provider_http",
 ]
 
 default-members = [
     "node",
     "examples/http-ws",
     "examples/cluster-http-api",
-    "examples/peer_discovery_http"
+    "examples/members_provider_http"
 ]

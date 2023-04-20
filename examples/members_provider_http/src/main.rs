@@ -2,11 +2,11 @@ use clap::Parser;
 use std::sync::Arc;
 
 use ephemera::configuration::Configuration;
-use ephemera::peer_discovery::{JsonPeerInfo, PeerSetting};
+use ephemera::membership::{JsonPeerInfo, PeerSetting};
 
 #[derive(Parser, Clone)]
-#[command(name = "peer_discovery_http")]
-#[command(about = "Ephemera peer discovery http resource example", long_about = None)]
+#[command(name = "Members provider http")]
+#[command(about = "Ephemera members provider http example", long_about = None)]
 #[command(next_line_help = true)]
 struct Args {}
 

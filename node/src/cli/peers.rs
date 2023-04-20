@@ -5,7 +5,8 @@ use clap::Parser;
 
 use crate::config::Configuration;
 use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
-use crate::network::peer_discovery::{ConfigPeers, PeerSetting};
+use crate::membership::PeerSetting;
+use crate::network::membership::ConfigPeers;
 
 #[derive(Debug, Clone, Parser)]
 pub struct CreateLocalPeersConfiguration;

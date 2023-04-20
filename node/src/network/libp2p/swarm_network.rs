@@ -9,30 +9,24 @@ use std::collections::HashSet;
 use std::str::FromStr;
 use tokio::task::JoinHandle;
 
-use crate::peer_discovery::PeerDiscovery;
-use crate::{
-    block::types::message::EphemeraMessage,
-    broadcast::RbMsg,
-    codec::Encode,
-    core::builder::NodeInfo,
-    network::libp2p::{
-        behaviours::peer_discovery,
-        behaviours::{
-            create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
-            request_response::RbMsgResponse,
-        },
-        ephemera_sender::{
-            EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
-        },
-        network_sender::{
-            EphemeraNetworkCommunication, GroupChangeEvent,
-            GroupChangeEvent::{LocalPeerRemoved, NotEnoughPeers},
-            NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
-        },
+use crate::{block::types::message::EphemeraMessage, broadcast::RbMsg, codec::Encode, core::builder::NodeInfo, network::libp2p::{
+    behaviours::{
+        create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
+        request_response::RbMsgResponse,
     },
-};
+    ephemera_sender::{
+        EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
+    },
+    network_sender::{
+        EphemeraNetworkCommunication, GroupChangeEvent,
+        GroupChangeEvent::{LocalPeerRemoved, NotEnoughPeers},
+        NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
+    },
+}};
+use crate::network::libp2p::behaviours;
+use crate::network::membership::MembersProvider;
 
-pub struct SwarmNetwork<P: PeerDiscovery + 'static> {
+pub struct SwarmNetwork<P: MembersProvider + 'static> {
     node_info: NodeInfo,
     swarm: Swarm<GroupNetworkBehaviour<P>>,
     from_ephemera_rcv: EphemeraToNetworkReceiver,
@@ -40,10 +34,10 @@ pub struct SwarmNetwork<P: PeerDiscovery + 'static> {
     ephemera_msg_topic: Topic,
 }
 
-impl<P: PeerDiscovery> SwarmNetwork<P> {
+impl<P: MembersProvider> SwarmNetwork<P> {
     pub(crate) fn new(
         node_info: NodeInfo,
-        peer_discovery: P,
+        members_provider: P,
     ) -> (
         SwarmNetwork<P>,
         NetCommunicationReceiver,
@@ -58,7 +52,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
             Topic::new(&node_info.initial_config.libp2p.ephemera_msg_topic_name);
 
         let transport = create_transport(local_key.clone());
-        let behaviour = create_behaviour(local_key, ephemera_msg_topic.clone(), peer_discovery);
+        let behaviour = create_behaviour(local_key, ephemera_msg_topic.clone(), members_provider);
 
         let swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, peer_id.into()).build();
 
@@ -83,8 +77,8 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
     }
 
     pub(crate) async fn start(mut self) -> anyhow::Result<()> {
-        // Spawn user provided PeerDiscovery
-        let mut peer_discovery_handle = self.start_peer_discovery().await?;
+        // Spawn user provided MembersProvider
+        let mut members_provider_handle = self.run_members_provider().await?;
 
         loop {
             tokio::select! {
@@ -103,7 +97,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 Some(event) = self.from_ephemera_rcv.net_event_rcv.recv() => {
                     self.process_ephemera_events(event).await;
                 }
-                _ = &mut peer_discovery_handle => {
+                _ = &mut members_provider_handle => {
                     info!("Rendezvous behaviour finished");
                     return Ok(());
                 }
@@ -111,11 +105,11 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         }
     }
 
-    async fn start_peer_discovery(&mut self) -> anyhow::Result<JoinHandle<()>> {
+    async fn run_members_provider(&mut self) -> anyhow::Result<JoinHandle<()>> {
         self.swarm
             .behaviour_mut()
-            .peer_discovery
-            .spawn_peer_discovery()
+            .members_provider
+            .spawn_members_provider()
             .await
     }
 
@@ -183,8 +177,8 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 }
             }
 
-            GroupBehaviourEvent::PeerDiscovery(event) => {
-                if let Err(err) = self.process_peer_discovery_event(event).await {
+            GroupBehaviourEvent::Membership(event) => {
+                if let Err(err) = self.process_members_provider_event(event).await {
                     error!("Error processing rendezvous event: {:?}", err);
                 }
             }
@@ -276,12 +270,12 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         Ok(())
     }
 
-    async fn process_peer_discovery_event(
+    async fn process_members_provider_event(
         &mut self,
-        event: peer_discovery::behaviour::Event,
+        event: behaviours::membership::behaviour::Event,
     ) -> anyhow::Result<()> {
         match event {
-            peer_discovery::behaviour::Event::PeersUpdated(peers_ids) => {
+            behaviours::membership::behaviour::Event::PeersUpdated(peers_ids) => {
                 info!("Peers updated: {:?}", peers_ids);
 
                 let local_peer_id = *self.swarm.local_peer_id();
@@ -292,7 +286,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     let address = self
                         .swarm
                         .behaviour_mut()
-                        .peer_discovery
+                        .members_provider
                         .addresses_of_peer(&peer_id);
                     if let Some(address) = address.first() {
                         self.swarm
@@ -309,15 +303,15 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                     .get_closest_peers(libp2p::PeerId::random());
                 debug!("Neighbours: {:?}", query_id);
             }
-            peer_discovery::behaviour::Event::PeerUpdatePending => {
+            behaviours::membership::behaviour::Event::PeerUpdatePending => {
                 info!("Peer update pending");
             }
-            peer_discovery::behaviour::Event::LocalRemoved => {
+            behaviours::membership::behaviour::Event::LocalRemoved => {
                 //TODO: should pause all network block and message activities
                 let update = NetworkEvent::GroupUpdate(LocalPeerRemoved);
                 self.to_ephemera_tx.send_network_event(update).await?;
             }
-            peer_discovery::behaviour::Event::NotEnoughPeers => {
+            behaviours::membership::behaviour::Event::NotEnoughPeers => {
                 //TODO: should pause all network block and message activities
                 let update = NetworkEvent::GroupUpdate(NotEnoughPeers);
                 self.to_ephemera_tx.send_network_event(update).await?;
@@ -366,7 +360,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                                 let active_peers = self
                                     .swarm
                                     .behaviour_mut()
-                                    .peer_discovery
+                                    .members_provider
                                     .active_peer_ids_with_local();
                                 let active_peers = active_peers
                                     .into_iter()
@@ -569,7 +563,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
         trace!("Sending broadcast message: {:?}", msg);
         let local_peer_id = *self.swarm.local_peer_id();
         let behaviours = self.swarm.behaviour_mut();
-        for peer in behaviours.peer_discovery.active_peer_ids() {
+        for peer in behaviours.members_provider.active_peer_ids() {
             trace!("Sending broadcast message: {:?} to peer: {peer:?}", msg.id,);
             if *peer == local_peer_id {
                 continue;

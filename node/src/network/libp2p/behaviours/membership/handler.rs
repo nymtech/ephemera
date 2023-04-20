@@ -8,10 +8,9 @@
 //! 
 //! TODO
 //! Because we actually can verify peers' membership, it would be possible that one peer(or subset of peers) requests the
-//! peers from [PeerDiscovery] and then sends the list to the other peers. Or possibly only the difference.
+//! peers from [crate::membership::MembersProvider] and then sends the list to the other peers. Or possibly only the difference.
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Duration;
 
 use asynchronous_codec::Framed;
 use futures::Sink;
@@ -29,8 +28,8 @@ use libp2p::{
 use log::{debug, error};
 use thiserror::Error;
 
-use crate::network::libp2p::behaviours::peer_discovery::protocol::{
-    PeerDiscoveryCodec, Protocol, ProtocolMessage,
+use crate::network::libp2p::behaviours::membership::protocol::{
+    MembershipCodec, Protocol, ProtocolMessage,
 };
 
 #[derive(Error, Debug)]
@@ -44,17 +43,17 @@ pub(crate) enum HandlerError {
 const MAX_SUBSTREAM_ATTEMPTS: usize = 1;
 
 enum InboundSubstreamState {
-    WaitingInput(Framed<NegotiatedSubstream, PeerDiscoveryCodec>),
-    Closing(Framed<NegotiatedSubstream, PeerDiscoveryCodec>),
+    WaitingInput(Framed<NegotiatedSubstream, MembershipCodec>),
+    Closing(Framed<NegotiatedSubstream, MembershipCodec>),
 }
 
 enum OutboundSubstreamState {
-    WaitingOutput(Framed<NegotiatedSubstream, PeerDiscoveryCodec>),
+    WaitingOutput(Framed<NegotiatedSubstream, MembershipCodec>),
     PendingSend(
-        Framed<NegotiatedSubstream, PeerDiscoveryCodec>,
+        Framed<NegotiatedSubstream, MembershipCodec>,
         ProtocolMessage,
     ),
-    PendingFlush(Framed<NegotiatedSubstream, PeerDiscoveryCodec>),
+    PendingFlush(Framed<NegotiatedSubstream, MembershipCodec>),
 }
 
 pub(crate) struct Handler {

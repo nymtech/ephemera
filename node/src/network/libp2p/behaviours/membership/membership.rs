@@ -1,5 +1,5 @@
-//! In Ephemera, membership of reliable broadcast protocol is decided by peer discovery.
-//! Only peers who are returned by [crate::peer_discovery::PeerDiscovery] are allowed to participate.
+//! In Ephemera, membership of reliable broadcast protocol is decided by membership provider.
+//! Only peers who are returned by [crate::membership::MembersProvider] are allowed to participate.
 
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
@@ -8,13 +8,13 @@ use crate::peer::Peer;
 use libp2p_identity::PeerId;
 use lru::LruCache;
 
-/// Peer discovery returns list of peers. But it is up to the Ephemera user to decide
+/// Membership provider returns list of peers. But it is up to the Ephemera user to decide
 /// how reliable the list is. For example, it can contain peers who are offline.
 
 /// This enum defines how the actual membership is decided.
 #[derive(Debug)]
 pub(crate) enum MembershipKind {
-    /// Specified threshold of peers(from total provided by [crate::peer_discovery::PeerDiscovery]) need to be available.
+    /// Specified threshold of peers(from total provided by [crate::membership::MembersProvider]) need to be available.
     /// Threshold value is defined the ratio of peers that need to be available.
     /// For example, if the threshold is 0.5, then at least 50% of the peers need to be available.
     Threshold(f64),
@@ -44,7 +44,7 @@ impl MembershipKind {
 pub(crate) struct Memberships {
     snapshots: LruCache<u64, Membership>,
     current: u64,
-    /// This is set when we get new peers set from [crate::peer_discovery::PeerDiscovery]
+    /// This is set when we get new peers set from [crate::membership::MembersProvider]
     /// but haven't yet activated it.
     pending_membership: Option<Membership>,
 }

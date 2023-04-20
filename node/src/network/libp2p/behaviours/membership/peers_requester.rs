@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use log::{error, info};
 use tokio::task::JoinHandle;
+use crate::network::membership::{MembersProvider, PeerInfo};
 
-use crate::peer_discovery::{PeerDiscovery, PeerInfo};
 
 //In case of error, the requester will switch to a 30 seconds interval.
 const INTERVAL_ON_ERROR: Duration = Duration::from_secs(60);
 
-//How many times the requester will retry to poll the peer discovery in case of error.
+//How many times the requester will retry to poll the members provider in case of error.
 const MAX_FAILED_RETRY_COUNT: u32 = 10;
 
 enum PeersRequesterState {
@@ -16,7 +16,7 @@ enum PeersRequesterState {
     Failed,
 }
 
-/// This struct is responsible for polling the peer discovery trait.
+/// This struct is responsible for polling the [MembersProvider] trait.
 pub(crate) struct PeersRequester {
     state: PeersRequesterState,
     interval: tokio::time::Interval,
@@ -33,28 +33,28 @@ impl PeersRequester {
         }
     }
 
-    /// Starts to poll [PeerDiscovery] trait.
+    /// Starts to poll [MembersProvider] trait.
     ///
-    /// If [PeerDiscovery::poll] returns an error, the requester will switch to a 30 seconds interval.
+    /// If [MembersProvider::poll] returns an error, the requester will switch to a 30 seconds interval.
     /// After failing MAX_FAILED_RETRY_COUNT times, it switches back to normal interval and
-    /// returns empty list of peers to [crate::network::libp2p::behaviours::peer_discovery::behaviour::Behaviour].
-    pub(crate) async fn spawn_peer_requester<P: PeerDiscovery + 'static>(
-        mut peer_discovery: P,
-        discovery_channel_tx: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
+    /// returns empty list of peers to [crate::network::libp2p::behaviours::membership::behaviour::Behaviour].
+    pub(crate) async fn spawn_peer_requester<P: MembersProvider + 'static>(
+        mut members_provider: P,
+        members_provider_tx: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
     ) -> anyhow::Result<JoinHandle<()>> {
-        let tx = discovery_channel_tx;
+        let tx = members_provider_tx;
 
         let join_handle = tokio::spawn(async move {
             let mut requester =
-                PeersRequester::new(peer_discovery.get_poll_interval(), MAX_FAILED_RETRY_COUNT);
+                PeersRequester::new(members_provider.get_poll_interval(), MAX_FAILED_RETRY_COUNT);
             loop {
                 requester.interval.tick().await;
 
-                let result = peer_discovery.poll(tx.clone()).await;
+                let result = members_provider.poll(tx.clone()).await;
                 match requester.state {
                     PeersRequesterState::Success => {
                         if let Err(err) = result {
-                            error!("Error while polling peer discovery: {}", err);
+                            error!("Error while polling members provider: {}", err);
 
                             //In case of failure switch to faster interval.
                             //If MAX_FAILED_RETRY_COUNT is reached and poll still fails, return empty list of peers,
@@ -64,19 +64,19 @@ impl PeersRequester {
                             requester.state = PeersRequesterState::Failed;
                             requester.interval = tokio::time::interval(INTERVAL_ON_ERROR);
 
-                            info!("Trying {MAX_FAILED_RETRY_COUNT} times with {} interval to poll peer discovery", INTERVAL_ON_ERROR.as_secs());
+                            info!("Trying {MAX_FAILED_RETRY_COUNT} times with {} interval to poll members providery", INTERVAL_ON_ERROR.as_secs());
                         }
                     }
                     PeersRequesterState::Failed => {
                         if result.is_ok() {
                             requester.state = PeersRequesterState::Success;
                             requester.interval =
-                                tokio::time::interval(peer_discovery.get_poll_interval());
+                                tokio::time::interval(members_provider.get_poll_interval());
                         } else if requester.max_failed_retry_count == 0 {
                             info!("Max failed retry count reached, switching to normal interval");
-                            info!("If the problem persists, please check your peer discovery implementation");
+                            info!("If the problem persists, please check your members provider implementation");
                             info!("Returning empty list of peers to Behaviour");
-                            info!("If you want to request peers before configured peer discovery interval passes, please restart Ephemera");
+                            info!("If you want to request peers before configured members provider interval passes, please restart Ephemera");
                             tx.send(vec![]).expect("Failed to send peers");
                         }
                         requester.max_failed_retry_count -= 1;

@@ -48,7 +48,7 @@ impl MixnodeToReward {
     }
 }
 
-//Simulates smart contract functionality related to rewarding and peer discovery
+//Simulates smart contract functionality related to rewarding and members management.
 pub struct SmartContract {
     pub(crate) storage: Storage<ContractStorageType>,
     pub(crate) epoch: Epoch,

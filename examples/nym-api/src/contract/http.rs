@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use tokio::sync::Mutex;
 
-use ephemera::peer_discovery::JsonPeerInfo;
+use ephemera::membership::JsonPeerInfo;
 
 use crate::contract::{MixnodeToReward, SmartContract};
 use crate::HTTP_NYM_API_HEADER;

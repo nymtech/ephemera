@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, Keypair};
 use ephemera::ephemera_api::EphemeraExternalApi;
-use ephemera::peer_discovery::HttpPeerDiscovery;
+use ephemera::membership::HttpMembersProvider;
 use ephemera::{Ephemera, EphemeraStarter, ShutdownHandle};
 use metrics::MetricsCollector;
 
@@ -90,14 +90,14 @@ impl NymApi {
         let rewards_ephemera_application =
             RewardsEphemeraApplication::init(ephemera_config.clone())?;
 
-        //Peer discovery for Ephemera
+        //Members provider for Ephemera
         let url = format!("http://{}/contract/peer_info", args.smart_contract_url);
-        let peer_discovery = HttpPeerDiscovery::new(url, Duration::from_secs(60));
+        let members_provider = HttpMembersProvider::new(url, Duration::from_secs(60));
 
         //EPHEMERA
         let ephemera_builder = EphemeraStarter::new(ephemera_config.clone())?;
         let ephemera_builder = ephemera_builder.with_application(rewards_ephemera_application);
-        let ephemera_builder = ephemera_builder.with_peer_discovery(peer_discovery);
+        let ephemera_builder = ephemera_builder.with_members_provider(members_provider);
         let ephemera = ephemera_builder.init_tasks().await?;
         Ok(ephemera)
     }

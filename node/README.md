@@ -65,6 +65,6 @@ See [README.md](../examples/nym-api/README.md)
 
 See [README.md](../examples/cluster-http-api/README.md)
 
-### Peer discovery over HTTP API
+### Membership over HTTP API
 
-See [README.md](../examples/peer_discovery_http/README.md)
+See [README.md](../examples/members_provider_http/README.md)

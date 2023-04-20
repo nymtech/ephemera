@@ -15,7 +15,6 @@ use crate::storage::EphemeraDatabase;
 
 use crate::broadcast::group::BroadcastGroup;
 use crate::peer::{PeerId, ToPeerId};
-use crate::peer_discovery::PeerDiscovery;
 use crate::{
     api::{application::Application, http, ApiListener, EphemeraExternalApi},
     block::{builder::BlockManagerBuilder, manager::BlockManager},
@@ -34,6 +33,7 @@ use crate::{
     websocket::ws_manager::{WsManager, WsMessageBroadcaster},
     Ephemera,
 };
+use crate::membership::MembersProvider;
 
 #[derive(Clone)]
 pub(crate) struct NodeInfo {
@@ -108,13 +108,13 @@ pub struct EphemeraHandle {
     pub shutdown: ShutdownHandle,
 }
 
-pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
+pub struct EphemeraStarter<P: MembersProvider, A: Application> {
     config: Configuration,
     node_info: NodeInfo,
     block_manager_builder: Option<BlockManagerBuilder>,
     block_manager: Option<BlockManager>,
     broadcaster: Broadcaster,
-    peer_discovery: Option<P>,
+    members_provider: Option<P>,
     application: Option<A>,
     from_network: Option<NetCommunicationReceiver>,
     to_network: Option<EphemeraToNetworkSender>,
@@ -127,7 +127,7 @@ pub struct EphemeraStarter<P: PeerDiscovery, A: Application> {
 //TODO: make keypair centrally accessible and coping everywhere(even Arc)
 impl<P, A> EphemeraStarter<P, A>
 where
-    P: PeerDiscovery + 'static,
+    P: MembersProvider + 'static,
     A: Application + 'static,
 {
     //Crate pure data structures, no resource allocation nor threads
@@ -147,7 +147,7 @@ where
             block_manager_builder: Some(block_manager_builder),
             block_manager: None,
             broadcaster,
-            peer_discovery: None,
+            members_provider: None,
             application: None,
             from_network: None,
             to_network: None,
@@ -159,9 +159,9 @@ where
         Ok(builder)
     }
 
-    pub fn with_peer_discovery(self, peer_discovery: P) -> Self {
+    pub fn with_members_provider(self, members_provider: P) -> Self {
         Self {
-            peer_discovery: Some(peer_discovery),
+            members_provider: Some(members_provider),
             ..self
         }
     }
@@ -285,9 +285,9 @@ where
     }
 
     fn start_network(&mut self, mut shutdown: Shutdown) -> anyhow::Result<JoinHandle<()>> {
-        info!("Starting network...{:?}", self.peer_discovery.is_some());
+        info!("Starting network...{:?}", self.members_provider.is_some());
         let (mut network, from_network, to_network) =
-            SwarmNetwork::new(self.node_info.clone(), self.peer_discovery.take().unwrap());
+            SwarmNetwork::new(self.node_info.clone(), self.members_provider.take().unwrap());
 
         self.from_network = Some(from_network);
         self.to_network = Some(to_network);

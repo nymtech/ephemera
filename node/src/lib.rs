@@ -47,9 +47,9 @@ pub mod peer {
     pub use super::network::{Peer, PeerId, ToPeerId};
 }
 
-pub mod peer_discovery {
-    pub use super::network::peer_discovery::{
-        ConfigPeerDiscovery, DummyPeerDiscovery, HttpPeerDiscovery, JsonPeerInfo, PeerDiscovery,
+pub mod membership {
+    pub use super::network::membership::{
+        ConfigMembersProvider, DummyMembersProvider, HttpMembersProvider, JsonPeerInfo, MembersProvider,
         PeerInfo, PeerSetting, Result,
     };
 }
