@@ -5,6 +5,7 @@ mod connections;
 mod handler;
 mod membership;
 mod peers_requester;
+mod protocol;
 
 const MAX_DIAL_ATTEMPT_ROUNDS: usize = 6;
 

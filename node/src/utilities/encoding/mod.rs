@@ -1,3 +1,6 @@
+pub(crate) mod varint_async;
+pub(crate) mod varint_bytes;
+
 use serde::Serialize;
 
 pub type Encoder = SerdeEncoder;

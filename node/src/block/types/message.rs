@@ -71,6 +71,16 @@ pub(crate) struct RawEphemeraMessage {
     pub(crate) data: Vec<u8>,
 }
 
+impl RawEphemeraMessage {
+    pub(crate) fn new(label: String, data: Vec<u8>) -> Self {
+        Self {
+            timestamp: EphemeraTime::now(),
+            label,
+            data,
+        }
+    }
+}
+
 impl From<EphemeraMessage> for RawEphemeraMessage {
     fn from(message: EphemeraMessage) -> Self {
         Self {

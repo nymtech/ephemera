@@ -151,7 +151,6 @@ mod test {
             .hash_with_default_hasher()
             .expect("Hashing failed");
 
-        let block = Block::new(raw_block, block_hash);
-        block
+        Block::new(raw_block, block_hash)
     }
 }

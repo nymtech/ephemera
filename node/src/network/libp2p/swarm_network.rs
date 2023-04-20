@@ -18,10 +18,8 @@ use crate::{
     network::libp2p::{
         behaviours::peer_discovery,
         behaviours::{
-            broadcast_messages::RbMsgResponse,
-            common_behaviour::{
-                create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
-            },
+            create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
+            request_response::RbMsgResponse,
         },
         ephemera_sender::{
             EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
@@ -194,7 +192,7 @@ impl<P: PeerDiscovery> SwarmNetwork<P> {
                 if let Err(err) = self.process_kad_event(ev).await {
                     error!("Error processing kademlia event: {:?}", err);
                 }
-            }
+            } // GroupBehaviourEvent::Ping(_) => {}
         }
         Ok(())
     }

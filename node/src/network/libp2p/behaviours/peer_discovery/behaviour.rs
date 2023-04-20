@@ -49,7 +49,7 @@ use libp2p::{
     swarm::ToSwarm,
 };
 use libp2p::core::Endpoint;
-use libp2p::swarm::ConnectionDenied;
+use libp2p::swarm::{ConnectionDenied, NotifyHandler, THandler};
 use libp2p_identity::PeerId;
 use log::{debug, error, trace, warn};
 use tokio::{task::JoinHandle, time};
@@ -64,7 +64,9 @@ use crate::{
     },
     peer_discovery::{PeerDiscovery, PeerInfo},
 };
+use crate::network::libp2p::behaviours::peer_discovery::handler::ToHandler;
 use crate::network::libp2p::behaviours::peer_discovery::peers_requester::PeersRequester;
+use crate::network::libp2p::behaviours::peer_discovery::protocol::ProtocolMessage;
 use crate::peer::Peer;
 
 /// PeerDiscovery state when we are trying to connect to new peers.
@@ -81,6 +83,17 @@ struct PendingPeersUpdate {
     interval_between_dial_attempts: Option<time::Interval>,
 }
 
+#[derive(Debug, Default)]
+struct SyncPeers {
+    pending_peers: Vec<PeerId>,
+}
+
+impl SyncPeers {
+    fn new(pending_peers: Vec<PeerId>) -> Self {
+        Self { pending_peers }
+    }
+}
+
 /// PeerDiscovery behaviour states.
 enum State {
     /// Waiting for new peers from the discovery trait.
@@ -89,6 +102,7 @@ enum State {
     WaitingDial(PendingPeersUpdate),
     /// We have finished trying to connect to new peers and going to report it.
     NotifyPeersUpdated,
+    SyncPeers(SyncPeers),
 }
 
 /// Events that can be emitted by the `Behaviour`.
@@ -139,8 +153,8 @@ impl<'a, P: PeerDiscovery + 'static> Behaviour<P> {
     }
 
     /// Returns the list of peers that are part of current group.
-    pub(crate) fn active_peer_ids(&mut self) -> HashSet<&PeerId> {
-        self.memberships.current().connected_ids_ref()
+    pub(crate) fn active_peer_ids(&mut self) -> &HashSet<PeerId> {
+        self.memberships.current().connected_peers()
     }
 
     pub(crate) fn active_peer_ids_with_local(&mut self) -> HashSet<PeerId> {
@@ -166,10 +180,6 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
     type ConnectionHandler = Handler;
     type OutEvent = Event;
 
-    fn new_handler(&mut self) -> Self::ConnectionHandler {
-        Handler
-    }
-
     fn handle_pending_inbound_connection(
         &mut self,
         _connection_id: ConnectionId,
@@ -191,6 +201,31 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
             Some(peer_id) => Ok(self.addresses_of_peer(&peer_id)),
             None => Ok(vec![]),
         }
+    }
+
+    fn handle_established_inbound_connection(
+        &mut self,
+        _connection_id: ConnectionId,
+        peer: PeerId,
+        _local_addr: &Multiaddr,
+        _remote_addr: &Multiaddr,
+    ) -> Result<THandler<Self>, ConnectionDenied> {
+        debug!("Established inbound connection with peer: {:?}", peer);
+        Ok(Handler::new())
+    }
+
+    fn handle_established_outbound_connection(
+        &mut self,
+        _connection_id: ConnectionId,
+        peer: PeerId,
+        addr: &Multiaddr,
+        _role_override: Endpoint,
+    ) -> Result<THandler<Self>, ConnectionDenied> {
+        debug!(
+            "Established outbound connection with peer: {:?} {:?}",
+            peer, addr
+        );
+        Ok(Handler::new())
     }
 
     ///`Peer discovery` behaviour is responsible for providing addresses to another Swarm behaviours.
@@ -223,7 +258,7 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
                                             peer_id,
                                             connection_id: _,
                                             endpoint,
-                                            handler: _,
+                                            handler: _h,
                                             remaining_established: _,
                                         }) => {
                 self.all_connections
@@ -247,10 +282,15 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
     //Currently this behaviour doesn't do any direct networking with other peers itself.
     fn on_connection_handler_event(
         &mut self,
-        _peer_id: PeerId,
+        peer_id: PeerId,
         _connection_id: ConnectionId,
-        _event: THandlerOutEvent<Self>,
-    ) {}
+        event: THandlerOutEvent<Self>,
+    ) {
+        debug!(
+            "Received event from connection handler: {:?} from peer: {:?}",
+            event, peer_id
+        );
+    }
 
     fn poll(
         &mut self,
@@ -287,7 +327,9 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
 
                     //If we are not part of the new membership, notify immediately
                     if !new_peers.contains_key(&self.local_peer_id) {
-                        debug!("Local peer is not part of the new membership. Notifying immediately.");
+                        debug!(
+                            "Local peer is not part of the new membership. Notifying immediately."
+                        );
                         let pending_membership = Membership::new(new_peers.clone());
                         self.memberships.set_pending(pending_membership);
                         self.state = State::NotifyPeersUpdated;
@@ -362,8 +404,8 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
                         Poll::Ready(ToSwarm::Dial { opts })
                     }
                     None => {
-                        let all_peers = pending_membership.all_ids_ref();
-                        let connected_peers = pending_membership.connected_ids_ref();
+                        let all_peers = pending_membership.all_peer_ids();
+                        let connected_peers = pending_membership.connected_peers();
 
                         //Exclude local peer
                         let all_connected = connected_peers.len() == all_peers.len() - 1;
@@ -389,7 +431,7 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
                             }
                             if *dial_attempts > 0 {
                                 waiting_to_dial
-                                    .extend(all_peers.difference(&connected_peers).cloned());
+                                    .extend(all_peers.difference(connected_peers).cloned());
                             }
                         }
                         Poll::Pending
@@ -417,9 +459,32 @@ impl<P: PeerDiscovery + 'static> NetworkBehaviour for Behaviour<P> {
                     Event::LocalRemoved
                 };
 
-
-                self.state = State::WaitingPeers;
+                //TODO: this list should also include "old" peers(peers who aren't part of new membership).
+                let connected_peers = membership.connected_peer_ids().into_iter().collect::<Vec<_>>();
+                self.state = State::SyncPeers(SyncPeers::new(connected_peers));
                 Poll::Ready(ToSwarm::GenerateEvent(event))
+            }
+            State::SyncPeers(SyncPeers {
+                                 pending_peers,
+                             }) => {
+                debug!("Syncing connection handler");
+                match pending_peers.pop() {
+                    None => {
+                        self.state = State::WaitingPeers;
+                        Poll::Pending
+                    }
+                    Some(peer_id) => {
+                        let _membership = self.memberships.current();
+                        debug!(
+                        "Notifying {peer_id:?} about membership update",
+                    );
+                        Poll::Ready(ToSwarm::NotifyHandler {
+                            peer_id,
+                            handler: NotifyHandler::Any,
+                            event: ToHandler::Message(ProtocolMessage::Sync),
+                        })
+                    }
+                }
             }
         }
     }

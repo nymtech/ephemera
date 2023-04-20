@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use clap::Parser;
+use std::sync::Arc;
 
 use ephemera::configuration::Configuration;
 use ephemera::peer_discovery::{JsonPeerInfo, PeerSetting};
@@ -59,7 +59,11 @@ impl ReducingPeerProvider {
         let mut reduced_peers = vec![];
         let reduce_count = (self.peers.len() as f64 * self.reduce_ratio) as usize;
         let peers_count = self.peers.len() - reduce_count;
-        println!("Reducing peers count from {} to {}", self.peers.len(), peers_count);
+        println!(
+            "Reducing peers count from {} to {}",
+            self.peers.len(),
+            peers_count
+        );
         for i in 0..peers_count {
             reduced_peers.push(self.peers[i].clone());
         }
@@ -70,9 +74,9 @@ impl ReducingPeerProvider {
 
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
+    let _args = Args::parse();
     let peers = read_peers_config();
-    let provider = PeersProvider::new(peers.clone());
+    let _provider = PeersProvider::new(peers.clone());
     let provider = ReducingPeerProvider::new(peers, 0.4);
 
     run_peers_http_server(provider).await;
