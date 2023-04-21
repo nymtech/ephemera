@@ -1,11 +1,9 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use clap::Parser;
 use log::trace;
 use tokio::signal::unix::{signal, SignalKind};
 
-use crate::membership::HttpMembersProvider;
 use crate::{
     api::application::CheckBlockResult,
     cli::PEERS_CONFIG_FILE,
@@ -17,7 +15,8 @@ use crate::{
     ephemera_api::{
         ApiBlock, ApiEphemeraMessage, Application, DummyApplication, RawApiEphemeraMessage, Result,
     },
-    network::membership::ConfigMembersProvider,
+    membership::{DummyMembersProvider, HttpMembersProvider},
+    network::members::ConfigMembersProvider,
     utilities::encoding::Encoder,
 };
 
@@ -34,16 +33,15 @@ impl RunExternalNodeCmd {
             Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
+        let dummy_members_provider = DummyMembersProvider::empty_peers_list();
         let _config_members_provider = Self::config_members_provider()?;
-        let http_members_provider = Self::http_members_provider(
-            "http://localhost:8000/peers".to_string(),
-            Duration::from_secs(60),
-        )?;
+        let _http_members_provider =
+            Self::http_members_provider("http://localhost:8000/peers".to_string())?;
 
         let ephemera = EphemeraStarter::new(ephemera_conf.clone())
             .unwrap()
             .with_application(DummyApplication)
-            .with_members_provider(http_members_provider)
+            .with_members_provider(Box::pin(dummy_members_provider))
             .init_tasks()
             .await
             .unwrap();
@@ -76,19 +74,15 @@ impl RunExternalNodeCmd {
             .unwrap()
             .join(PEERS_CONFIG_FILE);
 
-        let peers_conf =
-            match ConfigMembersProvider::init(peers_conf_path, Duration::from_secs(60 * 60 * 24)) {
-                Ok(conf) => conf,
-                Err(err) => anyhow::bail!("Error loading peers file: {err:?}"),
-            };
+        let peers_conf = match ConfigMembersProvider::init(peers_conf_path) {
+            Ok(conf) => conf,
+            Err(err) => anyhow::bail!("Error loading peers file: {err:?}"),
+        };
         Ok(peers_conf)
     }
 
-    fn http_members_provider(
-        url: String,
-        reload_interval: Duration,
-    ) -> anyhow::Result<HttpMembersProvider> {
-        let http_members_provider = HttpMembersProvider::new(url, reload_interval);
+    fn http_members_provider(url: String) -> anyhow::Result<HttpMembersProvider> {
+        let http_members_provider = HttpMembersProvider::new(url);
         Ok(http_members_provider)
     }
 }

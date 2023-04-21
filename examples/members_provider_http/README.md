@@ -6,9 +6,9 @@ It expects that local Ephemera cluster is running.
 
 ## How it works
 
-`HTTP MembersProvider` should be configured with short interval so that the cluster can react quickly to the changes.
+`members-provider-delay` should be configured with short interval so that the cluster can react quickly to the changes.
 
-Full Ephemera cluster is running and is configured to use MembersProvider HTTP implementation which connects to this
+Full Ephemera cluster is running and is configured to use HTTP members provider implementation which connects to this
 example.
 
 Peers config is read from `~/.ephemera/peers.toml`.

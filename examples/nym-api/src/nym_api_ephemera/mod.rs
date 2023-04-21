@@ -92,7 +92,7 @@ impl NymApi {
 
         //Members provider for Ephemera
         let url = format!("http://{}/contract/peer_info", args.smart_contract_url);
-        let members_provider = HttpMembersProvider::new(url, Duration::from_secs(60));
+        let members_provider = HttpMembersProvider::new(url);
 
         //EPHEMERA
         let ephemera_builder = EphemeraStarter::new(ephemera_config.clone())?;

@@ -286,7 +286,8 @@ create_cluster() {
       --node-name node"$c" \
       --protocol-port $EPHEMERA_PORT \
       --websocket-port "$WS_PORT" \
-      --http-api-port "$HTTP_API_PORT"
+      --http-api-port "$HTTP_API_PORT" \
+      --members-provider-delay-sec 60 \
 
       NODE_DIR="$EPHEMERA_HOME_DIR"/node"$c"
       mkdir -p "$NODE_DIR"/logs
@@ -362,7 +363,7 @@ run_ephemera() {
   NR=$2
 
   NODE_DIR="$EPHEMERA_HOME_DIR"/node"$NR"
-  LOGS_FILE=$NODE_DIR/logs/ephemera$NR.log
+  LOGS_FILE=$NODE_DIR/logs/ephemera.log
 
   echo "Starting $d"
   $EPHEMERA run-node --config-file ~/.ephemera/node"${NR}"/ephemera.toml >"$LOGS_FILE" 2>&1 &
@@ -379,7 +380,7 @@ run_nym_api_ephemera() {
   NODE_DIR="$EPHEMERA_HOME_DIR"/node"$NR"
 
   EPHEMERA_CONFIG_FILE=$NODE_DIR/ephemera.toml
-  LOGS_FILE=$NODE_DIR/logs/ephemera$NR.log
+  LOGS_FILE=$NODE_DIR/logs/ephemera.log
   METRICS_DB_PATH="$NODE_DIR"/db/metrics"${NR}".sqlite
 
   touch "$LOGS_FILE"

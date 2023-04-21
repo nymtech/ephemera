@@ -7,39 +7,44 @@ use libp2p::{
 use log::{debug, error, info, trace};
 use std::collections::HashSet;
 use std::str::FromStr;
-use tokio::task::JoinHandle;
 
-use crate::{block::types::message::EphemeraMessage, broadcast::RbMsg, codec::Encode, core::builder::NodeInfo, network::libp2p::{
-    behaviours::{
-        create_behaviour, create_transport, GroupBehaviourEvent, GroupNetworkBehaviour,
-        request_response::RbMsgResponse,
+use crate::{
+    block::types::message::EphemeraMessage,
+    broadcast::RbMsg,
+    codec::Encode,
+    core::builder::NodeInfo,
+    network::libp2p::behaviours,
+    network::libp2p::{
+        behaviours::{
+            create_behaviour, create_transport, request_response::RbMsgResponse,
+            GroupBehaviourEvent, GroupNetworkBehaviour,
+        },
+        ephemera_sender::{
+            EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
+        },
+        network_sender::{
+            EphemeraNetworkCommunication, GroupChangeEvent,
+            GroupChangeEvent::{LocalPeerRemoved, NotEnoughPeers},
+            NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
+        },
     },
-    ephemera_sender::{
-        EphemeraEvent, EphemeraToNetwork, EphemeraToNetworkReceiver, EphemeraToNetworkSender,
-    },
-    network_sender::{
-        EphemeraNetworkCommunication, GroupChangeEvent,
-        GroupChangeEvent::{LocalPeerRemoved, NotEnoughPeers},
-        NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
-    },
-}};
-use crate::network::libp2p::behaviours;
-use crate::network::membership::MembersProvider;
+    network::members::MembersProviderFut,
+};
 
-pub struct SwarmNetwork<P: MembersProvider + 'static> {
+pub struct SwarmNetwork {
     node_info: NodeInfo,
-    swarm: Swarm<GroupNetworkBehaviour<P>>,
+    swarm: Swarm<GroupNetworkBehaviour>,
     from_ephemera_rcv: EphemeraToNetworkReceiver,
     to_ephemera_tx: NetCommunicationSender,
     ephemera_msg_topic: Topic,
 }
 
-impl<P: MembersProvider> SwarmNetwork<P> {
+impl SwarmNetwork {
     pub(crate) fn new(
         node_info: NodeInfo,
-        members_provider: P,
+        members_provider: MembersProviderFut,
     ) -> (
-        SwarmNetwork<P>,
+        SwarmNetwork,
         NetCommunicationReceiver,
         EphemeraToNetworkSender,
     ) {
@@ -52,7 +57,16 @@ impl<P: MembersProvider> SwarmNetwork<P> {
             Topic::new(&node_info.initial_config.libp2p.ephemera_msg_topic_name);
 
         let transport = create_transport(local_key.clone());
-        let behaviour = create_behaviour(local_key, ephemera_msg_topic.clone(), members_provider);
+
+        let members_provider_delay = std::time::Duration::from_secs(
+            node_info.initial_config.libp2p.members_provider_delay_sec,
+        );
+        let behaviour = create_behaviour(
+            local_key,
+            ephemera_msg_topic.clone(),
+            members_provider,
+            members_provider_delay,
+        );
 
         let swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, peer_id.into()).build();
 
@@ -77,9 +91,6 @@ impl<P: MembersProvider> SwarmNetwork<P> {
     }
 
     pub(crate) async fn start(mut self) -> anyhow::Result<()> {
-        // Spawn user provided MembersProvider
-        let mut members_provider_handle = self.run_members_provider().await?;
-
         loop {
             tokio::select! {
                 swarm_event = self.swarm.next() => {
@@ -97,20 +108,8 @@ impl<P: MembersProvider> SwarmNetwork<P> {
                 Some(event) = self.from_ephemera_rcv.net_event_rcv.recv() => {
                     self.process_ephemera_events(event).await;
                 }
-                _ = &mut members_provider_handle => {
-                    info!("Rendezvous behaviour finished");
-                    return Ok(());
-                }
             }
         }
-    }
-
-    async fn run_members_provider(&mut self) -> anyhow::Result<JoinHandle<()>> {
-        self.swarm
-            .behaviour_mut()
-            .members_provider
-            .spawn_members_provider()
-            .await
     }
 
     async fn process_ephemera_events(&mut self, event: EphemeraEvent) {

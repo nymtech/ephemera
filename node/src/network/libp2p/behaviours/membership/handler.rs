@@ -1,14 +1,14 @@
 //! Because each Ephemera instance requests peers at arbitrary time, a node needs to notify other
 //! peers when it has just requested an update. That helps to keep the whole cluster in sync and avoid
 //! nodes' membership diverging.
-//! 
+//!
 //! Overall this synchronizes all nodes' view of the membership.
-//! 
+//!
 //! Current approach is a bit 'burst'. It makes all nodes to request membership info at the same time.
-//! 
+//!
 //! TODO
 //! Because we actually can verify peers' membership, it would be possible that one peer(or subset of peers) requests the
-//! peers from [crate::membership::MembersProvider] and then sends the list to the other peers. Or possibly only the difference.
+//! peers from [crate::membership::MembersProviderFut] and then sends the list to the other peers. Or possibly only the difference.
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -16,14 +16,14 @@ use asynchronous_codec::Framed;
 use futures::Sink;
 use futures_util::StreamExt;
 use libp2p::{
-    swarm::{
-        ConnectionHandler, ConnectionHandlerEvent, handler::ConnectionEvent, KeepAlive,
-        SubstreamProtocol,
-    },
     swarm::handler::{
         DialUpgradeError, FullyNegotiatedInbound, FullyNegotiatedOutbound, ListenUpgradeError,
     },
-    swarm::NegotiatedSubstream
+    swarm::NegotiatedSubstream,
+    swarm::{
+        handler::ConnectionEvent, ConnectionHandler, ConnectionHandlerEvent, KeepAlive,
+        SubstreamProtocol,
+    },
 };
 use log::{debug, error};
 use thiserror::Error;
@@ -121,7 +121,6 @@ impl ConnectionHandler for Handler {
         //- Request outbound substream if neccessary
         //- poll inbound substream
         //- poll outbound substream
-
 
         //Establish new connection when behaviour wants to send a message and we don't have an outbound substream yet
         if !self.send_queue.is_empty()
@@ -293,9 +292,9 @@ impl ConnectionHandler for Handler {
     ) {
         match event {
             ConnectionEvent::FullyNegotiatedInbound(FullyNegotiatedInbound {
-                                                        protocol: stream,
-                                                        info: _,
-                                                    }) => {
+                protocol: stream,
+                info: _,
+            }) => {
                 debug!("FullyNegotiatedInbound: protocol",);
                 if self.inbound_substream_attempts > MAX_SUBSTREAM_ATTEMPTS {
                     log::warn!("Too many inbound substream attempts, refusing stream");
@@ -305,9 +304,9 @@ impl ConnectionHandler for Handler {
                 self.inbound_substream = Some(InboundSubstreamState::WaitingInput(stream));
             }
             ConnectionEvent::FullyNegotiatedOutbound(FullyNegotiatedOutbound {
-                                                         protocol,
-                                                         info: _,
-                                                     }) => {
+                protocol,
+                info: _,
+            }) => {
                 debug!("FullyNegotiatedOutbound: protocol");
                 if self.outbound_substream_attempts > MAX_SUBSTREAM_ATTEMPTS {
                     log::warn!("Too many outbound substream attempts, refusing stream");

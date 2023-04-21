@@ -6,8 +6,8 @@ use asynchronous_codec::{Decoder, Encoder, Framed};
 use bytes::BytesMut;
 use futures::{AsyncRead, AsyncWrite};
 use futures_util::future;
-use libp2p::{InboundUpgrade, OutboundUpgrade};
 use libp2p::core::UpgradeInfo;
+use libp2p::{InboundUpgrade, OutboundUpgrade};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
@@ -32,12 +32,12 @@ impl UpgradeInfo for Protocol {
 }
 
 impl<C> InboundUpgrade<C> for Protocol
-    where
-        C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+where
+    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     type Output = Framed<C, MembershipCodec>;
     type Error = anyhow::Error;
-    type Future = Pin<Box<dyn Future<Output=Result<Self::Output, Self::Error>> + Send>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send>>;
 
     fn upgrade_inbound(self, socket: C, _: Self::Info) -> Self::Future {
         debug!(
@@ -49,12 +49,12 @@ impl<C> InboundUpgrade<C> for Protocol
 }
 
 impl<C> OutboundUpgrade<C> for Protocol
-    where
-        C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+where
+    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     type Output = Framed<C, MembershipCodec>;
     type Error = anyhow::Error;
-    type Future = Pin<Box<dyn Future<Output=Result<Self::Output, Self::Error>> + Send>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send>>;
 
     fn upgrade_outbound(self, socket: C, _: Self::Info) -> Self::Future {
         debug!(

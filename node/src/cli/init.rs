@@ -31,6 +31,8 @@ pub struct InitCmd {
     pub block_creation_interval_sec: u64,
     #[clap(long)]
     pub repeat_last_block: bool,
+    #[clap(long, default_value_t = 60 * 60)]
+    pub members_provider_delay_sec: u64,
 }
 
 impl InitCmd {
@@ -63,6 +65,7 @@ impl InitCmd {
                 port: self.protocol_port,
                 ephemera_msg_topic_name: DEFAULT_MESSAGES_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
+                members_provider_delay_sec: self.members_provider_delay_sec,
             },
             storage: DbConfig {
                 rocket_path: rocksdb_path.as_os_str().to_str().unwrap().to_string(),

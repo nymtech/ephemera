@@ -74,7 +74,7 @@ pub(crate) async fn read_length_prefixed<I: AsyncRead + Unpin>(
 
 #[cfg(test)]
 mod test {
-    
+
     use futures_util::io::Cursor;
 
     use super::*;

@@ -4,12 +4,11 @@ use libp2p::{
     core::{muxing::StreamMuxerBox, transport::Boxed},
     gossipsub,
     gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode},
-    kad, noise,
-    PeerId as Libp2pPeerId,
-    request_response as libp2p_request_response,
+    kad, noise, request_response as libp2p_request_response,
     swarm::NetworkBehaviour,
-    tcp::{Config as TokioConfig, tokio::Transport as TokioTransport},
-    Transport, yamux::YamuxConfig,
+    tcp::{tokio::Transport as TokioTransport, Config as TokioConfig},
+    yamux::YamuxConfig,
+    PeerId as Libp2pPeerId, Transport,
 };
 use log::info;
 
@@ -19,22 +18,21 @@ use crate::{
     network::libp2p::behaviours::request_response::{
         RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
     },
+    network::members::MembersProviderFut,
     peer::{PeerId, ToPeerId},
     utilities::hash::{EphemeraHasher, Hasher},
 };
-use crate::network::membership::MembersProvider;
 
-pub(crate) mod request_response;
 pub(crate) mod membership;
+pub(crate) mod request_response;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
-pub(crate) struct GroupNetworkBehaviour<P: MembersProvider> {
-    pub(crate) members_provider: membership::behaviour::Behaviour<P>,
+pub(crate) struct GroupNetworkBehaviour {
+    pub(crate) members_provider: membership::behaviour::Behaviour,
     pub(crate) gossipsub: gossipsub::Behaviour,
     pub(crate) request_response: libp2p_request_response::Behaviour<RbMsgMessagesCodec>,
     pub(crate) kademlia: kad::Kademlia<kad::store::MemoryStore>,
-    // pub(crate) ping: ping::Behaviour,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -43,7 +41,6 @@ pub(crate) enum GroupBehaviourEvent {
     RequestResponse(libp2p_request_response::Event<RbMsg, RbMsgResponse>),
     Membership(membership::behaviour::Event),
     Kademlia(kad::KademliaEvent),
-    // Ping(ping::Event)
 }
 
 impl From<gossipsub::Event> for GroupBehaviourEvent {
@@ -70,33 +67,27 @@ impl From<kad::KademliaEvent> for GroupBehaviourEvent {
     }
 }
 
-// impl From<ping::Event> for GroupBehaviourEvent {
-//     fn from(event: ping::Event) -> Self {
-//         GroupBehaviourEvent::Ping(event)
-//     }
-// }
-
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
 //Membership takes care of providing peers who are part of the reliable broadcast group
-pub(crate) fn create_behaviour<P: MembersProvider + 'static>(
+pub(crate) fn create_behaviour(
     keypair: Arc<Keypair>,
     ephemera_msg_topic: Topic,
-    members_provider: P,
-) -> GroupNetworkBehaviour<P> {
+    members_provider: MembersProviderFut,
+    members_provider_delay: Duration,
+) -> GroupNetworkBehaviour {
     let local_peer_id = keypair.peer_id();
     let gossipsub = create_gossipsub(keypair.clone(), &ephemera_msg_topic);
     let request_response = create_request_response();
-    let rendezvous_behaviour = create_rendezvous(members_provider, local_peer_id);
+    let rendezvous_behaviour =
+        create_membership(members_provider, members_provider_delay, local_peer_id);
     let kademlia = create_kademlia(keypair);
-    // let ping = ping::Behaviour::new(Default::default());
 
     GroupNetworkBehaviour {
         members_provider: rendezvous_behaviour,
         gossipsub,
         request_response,
         kademlia,
-        // ping,
     }
 }
 
@@ -113,7 +104,7 @@ pub(crate) fn create_gossipsub(local_key: Arc<Keypair>, topic: &Topic) -> gossip
         MessageAuthenticity::Signed(local_key.inner().clone()),
         gossipsub_config,
     )
-        .expect("Correct configuration");
+    .expect("Correct configuration");
 
     info!("Subscribing to topic: {}", topic);
     behaviour.subscribe(topic).expect("Valid topic");
@@ -124,16 +115,24 @@ pub(crate) fn create_request_response() -> libp2p_request_response::Behaviour<Rb
     let config = Default::default();
     libp2p_request_response::Behaviour::new(
         RbMsgMessagesCodec,
-        iter::once((RbMsgProtocol, libp2p_request_response::ProtocolSupport::Full)),
+        iter::once((
+            RbMsgProtocol,
+            libp2p_request_response::ProtocolSupport::Full,
+        )),
         config,
     )
 }
 
-pub(crate) fn create_rendezvous<P: MembersProvider + 'static>(
-    members_provider: P,
+pub(crate) fn create_membership(
+    members_provider: MembersProviderFut,
+    members_provider_delay: Duration,
     local_peer_id: PeerId,
-) -> membership::behaviour::Behaviour<P> {
-    membership::behaviour::Behaviour::new(members_provider, local_peer_id.into())
+) -> membership::behaviour::Behaviour {
+    membership::behaviour::Behaviour::new(
+        members_provider,
+        members_provider_delay,
+        local_peer_id.into(),
+    )
 }
 
 pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::store::MemoryStore> {

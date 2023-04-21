@@ -29,6 +29,7 @@ pub struct Libp2pConfig {
     pub port: u16,
     pub ephemera_msg_topic_name: String,
     pub heartbeat_interval_sec: u64,
+    pub members_provider_delay_sec: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

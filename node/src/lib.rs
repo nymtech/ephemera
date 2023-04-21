@@ -48,9 +48,9 @@ pub mod peer {
 }
 
 pub mod membership {
-    pub use super::network::membership::{
-        ConfigMembersProvider, DummyMembersProvider, HttpMembersProvider, JsonPeerInfo, MembersProvider,
-        PeerInfo, PeerSetting, Result,
+    pub use super::network::members::{
+        ConfigMembersProvider, DummyMembersProvider, HttpMembersProvider, JsonPeerInfo,
+        MembersProviderFut, PeerInfo, PeerSetting, Result,
     };
 }
 

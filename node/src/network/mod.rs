@@ -7,7 +7,7 @@ use log::info;
 use thiserror::Error;
 
 pub(crate) mod libp2p;
-pub(crate) mod membership;
+pub(crate) mod members;
 
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;

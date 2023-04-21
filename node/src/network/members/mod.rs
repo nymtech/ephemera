@@ -1,9 +1,14 @@
 use std::fmt::Display;
+use std::future::Future;
 use std::io::Write;
 use std::path::PathBuf;
+use std::pin::Pin;
+use std::task::Poll::Pending;
+use std::task::{Context, Poll};
 
-use async_trait::async_trait;
-use log::{debug};
+use futures_util::future::BoxFuture;
+use futures_util::{future, FutureExt};
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -58,41 +63,18 @@ pub enum MembersProviderError {
     GeneralError(#[from] anyhow::Error),
 }
 
+/// Future type which allows user to implement their own peers membership source mechanism.
+pub type MembersProviderFut = BoxFuture<'static, Result<Vec<PeerInfo>>>;
+
 pub type Result<T> = std::result::Result<T, MembersProviderError>;
-
-/// The MembersProvider trait allows the user to implement their own peers membership source mechanism.
-#[async_trait]
-pub trait MembersProvider: Send + Sync {
-    /// Ephemera will call this method to poll for new peers.
-    ///
-    /// Implementation of this trait sends current peers to the members_channel using the provided channel.
-    ///
-    /// # Arguments
-    /// * `members_channel` - The channel to send the new peers to.
-    async fn poll(
-        &mut self,
-        members_channel: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
-    ) -> Result<()>;
-
-    /// Ephemera will call this method to get the interval between each poll.
-    ///
-    /// # Returns
-    /// * `std::time::Duration` - The interval between each poll.
-    fn get_poll_interval(&self) -> std::time::Duration;
-}
 
 /// A membership provider that does nothing.
 /// Might be useful for testing.
 pub struct DummyMembersProvider;
 
-#[async_trait]
-impl MembersProvider for DummyMembersProvider {
-    async fn poll(&mut self, _: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>) -> Result<()> {
-        Ok(())
-    }
-
-    fn get_poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(60 * 60 * 24)
+impl DummyMembersProvider {
+    pub async fn empty_peers_list() -> Result<Vec<PeerInfo>> {
+        Ok(vec![])
     }
 }
 
@@ -147,7 +129,7 @@ impl TryFrom<PeerSetting> for PeerInfo {
     }
 }
 
-///[MembersProvider] that reads the peers from a toml config file.
+///[MembersProviderFut] that reads the peers from a toml config file.
 ///
 /// # Configuration example
 /// ```toml
@@ -162,19 +144,36 @@ impl TryFrom<PeerSetting> for PeerInfo {
 /// pub_key = "4XTTMFQt2tgNRmwRgEAaGQe2NXygsK6Vr3pkuBfYezhDfoVty"
 /// ```
 pub struct ConfigMembersProvider {
-    reload_interval: std::time::Duration,
     config_location: PathBuf,
 }
 
 impl ConfigMembersProvider {
     pub fn init<I: Into<PathBuf>>(
         path: I,
-        reload_interval: std::time::Duration,
     ) -> std::result::Result<Self, ConfigMembersProviderError> {
         Ok(Self {
-            reload_interval,
             config_location: path.into(),
         })
+    }
+
+    pub(crate) fn read_config(&self) -> Result<Vec<PeerInfo>> {
+        let config_peers = ConfigPeers::try_load(self.config_location.clone())
+            .map_err(|err| anyhow::anyhow!(err))?;
+
+        let peers = config_peers
+            .peers
+            .iter()
+            .map(|peer| PeerInfo::try_from(peer.clone()))
+            .collect::<anyhow::Result<Vec<PeerInfo>>>()?;
+        Ok(peers)
+    }
+}
+
+impl Future for ConfigMembersProvider {
+    type Output = Result<Vec<PeerInfo>>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        future::ready(self.read_config()).poll_unpin(cx)
     }
 }
 
@@ -213,30 +212,6 @@ impl ConfigPeers {
         file.write_all(config.as_bytes())?;
 
         Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl MembersProvider for ConfigMembersProvider {
-    async fn poll(
-        &mut self,
-        members_provider_ch: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
-    ) -> Result<()> {
-        let config_peers = ConfigPeers::try_load(self.config_location.clone())
-            .map_err(|err| anyhow::anyhow!(err))?;
-
-        let peer_info = config_peers
-            .peers
-            .iter()
-            .map(|peer| PeerInfo::try_from(peer.clone()))
-            .collect::<anyhow::Result<Vec<PeerInfo>>>()?;
-
-        members_provider_ch.send(peer_info).unwrap();
-        Ok(())
-    }
-
-    fn get_poll_interval(&self) -> std::time::Duration {
-        self.reload_interval
     }
 }
 
@@ -286,7 +261,7 @@ impl TryFrom<JsonPeerInfo> for PeerInfo {
     }
 }
 
-///[MembersProvider] that reads peers from a http endpoint.
+///[MembersProviderFut] that reads peers from a http endpoint.
 ///
 /// The endpoint must return a json array of [JsonPeerInfo].
 /// # Configuration example
@@ -305,23 +280,22 @@ impl TryFrom<JsonPeerInfo> for PeerInfo {
 /// ]
 /// ```
 pub struct HttpMembersProvider {
-    /// The interval at which the peers are reloaded.
-    reload_interval: std::time::Duration,
     /// The url of the http endpoint.
     members_url: String,
+    fut: Option<MembersProviderFut>,
 }
 
 impl HttpMembersProvider {
-    pub fn new(members_url: String, reload_interval: std::time::Duration) -> Self {
+    pub fn new(members_url: String) -> Self {
         Self {
-            reload_interval,
             members_url,
+            fut: None,
         }
     }
 
-    async fn request_peers(&self) -> Result<Vec<PeerInfo>> {
-        debug!("Requesting peers from: {:?}", self.members_url);
-        let json_peers: Vec<JsonPeerInfo> = reqwest::get(&self.members_url)
+    async fn request_peers(members_url: String) -> Result<Vec<PeerInfo>> {
+        debug!("Requesting peers from: {:?}", members_url);
+        let json_peers: Vec<JsonPeerInfo> = reqwest::get(members_url)
             .await
             .map_err(|err| anyhow::anyhow!("Failed to get peers: {err}"))?
             .json()
@@ -337,20 +311,32 @@ impl HttpMembersProvider {
     }
 }
 
-#[async_trait::async_trait]
-impl MembersProvider for HttpMembersProvider {
-    async fn poll(
-        &mut self,
-        members_provider_ch: tokio::sync::mpsc::UnboundedSender<Vec<PeerInfo>>,
-    ) -> Result<()> {
-        let peers = self.request_peers().await?;
+impl Future for HttpMembersProvider {
+    type Output = Result<Vec<PeerInfo>>;
 
-        debug!("Sending peers: {peers:?}");
-        members_provider_ch.send(peers).expect("Failed to send peers");
-        Ok(())
-    }
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.fut.take() {
+            None => {
+                self.fut = Some(Box::pin(HttpMembersProvider::request_peers(
+                    self.members_url.clone(),
+                )));
+            }
+            Some(mut fut) => {
+                let peers = match fut.poll_unpin(cx) {
+                    Poll::Ready(Ok(peers)) => peers,
+                    Poll::Ready(Err(err)) => {
+                        error!("Failed to get peers: {err}");
+                        return Poll::Ready(Err(err));
+                    }
+                    Poll::Pending => {
+                        self.fut = Some(fut);
+                        return Poll::Pending;
+                    }
+                };
 
-    fn get_poll_interval(&self) -> std::time::Duration {
-        self.reload_interval
+                return Poll::Ready(Ok(peers));
+            }
+        }
+        Pending
     }
 }
