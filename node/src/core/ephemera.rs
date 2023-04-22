@@ -214,13 +214,13 @@ impl<A: Application> Ephemera<A> {
                 debug!("New peers: {:?}", peers);
                 self.broadcaster.group_updated(peers.len());
                 self.broadcast_group.add_snapshot(peers);
-                self.block_manager.resume();
+                self.block_manager.start();
             }
             GroupChangeEvent::LocalPeerRemoved | GroupChangeEvent::NotEnoughPeers => {
                 info!("Group update: Local peer removed or not enough peers");
                 self.broadcaster.group_updated(0);
                 self.broadcast_group.add_snapshot(Default::default());
-                self.block_manager.pause();
+                self.block_manager.stop();
             }
         }
     }

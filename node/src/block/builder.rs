@@ -1,8 +1,8 @@
-use log::{debug, info};
-use std::{sync::Arc, time, time::Duration};
+use std::{sync::Arc, time::Duration};
 
-use crate::block::manager::State;
-use crate::peer::ToPeerId;
+
+use log::{debug, info};
+
 use crate::{
     block::{
         manager::{BlockChainState, BlockManager},
@@ -15,27 +15,21 @@ use crate::{
     crypto::Keypair,
     storage::EphemeraDatabase,
 };
+use crate::block::manager::State;
+use crate::peer::ToPeerId;
 
 pub(crate) struct BlockManagerBuilder {
     config: BlockConfig,
     block_producer: BlockProducer,
-    delay: tokio::time::Interval,
     keypair: Arc<Keypair>,
 }
 
 impl BlockManagerBuilder {
     pub(crate) fn new(config: BlockConfig, keypair: Arc<Keypair>) -> Self {
         let block_producer = BlockProducer::new(keypair.peer_id());
-
-        let start_at = tokio::time::Instant::now() + Duration::from_secs(60);
-        let delay = tokio::time::interval_at(
-            start_at,
-            time::Duration::from_secs(config.creation_interval_sec),
-        );
         Self {
             config,
             block_producer,
-            delay,
             keypair,
         }
     }
@@ -63,15 +57,17 @@ impl BlockManagerBuilder {
         let block_signer = BlockSigner::new(self.keypair.clone());
         let message_pool = MessagePool::new();
         let block_chain_state = BlockChainState::new(last_created_block);
+        let block_creation_interval =  tokio::time::interval(Duration::from_secs(self.config.creation_interval_sec));
 
         Ok(BlockManager {
             config: self.config,
             block_producer: self.block_producer,
             block_signer,
-            delay: self.delay,
             message_pool,
             block_chain_state,
             state: State::Paused,
+            backoff: None,
+            block_creation_interval,
         })
     }
 }

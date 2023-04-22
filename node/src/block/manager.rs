@@ -5,14 +5,22 @@ use std::{
     task::Poll::{Pending, Ready},
 };
 
+use std::future::Future;
+
+use std::task::Poll;
+use std::time::Duration;
+
 use anyhow::anyhow;
 use futures::Stream;
+
+use futures_util::{FutureExt};
+
 use log::{debug, error, trace};
 use lru::LruCache;
 use thiserror::Error;
+use tokio::time;
+use tokio::time::{Instant, Interval};
 
-use crate::network::PeerId;
-use crate::peer::ToPeerId;
 use crate::{
     api::application::RemoveMessages,
     block::{
@@ -24,6 +32,8 @@ use crate::{
     config::BlockConfig,
     utilities::{crypto::Certificate, hash::HashType},
 };
+use crate::network::PeerId;
+use crate::peer::ToPeerId;
 
 pub(crate) type Result<T> = std::result::Result<T, BlockManagerError>;
 
@@ -91,6 +101,57 @@ pub(crate) enum State {
     Running,
 }
 
+#[derive(Debug)]
+pub(crate) struct BackOffInterval {
+    /// Maximum number of attempts before this backoff expires.
+    maximum_times: u32,
+    /// Number of attempts that have been made so far.
+    nr_of_attempts: u32,
+    /// Backoff rate. Previous delay is multiplied by this rate to get next delay.
+    backoff_rate: u32,
+    /// Delay between before next attempt.
+    delay: Interval,
+}
+
+impl BackOffInterval {
+    fn new(maximum_times: u32, backoff_rate: u32, initial_wait: Duration) -> Self {
+        let delay = time::interval_at(Instant::now() + initial_wait, initial_wait);
+        Self {
+            maximum_times,
+            nr_of_attempts: 0,
+            backoff_rate,
+            delay,
+        }
+    }
+
+    fn is_expired(&self) -> bool {
+        self.nr_of_attempts >= self.maximum_times
+    }
+}
+
+impl Future for BackOffInterval {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        if self.nr_of_attempts >= self.maximum_times {
+            debug!("Backoff expired after {} attempts", self.nr_of_attempts);
+            return Pending;
+        }
+
+        match Pin::new(&mut self.delay).poll_tick(cx) {
+            Ready(_) => {
+                self.nr_of_attempts += 1;
+                let next_tick = Instant::now() + self.delay.period() * self.backoff_rate.pow(self.nr_of_attempts);
+                debug!("Backoff attempt: {}", self.nr_of_attempts);
+                self.delay = time::interval_at(next_tick, self.delay.period());
+                Ready(())
+            }
+            Pending => Pending,
+        }
+    }
+}
+
+
 pub(crate) struct BlockManager {
     pub(crate) config: BlockConfig,
     /// Block producer. Simple helper that creates blocks
@@ -98,7 +159,10 @@ pub(crate) struct BlockManager {
     /// Message pool. Contains all messages that we received from the network and not included in any(committed) block yet.
     pub(crate) message_pool: MessagePool,
     /// Delay between block creation attempts.
-    pub(crate) delay: tokio::time::Interval,
+    pub(crate) block_creation_interval: Interval,
+    /// Backoff between block creation attempts. When `last_produced_block` is not committed during
+    /// certain time window, and normal delay is not passed yet, we use backoff delay to try again.
+    pub(crate) backoff: Option<BackOffInterval>,
     /// Signs and verifies blocks
     pub(crate) block_signer: BlockSigner,
     /// State management for new blocks
@@ -146,7 +210,7 @@ impl BlockManager {
             return Err(anyhow!(
                 "Block signer is not the block sender: {sender:?} != {signer_peer_id:?}",
             )
-            .into());
+                .into());
         }
 
         //Verify that block signature is valid
@@ -236,15 +300,20 @@ impl BlockManager {
         self.block_signer.get_block_certificates(hash)
     }
 
-    pub(crate) fn pause(&mut self) {
-        debug!("Stopping blocks creation");
+    pub(crate) fn stop(&mut self) {
+        debug!("Stopping block creation");
         self.state = State::Paused;
+        self.backoff = None;
     }
 
-    pub(crate) fn resume(&mut self) {
-        debug!("Starting blocks creation");
-        self.block_chain_state.last_produced_block.take();
+    pub(crate) fn start(&mut self) {
+        if !self.config.producer {
+            return;
+        }
+        debug!("Starting block creation");
+        self.block_chain_state.last_produced_block = None;
         self.state = State::Running;
+        self.block_creation_interval = tokio::time::interval(Duration::from_secs(self.config.creation_interval_sec));
     }
 }
 
@@ -256,60 +325,89 @@ impl Stream for BlockManager {
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context,
-    ) -> task::Poll<Option<Self::Item>> {
+    ) -> Poll<Option<Self::Item>> {
         //Optionally it is possible to turn off block production and let the node behave just as voter.
         //For example for testing purposes.
         if !self.config.producer {
             return Pending;
         }
 
+        //It is dynamically turned off when node is not part of most recent broadcast group.
         if let State::Paused = self.state {
             return Pending;
         }
 
-        match self.delay.poll_tick(cx) {
-            Ready(_) => {
-                let is_previous_pending =
-                    self.block_chain_state.is_last_produced_block_is_pending();
-                let pending_messages = if is_previous_pending && self.config.repeat_last_block {
-                    let block = self
-                        .block_chain_state
-                        .last_produced_block
-                        .clone()
-                        .expect("Block should be present");
+        let is_previous_pending = self.block_chain_state.is_last_produced_block_is_pending();
+        if !is_previous_pending {
+            self.backoff = None;
+        }
 
-                    //Use only previous block messages but create new block with new timestamp.
-                    debug!("Producing block with previous messages");
-                    block.messages
-                } else {
-                    debug!("Producing block with new messages");
-                    self.message_pool.get_messages()
-                };
-
-                let new_height = self.block_chain_state.next_block_height();
-                let created_block = self
-                    .block_producer
-                    .create_block(new_height, pending_messages);
-
-                if let Ok(block) = created_block {
-                    debug!("Created block: {:?}", block.get_hash());
-
-                    let hash = block.get_hash();
-                    self.block_chain_state.last_produced_block = Some(block.clone());
-                    self.block_chain_state.last_blocks.put(hash, block.clone());
-
-                    let certificate = self
-                        .block_signer
-                        .sign_block(&block, &hash)
-                        .expect("Failed to sign block");
-
-                    Ready(Some((block, certificate)))
-                } else {
-                    error!("Error producing block: {:?}", created_block);
-                    Pending
+        if self.block_creation_interval.poll_tick(cx).is_pending() {
+            if let Some(mut backoff) = self.backoff.take() {
+                if backoff.is_expired() {
+                    return Pending;
                 }
+                if backoff.poll_unpin(cx).is_pending() {
+                    self.backoff = Some(backoff);
+                    return Pending;
+                }
+                self.backoff = Some(backoff);
+            } else {
+                return Pending;
             }
-            Pending => Pending,
+        } else {
+            self.backoff = None;
+        }
+
+        //If backoff is expired and we still don't have previous block committed
+        let repeat_previous = is_previous_pending && self.config.repeat_last_block;
+
+        let pending_messages = if repeat_previous {
+            let block = self
+                .block_chain_state
+                .last_produced_block
+                .clone()
+                .expect("Block should be present");
+
+            //Use only previous block messages but create new block with new timestamp.
+            debug!("Producing block with previous messages");
+            block.messages
+        } else {
+            debug!("Producing block with new messages");
+            self.message_pool.get_messages()
+        };
+
+        let new_height = self.block_chain_state.next_block_height();
+        let created_block = self
+            .block_producer
+            .create_block(new_height, pending_messages);
+
+        if let Ok(block) = created_block {
+            debug!("Created block: {:?}", block.get_hash());
+
+            let hash = block.get_hash();
+            self.block_chain_state.last_produced_block = Some(block.clone());
+            self.block_chain_state.last_blocks.put(hash, block.clone());
+
+            let certificate = self
+                .block_signer
+                .sign_block(&block, &hash)
+                .expect("Failed to sign block");
+
+
+            if self.backoff.is_none() {
+                let backoff = BackOffInterval::new(
+                    100,
+                    2,
+                    Duration::from_secs(10),
+                );
+                self.backoff = Some(backoff);
+            }
+
+            Ready(Some((block, certificate)))
+        } else {
+            error!("Error producing block: {:?}", created_block);
+            Pending
         }
     }
 }
@@ -573,7 +671,8 @@ mod test {
                 config,
                 block_producer: BlockProducer::new(peer_id),
                 message_pool: MessagePool::new(),
-                delay: tokio::time::interval(Duration::from_millis(1)),
+                block_creation_interval: tokio::time::interval(Duration::from_millis(1)),
+                backoff: None,
                 block_signer: BlockSigner::new(keypair),
                 block_chain_state,
                 state: State::Running,
