@@ -30,14 +30,13 @@
 //a)when peer disconnects, we try to dial it and if that fails, we update group.
 //b)when peer connects, we will update the group.
 
+use std::time::Duration;
 use std::{
     collections::HashMap,
     collections::HashSet,
     fmt::Debug,
     task::{Context, Poll},
 };
-
-use std::time::Duration;
 
 use futures_util::FutureExt;
 use libp2p::core::Endpoint;
@@ -55,10 +54,10 @@ use libp2p::{
 use libp2p_identity::PeerId;
 use log::{debug, error, trace, warn};
 use tokio::time;
-use tokio::time::Interval;
+use tokio::time::{Instant, Interval};
 
 use crate::network::libp2p::behaviours::membership::handler::ToHandler;
-use crate::network::libp2p::behaviours::membership::Membership;
+use crate::network::libp2p::behaviours::membership::{Membership, MEMBERSHIP_SYNC_INTERVAL_SEC};
 use crate::{
     network::{
         libp2p::behaviours::membership::connections::ConnectedPeers,
@@ -140,8 +139,10 @@ pub(crate) struct Behaviour {
     all_connections: ConnectedPeers,
     /// Membership kind.
     membership_kind: MembershipKind,
+    /// Last time we broadcast SYNC
+    last_sync_time: Instant,
     /// Minimum time between members provider updates.
-    minimum_time_between_updates: Duration,
+    minimum_time_between_sync: Duration,
 }
 
 impl Behaviour {
@@ -160,7 +161,8 @@ impl Behaviour {
             state: State::WaitingPeers,
             all_connections: Default::default(),
             membership_kind: MembershipKind::Threshold(MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO),
-            minimum_time_between_updates: Duration::from_secs(60),
+            last_sync_time: Instant::now(),
+            minimum_time_between_sync: Duration::from_secs(MEMBERSHIP_SYNC_INTERVAL_SEC),
         }
     }
 
@@ -287,8 +289,14 @@ impl NetworkBehaviour for Behaviour {
             "Received event from connection handler: {:?} from peer: {:?}",
             event, peer_id
         );
-        //TODO: update members
-        //TODO: accept only valid
+
+        //TODO: we may need to check who sent the update: probably we should accept only updates from members who we know
+        if let State::WaitingPeers = self.state {
+            if self.last_sync_time + self.minimum_time_between_sync < Instant::now() {
+                self.members_provider_interval = None;
+                debug!("Received sync notification from peer {peer_id:?}, requesting membership update");
+            }
+        }
     }
 
     fn poll(
@@ -309,6 +317,7 @@ impl NetworkBehaviour for Behaviour {
                         let wait_time = time::Instant::now() + self.members_provider_delay;
                         self.members_provider_interval =
                             time::interval_at(wait_time, self.members_provider_delay).into();
+                        self.last_sync_time = Instant::now();
                         peers
                     }
                     Poll::Pending => {
@@ -494,7 +503,6 @@ impl NetworkBehaviour for Behaviour {
                     Poll::Pending
                 }
                 Some(peer_id) => {
-                    let _membership = self.memberships.current();
                     debug!("Notifying {peer_id:?} about membership update",);
                     Poll::Ready(ToSwarm::NotifyHandler {
                         peer_id,

@@ -18,7 +18,7 @@ pub(crate) struct RbMsgProtocol;
 
 impl request_response::ProtocolName for RbMsgProtocol {
     fn protocol_name(&self) -> &[u8] {
-        "/ephemera/rb/1".as_bytes()
+        "/ephemera/reliable_broadcast/1.0.0".as_bytes()
     }
 }
 

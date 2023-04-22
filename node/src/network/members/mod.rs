@@ -328,9 +328,9 @@ impl Future for HttpMembersProvider {
                         error!("Failed to get peers: {err}");
                         return Poll::Ready(Err(err));
                     }
-                    Poll::Pending => {
+                    Pending => {
                         self.fut = Some(fut);
-                        return Poll::Pending;
+                        return Pending;
                     }
                 };
 

@@ -306,12 +306,12 @@ impl SwarmNetwork {
                 info!("Peer update pending");
             }
             behaviours::membership::behaviour::Event::LocalRemoved => {
-                //TODO: should pause all network block and message activities
+                //TODO: should pause all network block and message activities...?
                 let update = NetworkEvent::GroupUpdate(LocalPeerRemoved);
                 self.to_ephemera_tx.send_network_event(update).await?;
             }
             behaviours::membership::behaviour::Event::NotEnoughPeers => {
-                //TODO: should pause all network block and message activities
+                //TODO: should pause all network block and message activities...?
                 let update = NetworkEvent::GroupUpdate(NotEnoughPeers);
                 self.to_ephemera_tx.send_network_event(update).await?;
             }
@@ -439,7 +439,39 @@ impl SwarmNetwork {
         Ok(())
     }
 
-    //For now just logging
+    async fn send_broadcast_message(&mut self, msg: RbMsg) {
+        debug!(
+            "Sending broadcast message: {:?} to all peers",
+            msg.short_fmt()
+        );
+        trace!("Sending broadcast message: {:?}", msg);
+        let local_peer_id = *self.swarm.local_peer_id();
+        let behaviours = self.swarm.behaviour_mut();
+        for peer in behaviours.members_provider.active_peer_ids() {
+            trace!("Sending broadcast message: {:?} to peer: {peer:?}", msg.id,);
+            if *peer == local_peer_id {
+                continue;
+            }
+            behaviours.request_response.send_request(peer, msg.clone());
+        }
+    }
+
+    async fn send_ephemera_message(&mut self, msg: EphemeraMessage) {
+        trace!("Sending Ephemera message: {:?}", msg);
+        match msg.encode() {
+            Ok(vec) => {
+                let topic = self.ephemera_msg_topic.clone();
+                if let Err(err) = self.swarm.behaviour_mut().gossipsub.publish(topic, vec) {
+                    error!("Error publishing message: {}", err);
+                }
+            }
+            Err(err) => {
+                error!("Error serializing message: {}", err);
+            }
+        }
+    }
+
+    //Just logging
     async fn process_other_swarm_events<E>(
         &mut self,
         swarm_event: SwarmEvent<GroupBehaviourEvent, E>,
@@ -552,37 +584,5 @@ impl SwarmNetwork {
             }
         }
         Ok(())
-    }
-
-    async fn send_broadcast_message(&mut self, msg: RbMsg) {
-        debug!(
-            "Sending broadcast message: {:?} to all peers",
-            msg.short_fmt()
-        );
-        trace!("Sending broadcast message: {:?}", msg);
-        let local_peer_id = *self.swarm.local_peer_id();
-        let behaviours = self.swarm.behaviour_mut();
-        for peer in behaviours.members_provider.active_peer_ids() {
-            trace!("Sending broadcast message: {:?} to peer: {peer:?}", msg.id,);
-            if *peer == local_peer_id {
-                continue;
-            }
-            behaviours.request_response.send_request(peer, msg.clone());
-        }
-    }
-
-    async fn send_ephemera_message(&mut self, msg: EphemeraMessage) {
-        trace!("Sending Ephemera message: {:?}", msg);
-        match msg.encode() {
-            Ok(vec) => {
-                let topic = self.ephemera_msg_topic.clone();
-                if let Err(err) = self.swarm.behaviour_mut().gossipsub.publish(topic, vec) {
-                    error!("Error publishing message: {}", err);
-                }
-            }
-            Err(err) => {
-                error!("Error serializing message: {}", err);
-            }
-        }
     }
 }

@@ -295,7 +295,6 @@ impl ConnectionHandler for Handler {
                 protocol: stream,
                 info: _,
             }) => {
-                debug!("FullyNegotiatedInbound: protocol",);
                 if self.inbound_substream_attempts > MAX_SUBSTREAM_ATTEMPTS {
                     log::warn!("Too many inbound substream attempts, refusing stream");
                     return;
@@ -307,7 +306,6 @@ impl ConnectionHandler for Handler {
                 protocol,
                 info: _,
             }) => {
-                debug!("FullyNegotiatedOutbound: protocol");
                 if self.outbound_substream_attempts > MAX_SUBSTREAM_ATTEMPTS {
                     log::warn!("Too many outbound substream attempts, refusing stream");
                     return;

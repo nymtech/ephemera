@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::utilities::encoding::varint_bytes::{read_length_prefixed, write_length_prefixed};
 
-//Useful for versioning
 pub const PROTOCOL_NAME: &[u8] = b"/ephemera/membership/1.0.0";
 
 pub(crate) struct Protocol;
@@ -77,6 +76,7 @@ impl Encoder for MembershipCodec {
     type Error = anyhow::Error;
 
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        //FIXME: switch to binary
         let data = serde_json::to_vec(&item).unwrap();
         write_length_prefixed(dst, data);
         Ok(())

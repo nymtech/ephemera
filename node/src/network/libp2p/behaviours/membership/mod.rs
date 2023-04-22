@@ -12,6 +12,9 @@ const MAX_DIAL_ATTEMPT_ROUNDS: usize = 6;
 //TODO: make this configurable
 const MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO: f64 = 0.8;
 
+/// Minimum time between syncs of membership.
+const MEMBERSHIP_SYNC_INTERVAL_SEC: u64 = 60;
+
 /// Maximum percentage of nodes that can change in a single membership update.
 /// In general it should be considered a security risk if it has changed too much.
 /// //TODO: make this configurable

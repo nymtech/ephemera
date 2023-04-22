@@ -33,15 +33,15 @@ impl RunExternalNodeCmd {
             Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
-        let dummy_members_provider = DummyMembersProvider::empty_peers_list();
+        let _dummy_members_provider = DummyMembersProvider::empty_peers_list();
         let _config_members_provider = Self::config_members_provider()?;
-        let _http_members_provider =
+        let http_members_provider =
             Self::http_members_provider("http://localhost:8000/peers".to_string())?;
 
         let ephemera = EphemeraStarter::new(ephemera_conf.clone())
             .unwrap()
             .with_application(DummyApplication)
-            .with_members_provider(Box::pin(dummy_members_provider))
+            .with_members_provider(Box::pin(http_members_provider))
             .init_tasks()
             .await
             .unwrap();
