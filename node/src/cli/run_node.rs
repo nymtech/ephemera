@@ -1,7 +1,9 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
-use clap::Parser;
+use clap::{Args, Parser};
 use log::trace;
+use reqwest::Url;
 use tokio::signal::unix::{signal, SignalKind};
 
 use crate::{
@@ -15,15 +17,42 @@ use crate::{
     ephemera_api::{
         ApiBlock, ApiEphemeraMessage, Application, DummyApplication, RawApiEphemeraMessage, Result,
     },
+    membership::MembersProviderFut,
     membership::{DummyMembersProvider, HttpMembersProvider},
     network::members::ConfigMembersProvider,
     utilities::encoding::Encoder,
 };
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Clone, Debug)]
+pub struct HttpMembersProviderArg {
+    pub url: Url,
+}
+
+impl FromStr for HttpMembersProviderArg {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(HttpMembersProviderArg { url: s.parse()? })
+    }
+}
+
+#[derive(Args)]
+#[group(required = true, multiple = false)]
+pub struct MembersProviderType {
+    #[clap(short, long)]
+    dummy_members_provider: Option<bool>,
+    #[clap(short, long)]
+    config_members_provider: Option<bool>,
+    #[clap(short, long)]
+    http_members_provider: Option<HttpMembersProviderArg>,
+}
+
+#[derive(Parser)]
 pub struct RunExternalNodeCmd {
     #[clap(short, long)]
     pub config_file: String,
+    #[command(flatten)]
+    pub members_provider: MembersProviderType,
 }
 
 impl RunExternalNodeCmd {
@@ -33,15 +62,10 @@ impl RunExternalNodeCmd {
             Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
-        let _dummy_members_provider = DummyMembersProvider::empty_peers_list();
-        let _config_members_provider = Self::config_members_provider()?;
-        let http_members_provider =
-            Self::http_members_provider("http://localhost:8000/peers".to_string())?;
-
         let ephemera = EphemeraStarter::new(ephemera_conf.clone())
             .unwrap()
             .with_application(DummyApplication)
-            .with_members_provider(Box::pin(http_members_provider))
+            .with_members_provider(self.members_provider()?)
             .init_tasks()
             .await
             .unwrap();
@@ -67,6 +91,24 @@ impl RunExternalNodeCmd {
         shutdown.await;
         ephemera_handle.await.unwrap();
         Ok(())
+    }
+
+    fn members_provider(&self) -> anyhow::Result<MembersProviderFut> {
+        match &self.members_provider {
+            MembersProviderType {
+                dummy_members_provider: Some(true),
+                ..
+            } => Ok(Box::pin(DummyMembersProvider::empty_peers_list())),
+            MembersProviderType {
+                config_members_provider: Some(true),
+                ..
+            } => Ok(Box::pin(Self::config_members_provider()?)),
+            MembersProviderType {
+                http_members_provider: Some(HttpMembersProviderArg { url }),
+                ..
+            } => Ok(Box::pin(Self::http_members_provider(url.to_string())?)),
+            _ => anyhow::bail!("Invalid members provider"),
+        }
     }
 
     fn config_members_provider() -> anyhow::Result<ConfigMembersProvider> {

@@ -366,7 +366,10 @@ run_ephemera() {
   LOGS_FILE=$NODE_DIR/logs/ephemera.log
 
   echo "Starting $d"
-  $EPHEMERA run-node --config-file ~/.ephemera/node"${NR}"/ephemera.toml >"$LOGS_FILE" 2>&1 &
+  $EPHEMERA run-node \
+  --config-file ~/.ephemera/node"${NR}"/ephemera.toml \
+  --http-members-provider http://127.0.0.1:8000/peers \
+  >"$LOGS_FILE" 2>&1 &
 
   echo "$NR":"$!" >>"$PIDS_FILE"
 
@@ -389,6 +392,7 @@ run_nym_api_ephemera() {
   echo "Starting $d"
   $NYM_API_EPHEMERA \
     --ephemera-config "$EPHEMERA_CONFIG_FILE" \
+    --config-members-provider \
     --metrics-db-path "$METRICS_DB_PATH" \
     --smart-contract-url 127.0.0.1:6789 \
     --nym-api-id "$NR" \

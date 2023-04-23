@@ -61,7 +61,7 @@ See [README.md](../examples/http-ws/README.md)
 
 See [README.md](../examples/nym-api/README.md)
 
-### Http API example
+### http API example
 
 See [README.md](../examples/cluster-http-api/README.md)
 

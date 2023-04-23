@@ -13,7 +13,7 @@ use std::time::Duration;
 use anyhow::anyhow;
 use futures::Stream;
 
-use futures_util::{FutureExt};
+use futures_util::FutureExt;
 
 use log::{debug, error, trace};
 use lru::LruCache;
@@ -21,6 +21,8 @@ use thiserror::Error;
 use tokio::time;
 use tokio::time::{Instant, Interval};
 
+use crate::network::PeerId;
+use crate::peer::ToPeerId;
 use crate::{
     api::application::RemoveMessages,
     block::{
@@ -32,8 +34,6 @@ use crate::{
     config::BlockConfig,
     utilities::{crypto::Certificate, hash::HashType},
 };
-use crate::network::PeerId;
-use crate::peer::ToPeerId;
 
 pub(crate) type Result<T> = std::result::Result<T, BlockManagerError>;
 
@@ -141,7 +141,8 @@ impl Future for BackOffInterval {
         match Pin::new(&mut self.delay).poll_tick(cx) {
             Ready(_) => {
                 self.nr_of_attempts += 1;
-                let next_tick = Instant::now() + self.delay.period() * self.backoff_rate.pow(self.nr_of_attempts);
+                let next_tick = Instant::now()
+                    + self.delay.period() * self.backoff_rate.pow(self.nr_of_attempts);
                 debug!("Backoff attempt: {}", self.nr_of_attempts);
                 self.delay = time::interval_at(next_tick, self.delay.period());
                 Ready(())
@@ -150,7 +151,6 @@ impl Future for BackOffInterval {
         }
     }
 }
-
 
 pub(crate) struct BlockManager {
     pub(crate) config: BlockConfig,
@@ -210,7 +210,7 @@ impl BlockManager {
             return Err(anyhow!(
                 "Block signer is not the block sender: {sender:?} != {signer_peer_id:?}",
             )
-                .into());
+            .into());
         }
 
         //Verify that block signature is valid
@@ -313,7 +313,8 @@ impl BlockManager {
         debug!("Starting block creation");
         self.block_chain_state.last_produced_block = None;
         self.state = State::Running;
-        self.block_creation_interval = tokio::time::interval(Duration::from_secs(self.config.creation_interval_sec));
+        self.block_creation_interval =
+            tokio::time::interval(Duration::from_secs(self.config.creation_interval_sec));
     }
 }
 
@@ -322,10 +323,7 @@ impl BlockManager {
 impl Stream for BlockManager {
     type Item = (Block, Certificate);
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
         //Optionally it is possible to turn off block production and let the node behave just as voter.
         //For example for testing purposes.
         if !self.config.producer {
@@ -394,13 +392,8 @@ impl Stream for BlockManager {
                 .sign_block(&block, &hash)
                 .expect("Failed to sign block");
 
-
             if self.backoff.is_none() {
-                let backoff = BackOffInterval::new(
-                    100,
-                    2,
-                    Duration::from_secs(10),
-                );
+                let backoff = BackOffInterval::new(100, 2, Duration::from_secs(10));
                 self.backoff = Some(backoff);
             }
 

@@ -8,14 +8,14 @@ pub mod run_node;
 
 pub const PEERS_CONFIG_FILE: &str = "peers.toml";
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser)]
 #[command()]
 pub struct Cli {
     #[command(subcommand)]
     pub subcommand: Subcommand,
 }
 
-#[derive(Clone, Debug, clap::Subcommand)]
+#[derive(clap::Subcommand)]
 pub enum Subcommand {
     InitConfig(init::InitCmd),
     InitLocalPeersConfig(peers::CreateLocalPeersConfiguration),

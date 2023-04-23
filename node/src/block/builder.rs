@@ -1,8 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-
 use log::{debug, info};
 
+use crate::block::manager::State;
+use crate::peer::ToPeerId;
 use crate::{
     block::{
         manager::{BlockChainState, BlockManager},
@@ -15,8 +16,6 @@ use crate::{
     crypto::Keypair,
     storage::EphemeraDatabase,
 };
-use crate::block::manager::State;
-use crate::peer::ToPeerId;
 
 pub(crate) struct BlockManagerBuilder {
     config: BlockConfig,
@@ -57,7 +56,8 @@ impl BlockManagerBuilder {
         let block_signer = BlockSigner::new(self.keypair.clone());
         let message_pool = MessagePool::new();
         let block_chain_state = BlockChainState::new(last_created_block);
-        let block_creation_interval =  tokio::time::interval(Duration::from_secs(self.config.creation_interval_sec));
+        let block_creation_interval =
+            tokio::time::interval(Duration::from_secs(self.config.creation_interval_sec));
 
         Ok(BlockManager {
             config: self.config,
