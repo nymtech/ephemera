@@ -17,6 +17,22 @@ pub(crate) async fn health() -> impl Responder {
 
 #[utoipa::path(
 responses(
+(status = 200, description = "Get current broadcast group"),
+(status = 500, description = "Server failed to process request")),
+)]
+#[get("/ephemera/broadcast/group/current")]
+pub(crate) async fn current_broadcast_group(api: web::Data<EphemeraExternalApi>) -> impl Responder {
+    match api.get_broadcast_group().await {
+        Ok(group) => HttpResponse::Ok().json(group),
+        Err(err) => {
+            error!("Failed to get current broadcast group: {err}",);
+            HttpResponse::InternalServerError().json("Server failed to process request")
+        }
+    }
+}
+
+#[utoipa::path(
+responses(
 (status = 200, description = "GET block by hash"),
 (status = 404, description = "Block not found"),
 (status = 500, description = "Server failed to process request")),

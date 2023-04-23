@@ -16,7 +16,7 @@ use tokio::sync::{
 };
 
 use crate::api::types::{
-    ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, ApiError,
+    ApiBlock, ApiBroadcastGroup, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, ApiError,
 };
 
 /// Kademlia DHT key
@@ -40,7 +40,7 @@ pub(crate) enum ApiCmd {
     QueryDht(DhtKey, oneshot::Sender<Result<Option<DhtKV>>>),
     StoreInDht(DhtKey, DhtValue, oneshot::Sender<Result<()>>),
     EphemeraConfig(oneshot::Sender<Result<ApiEphemeraConfig>>),
-    BroadcastGroup(oneshot::Sender<Result<ApiEphemeraConfig>>),
+    BroadcastGroup(oneshot::Sender<Result<ApiBroadcastGroup>>),
 }
 
 impl Display for ApiCmd {
@@ -138,6 +138,11 @@ impl EphemeraExternalApi {
     pub async fn get_node_config(&self) -> Result<ApiEphemeraConfig> {
         trace!("get_node_config()");
         self.send_and_wait_response(ApiCmd::EphemeraConfig).await
+    }
+
+    pub async fn get_broadcast_group(&self) -> Result<ApiBroadcastGroup> {
+        trace!("get_broadcast_group()");
+        self.send_and_wait_response(ApiCmd::BroadcastGroup).await
     }
 
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers

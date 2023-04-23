@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
-use crate::peer::PeerId;
 use log::warn;
 use lru::LruCache;
 
+use crate::peer::PeerId;
 use crate::utilities::hash::HashType;
 
 pub(crate) struct BroadcastGroup {
@@ -45,6 +45,12 @@ impl BroadcastGroup {
             .get(&self.current_id)
             .map(|s| s.is_empty())
             .unwrap_or(true)
+    }
+
+    pub(crate) fn current_group(&mut self) -> &HashSet<PeerId> {
+        self.snapshots
+            .get(&self.current_id)
+            .expect("Current group should always exist")
     }
 
     pub(crate) fn check_membership(

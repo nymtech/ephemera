@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -9,6 +10,7 @@ use tokio::sync::Mutex;
 use crate::api::application::CheckBlockResult;
 use crate::broadcast::group::BroadcastGroup;
 use crate::network::libp2p::network_sender::GroupChangeEvent;
+use crate::network::PeerId;
 use crate::{
     api::{application::Application, ApiListener},
     block::{manager::BlockManager, types::block::Block},
@@ -396,5 +398,9 @@ impl<A: Application> Ephemera<A> {
             Err(e) => error!("Error: {}", e),
         };
         Ok(())
+    }
+
+    pub(crate) fn broadcast_group(&mut self) -> &HashSet<PeerId> {
+        self.broadcast_group.current_group()
     }
 }

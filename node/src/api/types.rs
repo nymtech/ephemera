@@ -15,9 +15,10 @@
 //! - ApiDhtQueryResponse
 //! - ApiDhtStoreRequest
 
+use std::fmt::Display;
+
 use array_bytes::{bytes2hex, hex2bytes};
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 use thiserror::Error;
 use utoipa::ToSchema;
 
@@ -221,6 +222,21 @@ pub struct ApiDhtStoreRequest {
     key: String,
     /// The value to store in hex format.
     value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiBroadcastGroup {
+    pub(crate) peers: Vec<PeerId>,
+}
+
+impl ApiBroadcastGroup {
+    pub(crate) fn new(peers: Vec<PeerId>) -> Self {
+        Self { peers }
+    }
+
+    pub fn peers(&self) -> &Vec<PeerId> {
+        &self.peers
+    }
 }
 
 impl Display for ApiEphemeraMessage {

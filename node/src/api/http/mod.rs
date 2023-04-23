@@ -24,6 +24,7 @@ pub(crate) fn init(node_info: &NodeInfo, api: EphemeraExternalApi) -> anyhow::Re
             .service(query::last_block)
             .service(query::get_node_config)
             .service(query::query_dht)
+            .service(query::current_broadcast_group)
             .service(submit::submit_message)
             .service(submit::store_in_dht)
             .service(swagger_ui())
@@ -49,6 +50,7 @@ fn swagger_ui() -> SwaggerUi {
             query::last_block,
             query::get_node_config,
             query::query_dht,
+            query::current_broadcast_group,
             submit::submit_message,
             submit::store_in_dht,
         ),
@@ -62,6 +64,7 @@ fn swagger_ui() -> SwaggerUi {
             types::ApiDhtStoreRequest,
             types::ApiDhtQueryRequest,
             types::ApiDhtQueryResponse,
+            types::ApiBroadcastGroup,
         ))
     )]
     struct ApiDoc;
