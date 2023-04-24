@@ -30,6 +30,7 @@
 //a)when peer disconnects, we try to dial it and if that fails, we update group.
 //b)when peer connects, we will update the group.
 
+use std::future::Future;
 use std::time::Duration;
 use std::{
     collections::HashMap,
@@ -58,7 +59,9 @@ use tokio::time::{Instant, Interval};
 
 use crate::network::libp2p::behaviours::membership::handler::ToHandler;
 use crate::network::libp2p::behaviours::membership::{Membership, MEMBERSHIP_SYNC_INTERVAL_SEC};
+use crate::network::Peer;
 use crate::{
+    membership,
     network::{
         libp2p::behaviours::membership::connections::ConnectedPeers,
         libp2p::behaviours::membership::{MembershipKind, Memberships},
@@ -67,9 +70,8 @@ use crate::{
             membership::MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO,
             membership::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS},
         },
-        members::{MembersProviderFut, PeerInfo},
+        members::PeerInfo,
     },
-    peer::Peer,
 };
 
 /// [MembersProviderFut] state when we are trying to connect to new peers.
@@ -83,7 +85,7 @@ struct PendingPeersUpdate {
     /// Number of dial attempts per round.
     dial_attempts: usize,
     /// How long we wait between dial attempts.
-    interval_between_dial_attempts: Option<time::Interval>,
+    interval_between_dial_attempts: Option<Interval>,
 }
 
 #[derive(Debug, Default)]
@@ -122,13 +124,16 @@ pub(crate) enum Event {
     NotEnoughPeers,
 }
 
-pub(crate) struct Behaviour {
+pub(crate) struct Behaviour<P>
+where
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
+{
     /// All peers that are part of the current group.
     memberships: Memberships,
     /// Local peer id.
     local_peer_id: PeerId,
     /// Future that provides new peers.
-    members_provider: MembersProviderFut,
+    members_provider: P,
     /// Interval between requesting new peers from the members provider.
     members_provider_interval: Option<Interval>,
     /// Delay between dial attempts.
@@ -145,9 +150,12 @@ pub(crate) struct Behaviour {
     minimum_time_between_sync: Duration,
 }
 
-impl Behaviour {
+impl<P> Behaviour<P>
+where
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
+{
     pub(crate) fn new(
-        members_provider: MembersProviderFut,
+        members_provider: P,
         members_provider_delay: Duration,
         local_peer_id: PeerId,
     ) -> Self {
@@ -176,7 +184,10 @@ impl Behaviour {
     }
 }
 
-impl NetworkBehaviour for Behaviour {
+impl<P> NetworkBehaviour for Behaviour<P>
+where
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
+{
     type ConnectionHandler = Handler;
     type OutEvent = Event;
 

@@ -16,7 +16,7 @@ use tokio::sync::{
 };
 
 use crate::api::types::{
-    ApiBlock, ApiBroadcastGroup, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, ApiError,
+    ApiBlock, ApiBroadcastInfo, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, ApiError,
 };
 
 /// Kademlia DHT key
@@ -40,7 +40,7 @@ pub(crate) enum ApiCmd {
     QueryDht(DhtKey, oneshot::Sender<Result<Option<DhtKV>>>),
     StoreInDht(DhtKey, DhtValue, oneshot::Sender<Result<()>>),
     EphemeraConfig(oneshot::Sender<Result<ApiEphemeraConfig>>),
-    BroadcastGroup(oneshot::Sender<Result<ApiBroadcastGroup>>),
+    BroadcastGroup(oneshot::Sender<Result<ApiBroadcastInfo>>),
 }
 
 impl Display for ApiCmd {
@@ -140,7 +140,7 @@ impl EphemeraExternalApi {
         self.send_and_wait_response(ApiCmd::EphemeraConfig).await
     }
 
-    pub async fn get_broadcast_group(&self) -> Result<ApiBroadcastGroup> {
+    pub async fn get_broadcast_info(&self) -> Result<ApiBroadcastInfo> {
         trace!("get_broadcast_group()");
         self.send_and_wait_response(ApiCmd::BroadcastGroup).await
     }

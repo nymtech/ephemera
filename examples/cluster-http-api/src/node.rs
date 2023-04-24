@@ -3,7 +3,7 @@ use log::{info, warn};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use ephemera::ephemera_api::{
-    ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, EphemeraHttpClient, Health,
+    ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, ApiHealth, EphemeraHttpClient,
 };
 
 pub(crate) struct Node {
@@ -109,7 +109,10 @@ impl Node {
         client.get_ephemera_config().await.map_err(|e| e.into())
     }
 
-    pub(crate) async fn health(&self, client: &mut EphemeraHttpClient) -> anyhow::Result<Health> {
+    pub(crate) async fn health(
+        &self,
+        client: &mut EphemeraHttpClient,
+    ) -> anyhow::Result<ApiHealth> {
         client.health().await.map_err(|e| e.into())
     }
 

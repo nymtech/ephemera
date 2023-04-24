@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::{iter, sync::Arc, time::Duration};
 
 use libp2p::{
@@ -12,13 +13,13 @@ use libp2p::{
 };
 use log::info;
 
+use crate::membership::PeerInfo;
 use crate::{
     broadcast::RbMsg,
     crypto::Keypair,
     network::libp2p::behaviours::request_response::{
         RbMsgMessagesCodec, RbMsgProtocol, RbMsgResponse,
     },
-    network::members::MembersProviderFut,
     peer::{PeerId, ToPeerId},
     utilities::hash::{EphemeraHasher, Hasher},
 };
@@ -28,8 +29,11 @@ pub(crate) mod request_response;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "GroupBehaviourEvent")]
-pub(crate) struct GroupNetworkBehaviour {
-    pub(crate) members_provider: membership::behaviour::Behaviour,
+pub(crate) struct GroupNetworkBehaviour<P>
+where
+    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + 'static,
+{
+    pub(crate) members_provider: membership::behaviour::Behaviour<P>,
     pub(crate) gossipsub: gossipsub::Behaviour,
     pub(crate) request_response: libp2p_request_response::Behaviour<RbMsgMessagesCodec>,
     pub(crate) kademlia: kad::Kademlia<kad::store::MemoryStore>,
@@ -70,12 +74,15 @@ impl From<kad::KademliaEvent> for GroupBehaviourEvent {
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
 //Membership takes care of providing peers who are part of the reliable broadcast group
-pub(crate) fn create_behaviour(
+pub(crate) fn create_behaviour<P>(
     keypair: Arc<Keypair>,
     ephemera_msg_topic: Topic,
-    members_provider: MembersProviderFut,
+    members_provider: P,
     members_provider_delay: Duration,
-) -> GroupNetworkBehaviour {
+) -> GroupNetworkBehaviour<P>
+where
+    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + 'static,
+{
     let local_peer_id = keypair.peer_id();
     let gossipsub = create_gossipsub(keypair.clone(), &ephemera_msg_topic);
     let request_response = create_request_response();
@@ -123,11 +130,14 @@ pub(crate) fn create_request_response() -> libp2p_request_response::Behaviour<Rb
     )
 }
 
-pub(crate) fn create_membership(
-    members_provider: MembersProviderFut,
+pub(crate) fn create_membership<P>(
+    members_provider: P,
     members_provider_delay: Duration,
     local_peer_id: PeerId,
-) -> membership::behaviour::Behaviour {
+) -> membership::behaviour::Behaviour<P>
+where
+    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + 'static,
+{
     membership::behaviour::Behaviour::new(
         members_provider,
         members_provider_delay,

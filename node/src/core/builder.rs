@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::future::Future;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
@@ -6,6 +7,11 @@ use log::{error, info};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
+use crate::membership::PeerInfo;
+#[cfg(feature = "rocksdb_storage")]
+use crate::storage::rocksdb::RocksDbStorage;
+#[cfg(feature = "sqlite_storage")]
+use crate::storage::sqlite::SqliteStorage;
 use crate::{
     api::{application::Application, http, ApiListener, EphemeraExternalApi},
     block::{builder::BlockManagerBuilder, manager::BlockManager},
@@ -17,22 +23,17 @@ use crate::{
         shutdown::{Shutdown, ShutdownHandle, ShutdownManager},
     },
     crypto::Keypair,
+    membership,
     network::libp2p::{
         ephemera_sender::EphemeraToNetworkSender, network_sender::NetCommunicationReceiver,
         swarm_network::SwarmNetwork,
     },
-    network::members::MembersProviderFut,
     peer::{PeerId, ToPeerId},
     storage::EphemeraDatabase,
     utilities::crypto::key_manager::KeyManager,
     websocket::ws_manager::{WsManager, WsMessageBroadcaster},
     Ephemera,
 };
-
-#[cfg(feature = "rocksdb_storage")]
-use crate::storage::rocksdb::RocksDbStorage;
-#[cfg(feature = "sqlite_storage")]
-use crate::storage::sqlite::SqliteStorage;
 
 #[derive(Clone)]
 pub(crate) struct NodeInfo {
@@ -107,13 +108,17 @@ pub struct EphemeraHandle {
     pub shutdown: ShutdownHandle,
 }
 
-pub struct EphemeraStarter<A: Application> {
+pub struct EphemeraStarter<A, P>
+where
+    A: Application + 'static,
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
+{
     config: Configuration,
     node_info: NodeInfo,
     block_manager_builder: Option<BlockManagerBuilder>,
     block_manager: Option<BlockManager>,
     broadcaster: Broadcaster,
-    members_provider: Option<MembersProviderFut>,
+    members_provider: Option<P>,
     application: Option<A>,
     from_network: Option<NetCommunicationReceiver>,
     to_network: Option<EphemeraToNetworkSender>,
@@ -124,9 +129,10 @@ pub struct EphemeraStarter<A: Application> {
 }
 
 //TODO: make keypair centrally accessible and coping everywhere(even Arc)
-impl<A> EphemeraStarter<A>
+impl<A, P> EphemeraStarter<A, P>
 where
     A: Application + 'static,
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
     //Crate pure data structures, no resource allocation nor threads
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
@@ -157,14 +163,21 @@ where
         Ok(builder)
     }
 
-    pub fn with_members_provider(self, members_provider: MembersProviderFut) -> Self {
+    pub fn with_members_provider(self, members_provider: P) -> Self
+    where
+        P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    {
         Self {
             members_provider: Some(members_provider),
             ..self
         }
     }
 
-    pub fn with_application(self, application: A) -> EphemeraStarter<A> {
+    pub fn with_application(self, application: A) -> EphemeraStarter<A, P>
+    where
+        A: Application + 'static,
+        P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    {
         Self {
             application: Some(application),
             ..self

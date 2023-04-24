@@ -1,6 +1,14 @@
 //! In Ephemera, membership of reliable broadcast protocol is decided by membership provider.
 //! Only peers who are returned by [crate::membership::MembersProviderFut] are allowed to participate.
 
+use std::collections::{HashMap, HashSet};
+use std::num::NonZeroUsize;
+
+use libp2p_identity::PeerId;
+use lru::LruCache;
+
+use crate::network::Peer;
+
 pub(crate) mod behaviour;
 mod connections;
 mod handler;
@@ -20,16 +28,12 @@ const MEMBERSHIP_SYNC_INTERVAL_SEC: u64 = 60;
 /// //TODO: make this configurable
 const _MEMBERSHIP_MAXIMUM_ALLOWED_CHANGE_RATIO: f64 = 0.2;
 
-pub(crate) fn _calculate_membership_change(_previous: Vec<PeerId>, _current: Vec<PeerId>) -> usize {
+pub(crate) fn _calculate_membership_change(
+    _previous: HashSet<PeerId>,
+    _current: HashSet<PeerId>,
+) -> usize {
     0
 }
-
-use std::collections::{HashMap, HashSet};
-use std::num::NonZeroUsize;
-
-use crate::peer::Peer;
-use libp2p_identity::PeerId;
-use lru::LruCache;
 
 /// Membership provider returns list of peers. But it is up to the Ephemera user to decide
 /// how reliable the list is. For example, it can contain peers who are offline.

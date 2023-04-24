@@ -37,20 +37,20 @@ pub mod ephemera_api {
         http::client::{EphemeraHttpClient, Error},
         types::{
             ApiBlock, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest,
-            ApiEphemeraConfig, ApiEphemeraMessage, ApiError, Health, RawApiEphemeraMessage,
+            ApiEphemeraConfig, ApiEphemeraMessage, ApiError, ApiHealth, RawApiEphemeraMessage,
         },
         EphemeraExternalApi,
     };
 }
 
 pub mod peer {
-    pub use super::network::{Peer, PeerId, ToPeerId};
+    pub use super::network::{PeerId, ToPeerId};
 }
 
 pub mod membership {
     pub use super::network::members::{
-        ConfigMembersProvider, DummyMembersProvider, HttpMembersProvider, JsonPeerInfo,
-        MembersProviderFut, PeerInfo, PeerSetting, Result,
+        ConfigMembersProvider, DummyMembersProvider, HttpMembersProvider, JsonPeerInfo, PeerInfo,
+        PeerSetting, Result,
     };
 }
 

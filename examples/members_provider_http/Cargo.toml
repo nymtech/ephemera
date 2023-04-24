@@ -6,6 +6,8 @@ edition = "2021"
 
 [dependencies]
 ephemera = { path = "../../node" }
+anyhow = "1.0.70"
+async-trait = "0.1.68"
 clap = "4.2.1"
 tokio = "1.27.0"
 toml = "0.7.3"

@@ -3399,6 +3399,8 @@ dependencies = [
 name = "members_provider_http"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "clap",
  "ephemera",
  "serde",

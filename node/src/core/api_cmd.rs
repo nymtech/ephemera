@@ -4,9 +4,9 @@ use log::{debug, error, trace};
 use lru::LruCache;
 use tokio::sync::oneshot::Sender;
 
-use crate::api::types::ApiBroadcastGroup;
+use crate::api::types::ApiBroadcastInfo;
 use crate::ephemera_api::ApiEphemeraMessage;
-use crate::peer::PeerId;
+
 use crate::{
     api::{
         self,
@@ -160,12 +160,9 @@ impl ApiCmdProcessor {
                     .expect("Error sending EphemeraConfig response to api");
             }
             ApiCmd::BroadcastGroup(reply) => {
-                let group_peers = ephemera
-                    .broadcast_group()
-                    .clone()
-                    .into_iter()
-                    .collect::<Vec<PeerId>>();
-                let bc = ApiBroadcastGroup::new(group_peers);
+                let group_peers = ephemera.broadcast_group();
+
+                let bc = ApiBroadcastInfo::new(group_peers.clone(), ephemera.node_info.peer_id);
                 reply
                     .send(Ok(bc))
                     .expect("Error sending BroadcastGroup response to api");

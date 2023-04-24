@@ -56,6 +56,9 @@ void = "1.0.2"
 assert_matches = "1.5.0"
 
 [features]
-default = ["sqlite_storage"]
+default = ["sqlite_storage", "http_provider"]
 rocksdb_storage = ["rocksdb"]
 sqlite_storage = ["rusqlite", "refinery"]
+http_provider = []
+config_provider = []
+dummy_provider = []

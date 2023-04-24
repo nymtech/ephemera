@@ -6,8 +6,10 @@ use libp2p::{
 };
 use log::{debug, error, info, trace};
 use std::collections::HashSet;
+use std::future::Future;
 use std::str::FromStr;
 
+use crate::membership::PeerInfo;
 use crate::{
     block::types::message::EphemeraMessage,
     broadcast::RbMsg,
@@ -28,26 +30,34 @@ use crate::{
             NetCommunicationReceiver, NetCommunicationSender, NetworkEvent,
         },
     },
-    network::members::MembersProviderFut,
 };
 
-pub struct SwarmNetwork {
+pub struct SwarmNetwork<P>
+where
+    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
+{
     node_info: NodeInfo,
-    swarm: Swarm<GroupNetworkBehaviour>,
+    swarm: Swarm<GroupNetworkBehaviour<P>>,
     from_ephemera_rcv: EphemeraToNetworkReceiver,
     to_ephemera_tx: NetCommunicationSender,
     ephemera_msg_topic: Topic,
 }
 
-impl SwarmNetwork {
+impl<P> SwarmNetwork<P>
+where
+    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
+{
     pub(crate) fn new(
         node_info: NodeInfo,
-        members_provider: MembersProviderFut,
+        members_provider: P,
     ) -> (
-        SwarmNetwork,
+        SwarmNetwork<P>,
         NetCommunicationReceiver,
         EphemeraToNetworkSender,
-    ) {
+    )
+    where
+        P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    {
         let (from_ephemera_tx, from_ephemera_rcv) = EphemeraToNetwork::init();
         let (to_ephemera_tx, to_ephemera_rcv) = EphemeraNetworkCommunication::init();
 

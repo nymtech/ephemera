@@ -15,6 +15,7 @@
 //! - ApiDhtQueryResponse
 //! - ApiDhtStoreRequest
 
+use std::collections::HashSet;
 use std::fmt::Display;
 
 use array_bytes::{bytes2hex, hex2bytes};
@@ -212,7 +213,7 @@ pub enum HealthStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct Health {
+pub struct ApiHealth {
     pub(crate) status: HealthStatus,
 }
 
@@ -225,17 +226,19 @@ pub struct ApiDhtStoreRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-pub struct ApiBroadcastGroup {
-    pub(crate) peers: Vec<PeerId>,
+pub struct ApiBroadcastInfo {
+    /// The PeerId of the local node.
+    pub local_peer_id: PeerId,
+    /// The list of the current members of the network.
+    pub current_members: HashSet<PeerId>,
 }
 
-impl ApiBroadcastGroup {
-    pub(crate) fn new(peers: Vec<PeerId>) -> Self {
-        Self { peers }
-    }
-
-    pub fn peers(&self) -> &Vec<PeerId> {
-        &self.peers
+impl ApiBroadcastInfo {
+    pub(crate) fn new(current_members: HashSet<PeerId>, local_peer_id: PeerId) -> Self {
+        Self {
+            local_peer_id,
+            current_members,
+        }
     }
 }
 

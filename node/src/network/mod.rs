@@ -70,7 +70,7 @@ pub trait ToPeerId {
 
 /// A peer of the network.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Peer {
+pub(crate) struct Peer {
     /// The peer's ID. It identifies the peer uniquely and is derived from its public key.
     ///
     /// # Deriving PeerId from PublicKey example

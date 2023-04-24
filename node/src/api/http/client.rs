@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-use crate::api::types::Health;
+use crate::api::types::{ApiBroadcastInfo, ApiHealth};
 use crate::ephemera_api::{
     ApiBlock, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest,
     ApiEphemeraConfig, ApiEphemeraMessage,
@@ -55,7 +55,7 @@ impl EphemeraHttpClient {
     /// # Example
     ///
     /// ```no_run
-    /// use ephemera::ephemera_api::{EphemeraHttpClient, Health};
+    /// use ephemera::ephemera_api::{EphemeraHttpClient, ApiHealth};
     ///
     /// #[tokio::main]
     ///async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -64,7 +64,11 @@ impl EphemeraHttpClient {
     ///    Ok(())
     /// }
     /// ```
-    pub async fn health(&self) -> Result<Health> {
+    ///
+    /// # Returns
+    ///
+    /// * [ApiHealth] - The health of the node.
+    pub async fn health(&self) -> Result<ApiHealth> {
         self.query("ephemera/node/health").await
     }
 
@@ -78,10 +82,14 @@ impl EphemeraHttpClient {
     /// #[tokio::main]
     ///async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///     let client = EphemeraHttpClient::new("http://localhost:7000".to_string());
-    ///     let block = client.get_block_by_hash("hash").await?;
+    ///     let block = client.get_block_by_hash("9D2LaY17rbnxfgKUbvcsJ5cB2BRHEd8fPJwsBnDHNGBX").await?;
     ///     Ok(())
     /// }
     /// ```
+    ///
+    /// # Returns
+    ///
+    /// * Option<[ApiBlock]> - The block.
     pub async fn get_block_by_hash(&self, hash: &str) -> Result<Option<ApiBlock>> {
         let url = format!("ephemera/broadcast/block/{hash}",);
         self.query_optional(&url).await
@@ -96,10 +104,14 @@ impl EphemeraHttpClient {
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///    let client = EphemeraHttpClient::new("http://localhost:7000".to_string());
-    ///    let certificates = client.get_block_certificates("hash").await?;
+    ///    let certificates = client.get_block_certificates("9D2LaY17rbnxfgKUbvcsJ5cB2BRHEd8fPJwsBnDHNGBX").await?;
     ///    Ok(())
     /// }
     /// ```
+    ///
+    /// # Returns
+    ///
+    /// * Option<Vec<[ApiCertificate]>> - The block certificates.
     pub async fn get_block_certificates(&self, hash: &str) -> Result<Option<Vec<ApiCertificate>>> {
         let url = format!("ephemera/broadcast/block/certificates/{hash}",);
         self.query_optional(&url).await
@@ -117,6 +129,11 @@ impl EphemeraHttpClient {
     ///   let block = client.get_block_by_height(1).await?;
     ///   Ok(())
     /// }
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// * Option<[ApiBlock]> - The block.
     pub async fn get_block_by_height(&self, height: u64) -> Result<Option<ApiBlock>> {
         let url = format!("ephemera/broadcast/block/height/{height}",);
         self.query_optional(&url).await
@@ -135,6 +152,11 @@ impl EphemeraHttpClient {
     ///    let block = client.get_last_block().await?;
     ///    Ok(())
     /// }
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// * [ApiBlock] - The last block.
     pub async fn get_last_block(&self) -> Result<ApiBlock> {
         self.query("ephemera/broadcast/blocks/last").await
     }
@@ -152,6 +174,11 @@ impl EphemeraHttpClient {
     ///    let config = client.get_ephemera_config().await?;
     ///    Ok(())
     /// }
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// * [ApiEphemeraConfig] - The node configuration.
     pub async fn get_ephemera_config(&self) -> Result<ApiEphemeraConfig> {
         self.query("ephemera/node/config").await
     }
@@ -244,12 +271,39 @@ impl EphemeraHttpClient {
     ///    let response = client.query_dht_key(request).await?;
     ///    Ok(())
     /// }
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// * Option<[ApiDhtQueryResponse]> - The value stored in the DHT for the given key.
     pub async fn query_dht_key(
         &self,
         request: ApiDhtQueryRequest,
     ) -> Result<Option<ApiDhtQueryResponse>> {
         let url = format!("ephemera/dht/query/{}", request.key_encoded());
         self.query_optional(&url).await
+    }
+
+    /// Get broadcast group info.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ephemera::ephemera_api::EphemeraHttpClient;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///   let client = EphemeraHttpClient::new("http://localhost:7000/".to_string());
+    ///   let info = client.broadcast_info().await?;
+    ///   Ok(())
+    /// }
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// * [ApiBroadcastInfo] - The broadcast group info.
+    pub async fn broadcast_info(&self) -> Result<ApiBroadcastInfo> {
+        self.query("ephemera/broadcast/group/info").await
     }
 
     async fn query_optional<T: for<'de> serde::Deserialize<'de>>(

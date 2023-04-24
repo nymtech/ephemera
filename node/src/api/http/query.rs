@@ -2,7 +2,7 @@ use actix_web::{get, web, HttpResponse, Responder};
 use log::error;
 
 use crate::{
-    api::{types::Health, types::HealthStatus::Healthy, EphemeraExternalApi},
+    api::{types::ApiHealth, types::HealthStatus::Healthy, EphemeraExternalApi},
     ephemera_api::{ApiDhtQueryRequest, ApiDhtQueryResponse},
 };
 
@@ -12,7 +12,7 @@ responses(
 )]
 #[get("/ephemera/node/health")]
 pub(crate) async fn health() -> impl Responder {
-    HttpResponse::Ok().json(Health { status: Healthy })
+    HttpResponse::Ok().json(ApiHealth { status: Healthy })
 }
 
 #[utoipa::path(
@@ -20,9 +20,9 @@ responses(
 (status = 200, description = "Get current broadcast group"),
 (status = 500, description = "Server failed to process request")),
 )]
-#[get("/ephemera/broadcast/group/current")]
-pub(crate) async fn current_broadcast_group(api: web::Data<EphemeraExternalApi>) -> impl Responder {
-    match api.get_broadcast_group().await {
+#[get("/ephemera/broadcast/group/info")]
+pub(crate) async fn broadcast_info(api: web::Data<EphemeraExternalApi>) -> impl Responder {
+    match api.get_broadcast_info().await {
         Ok(group) => HttpResponse::Ok().json(group),
         Err(err) => {
             error!("Failed to get current broadcast group: {err}",);
