@@ -1,12 +1,10 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-
 use std::thread;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
-use tokio::time::Instant;
 
 use ephemera::configuration::Configuration;
 use ephemera::crypto::PublicKey;
@@ -16,14 +14,21 @@ use ephemera::peer::PeerId;
 
 use crate::{PeerSettings, EPHEMERA_IP, HTTP_API_PORT_BASE};
 
+/// Returns peers from all peers based on some criteria.
+///
+/// For example, peers which respond to health check
 #[async_trait]
 pub(crate) trait Provider: Send + Sync + 'static {
-    async fn peers(&self) -> Vec<JsonPeerInfo>;
-    async fn check_broadcast_groups(&self) -> anyhow::Result<()>;
+    async fn peers(&self, status: &PeersStatus) -> HashSet<PeerId>;
 }
 
+/// Request peers from Provider and checks membership
 pub(crate) struct ProviderRunner {
+    /// All peers
+    peers_status: PeersStatus,
+    /// Chooses peers from all peers
     provider: Box<dyn Provider>,
+    /// Channel to send peers to http server when it requests them
     http_peers_ch: Receiver<Sender<Vec<JsonPeerInfo>>>,
 }
 
@@ -32,26 +37,79 @@ impl ProviderRunner {
         provider: Box<dyn Provider>,
         rcv: Receiver<Sender<Vec<JsonPeerInfo>>>,
     ) -> Self {
+        let peers_status = PeersStatus::new();
         Self {
+            peers_status,
             provider,
             http_peers_ch: rcv,
         }
     }
 
+    ///Query peers from Provider and run check about membership
     pub(crate) async fn run(mut self) -> anyhow::Result<()> {
-        let wait_time = Instant::now() + std::time::Duration::from_secs(60);
-        let mut interval = tokio::time::interval_at(wait_time, std::time::Duration::from_secs(15));
+        println!("Starting provider runner, all peers:");
+        for (id, peer) in &self.peers_status.all_peers {
+            println!("Name {:?}, id: {id}\n", peer.name)
+        }
         loop {
-            tokio::select! {
-                Some(reply_tx) = self.http_peers_ch.recv() => {
-                    let peers = self.provider.peers().await;
-                    reply_tx.send(peers).unwrap();
+            let peers = self.provider.peers(&self.peers_status).await;
+            println!(
+                "Current peers: {:?}\n",
+                peers.iter().map(|p| p.to_string()).collect::<Vec<String>>()
+            );
+
+            let json = self.peers_status.json_info(&peers);
+
+            let mut peers_query_count = 0;
+            loop {
+                if let Some(reply_tx) = self.http_peers_ch.recv().await {
+                    reply_tx.send(json.clone()).unwrap();
+                    peers_query_count += 1;
                 }
-                _ = interval.tick() => {
-                    self.provider.check_broadcast_groups().await?;
+                //In general assume that all peers query peers list around the same time
+                //So one loop captures single round of all running nodes' queries
+                if peers_query_count == peers.len() {
+                    break;
+                }
+            }
+
+            println!("Waiting 10 sec...");
+            thread::sleep(Duration::from_secs(10));
+            match self.check_broadcast_groups().await {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Error: {:?}", err);
                 }
             }
         }
+    }
+
+    ///Checks if expected group matches the group returned by Ephemera nodes over http API
+    async fn check_broadcast_groups(&self) -> anyhow::Result<()> {
+        let peer_ids = self.provider.peers(&self.peers_status).await;
+        let clients = self
+            .peers_status
+            .clients
+            .iter()
+            .filter(|(id, _)| peer_ids.contains(id))
+            .collect::<HashMap<&PeerId, &EphemeraHttpClient>>();
+
+        let mut correct_count = 0;
+        for (peer_id, client) in clients.iter() {
+            let info = client.broadcast_info().await?;
+            if info.current_members != peer_ids {
+                println!("Peer {} has wrong broadcast group: {:?}\n", peer_id, info);
+            } else {
+                correct_count += 1;
+                println!("Peer {} has correct broadcast group: {:?}\n", peer_id, info);
+            }
+        }
+        if correct_count == clients.len() {
+            println!("All peers have correct broadcast groups\n");
+        } else {
+            println!("Some peers have wrong broadcast groups\n");
+        }
+        Ok(())
     }
 }
 
@@ -85,6 +143,17 @@ impl PeersStatus {
             node_names: nodes,
         }
     }
+
+    fn json_info(&self, ids: &HashSet<PeerId>) -> Vec<JsonPeerInfo> {
+        let mut json_info = vec![];
+        for peer_id in ids {
+            if let Some(info) = self.all_peers.get(peer_id) {
+                json_info.push(info.clone());
+            }
+        }
+        json_info
+    }
+
     fn read_peers_config() -> Vec<JsonPeerInfo> {
         let mut peers = vec![];
         let path = Configuration::ephemera_root_dir()
@@ -109,33 +178,12 @@ impl PeersStatus {
 }
 
 /// Returns all peers.
-pub(crate) struct PeersProvider {
-    peers_status: PeersStatus,
-}
-
-impl PeersProvider {
-    pub(crate) fn new() -> Self {
-        let peers_status = PeersStatus::new();
-        Self { peers_status }
-    }
-}
+pub(crate) struct PeersProvider;
 
 #[async_trait]
 impl Provider for PeersProvider {
-    async fn peers(&self) -> Vec<JsonPeerInfo> {
-        self.peers_status.all_peers.values().cloned().collect()
-    }
-
-    async fn check_broadcast_groups(&self) -> anyhow::Result<()> {
-        let all_peer_ids: HashSet<_> = self.peers_status.all_peers.keys().cloned().collect();
-
-        for (peer_id, client) in &self.peers_status.clients {
-            let info = client.broadcast_info().await?;
-            assert_eq!(info.current_members, all_peer_ids);
-            assert!(info.current_members.contains(peer_id));
-        }
-        println!("All peers are in broadcast groups");
-        Ok(())
+    async fn peers(&self, status: &PeersStatus) -> HashSet<PeerId> {
+        status.all_peers.keys().cloned().collect()
     }
 }
 
@@ -143,100 +191,46 @@ impl Provider for PeersProvider {
 ///
 /// Broadcasts info should contain only peers it returns.
 pub(crate) struct ReducingPeerProvider {
-    peers_status: PeersStatus,
     //For example if peers length is 6 and ratio is 0.2, then 1 peer will be removed.
     reduce_ratio: f64,
 }
 
 impl ReducingPeerProvider {
     pub(crate) fn new(reduce_ratio: f64) -> Self {
-        let peers_status = PeersStatus::new();
-        Self {
-            peers_status,
-            reduce_ratio,
-        }
-    }
-
-    fn get_reduced_peers(&self) -> Vec<JsonPeerInfo> {
-        let mut active_peers = vec![];
-        let reduce_count = (self.peers_status.all_peers.len() as f64 * self.reduce_ratio) as usize;
-        let peers_count = self.peers_status.all_peers.len() - reduce_count;
-        println!(
-            "Reducing peers count from {} to {}",
-            self.peers_status.all_peers.len(),
-            peers_count
-        );
-
-        self.peers_status
-            .node_names
-            .values()
-            .take(peers_count)
-            .for_each(|peer_id| {
-                active_peers.push(self.peers_status.all_peers.get(peer_id).unwrap().clone());
-            });
-
-        println!("Reduced peers: {:?}", active_peers);
-        active_peers
+        Self { reduce_ratio }
     }
 }
 
 #[async_trait]
 impl Provider for ReducingPeerProvider {
-    async fn peers(&self) -> Vec<JsonPeerInfo> {
-        let mut reduced_peers = vec![];
-        let reduce_count = (self.peers_status.all_peers.len() as f64 * self.reduce_ratio) as usize;
-        let peers_count = self.peers_status.all_peers.len() - reduce_count;
+    async fn peers(&self, status: &PeersStatus) -> HashSet<PeerId> {
+        let all_peers = &status.all_peers;
+        let reduce_count = (all_peers.len() as f64 * self.reduce_ratio) as usize;
+        let peers_count = all_peers.len() - reduce_count;
         println!(
             "Reducing peers count from {} to {}",
-            self.peers_status.all_peers.len(),
+            all_peers.len(),
             peers_count
         );
 
-        self.peers_status
-            .node_names
-            .values()
-            .take(peers_count)
-            .for_each(|peer_id| {
-                reduced_peers.push(self.peers_status.all_peers.get(peer_id).unwrap().clone());
-            });
+        let mut sorted_by_name: Vec<PeerId> = all_peers.keys().cloned().collect();
+        sorted_by_name.sort_by(|a, b| {
+            let p1 = &all_peers.get(a).unwrap().name;
+            let p2 = &all_peers.get(&b).unwrap().name;
+            p1.cmp(p2)
+        });
 
-        println!("Reduced peers: {:?}", reduced_peers);
-        reduced_peers
-    }
-
-    async fn check_broadcast_groups(&self) -> anyhow::Result<()> {
-        let active_peers = self.get_reduced_peers();
-        let active_peer_ids = active_peers
-            .iter()
-            .map(|peer| self.peers_status.node_names.get(&peer.name).unwrap())
-            .collect::<HashSet<_>>();
-
-        for (id, client) in &self.peers_status.clients {
-            let info = client.broadcast_info().await?;
-            assert!(info
-                .current_members
-                .iter()
-                .all(|peer| active_peer_ids.contains(peer)));
-            println!("{}: {:?}", id, info);
-        }
-        Ok(())
+        sorted_by_name.iter().take(peers_count).cloned().collect()
     }
 }
 
 /// Broadcast groups should contain all peers which are alive.
-pub(crate) struct HealthCheckPeersProvider {
-    peers_status: PeersStatus,
-}
+pub(crate) struct HealthCheckPeersProvider;
 
 impl HealthCheckPeersProvider {
-    pub(crate) fn new() -> Self {
-        let peers_status = PeersStatus::new();
-        Self { peers_status }
-    }
-
-    async fn responsive_peers(&self) -> anyhow::Result<HashSet<PeerId>> {
+    async fn responsive_peers(&self, status: &PeersStatus) -> anyhow::Result<HashSet<PeerId>> {
         let mut responsive_peers = HashSet::new();
-        for (id, client) in &self.peers_status.clients {
+        for (id, client) in &status.clients {
             if client.health().await.is_ok() {
                 responsive_peers.insert(*id);
             }
@@ -247,28 +241,9 @@ impl HealthCheckPeersProvider {
 
 #[async_trait]
 impl Provider for HealthCheckPeersProvider {
-    async fn peers(&self) -> Vec<JsonPeerInfo> {
-        let responsive_peers = self.responsive_peers().await.unwrap();
-        self.peers_status
-            .all_peers
-            .iter()
-            .filter(|(id, _)| responsive_peers.contains(id))
-            .map(|(_, info)| info.clone())
-            .collect()
-    }
-
-    //TODO: check the time between this call and http peers call, so that check peers based on last peers call
-    async fn check_broadcast_groups(&self) -> anyhow::Result<()> {
-        let responsive_peers = self.responsive_peers().await?;
+    async fn peers(&self, status: &PeersStatus) -> HashSet<PeerId> {
+        let responsive_peers = self.responsive_peers(status).await.unwrap();
         println!("Responsive peers: {:?}", responsive_peers);
-
-        thread::sleep(Duration::from_secs(30));
-
-        for (id, client) in &self.peers_status.clients {
-            let info = client.broadcast_info().await?;
-            assert_eq!(info.current_members, responsive_peers);
-            println!("{}: {:?}", id, info);
-        }
-        Ok(())
+        responsive_peers.into_iter().collect()
     }
 }

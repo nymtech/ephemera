@@ -9,8 +9,8 @@ use crate::peer::PeerId;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum GroupChangeEvent {
     PeersUpdated(HashSet<PeerId>),
-    LocalPeerRemoved,
-    NotEnoughPeers,
+    LocalPeerRemoved(HashSet<PeerId>),
+    NotEnoughPeers(HashSet<PeerId>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

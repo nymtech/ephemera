@@ -242,6 +242,20 @@ impl ApiBroadcastInfo {
     }
 }
 
+impl Display for ApiBroadcastInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let current_members = self
+            .current_members
+            .iter()
+            .map(|peer_id| peer_id.to_string());
+        write!(
+            f,
+            "{{ local_peer_id: {}, current_members: {current_members:?} }}",
+            self.local_peer_id,
+        )
+    }
+}
+
 impl Display for ApiEphemeraMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

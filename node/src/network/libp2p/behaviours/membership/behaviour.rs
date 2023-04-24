@@ -119,9 +119,9 @@ pub(crate) enum Event {
     /// We have finished trying to connect to new peers and going to report it.
     PeersUpdated(HashSet<PeerId>),
     /// MembersProviderFut reported us new peers and this set doesn't contain our local peer.
-    LocalRemoved,
+    LocalRemoved(HashSet<PeerId>),
     /// MembersProviderFut reported us new peers and we failed to connect to enough of them.
-    NotEnoughPeers,
+    NotEnoughPeers(HashSet<PeerId>),
 }
 
 pub(crate) struct Behaviour<P>
@@ -343,7 +343,9 @@ where
                             //we should ignore it and assume that this is a bug in the membership service.
 
                             warn!("Received empty peers from provider. To try again before preconfigured interval, please restart the node.");
-                            return Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers));
+                            return Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers(
+                                Default::default(),
+                            )));
                         }
 
                         let mut new_peers = HashMap::new();
@@ -403,7 +405,9 @@ where
                     }
                     Err(err) => {
                         error!("Error while getting peers from provider: {:?}", err);
-                        Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers))
+                        Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers(
+                            Default::default(),
+                        )))
                     }
                 }
             }
@@ -487,17 +491,19 @@ where
                 }
 
                 let membership = self.memberships.current();
+                let membership_connected_peers = membership.connected_peer_ids();
+
                 let event = if membership.includes_local() {
                     if self.membership_kind.accept(membership) {
                         debug!("Membership accepted by kind: {:?}", self.membership_kind);
-                        Event::PeersUpdated(membership.connected_peer_ids())
+                        Event::PeersUpdated(membership_connected_peers)
                     } else {
                         debug!("Membership rejected by kind: {:?}", self.membership_kind);
-                        Event::NotEnoughPeers
+                        Event::NotEnoughPeers(membership_connected_peers)
                     }
                 } else {
                     debug!("Membership does not include local peer");
-                    Event::LocalRemoved
+                    Event::LocalRemoved(membership_connected_peers)
                 };
 
                 //TODO: this list should also include "old" peers(peers who aren't part of new membership).

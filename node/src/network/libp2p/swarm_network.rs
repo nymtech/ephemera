@@ -315,14 +315,16 @@ where
             behaviours::membership::behaviour::Event::PeerUpdatePending => {
                 info!("Peer update pending");
             }
-            behaviours::membership::behaviour::Event::LocalRemoved => {
+            behaviours::membership::behaviour::Event::LocalRemoved(peers_ids) => {
                 //TODO: should pause all network block and message activities...?
-                let update = NetworkEvent::GroupUpdate(LocalPeerRemoved);
+                let peers_ids = peers_ids.into_iter().map(Into::into).collect();
+                let update = NetworkEvent::GroupUpdate(LocalPeerRemoved(peers_ids));
                 self.to_ephemera_tx.send_network_event(update).await?;
             }
-            behaviours::membership::behaviour::Event::NotEnoughPeers => {
+            behaviours::membership::behaviour::Event::NotEnoughPeers(peers_ids) => {
                 //TODO: should pause all network block and message activities...?
-                let update = NetworkEvent::GroupUpdate(NotEnoughPeers);
+                let peers_ids = peers_ids.into_iter().map(Into::into).collect();
+                let update = NetworkEvent::GroupUpdate(NotEnoughPeers(peers_ids));
                 self.to_ephemera_tx.send_network_event(update).await?;
             }
         }

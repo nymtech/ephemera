@@ -47,7 +47,7 @@ impl BroadcastGroup {
             .unwrap_or(true)
     }
 
-    pub(crate) fn current_group(&mut self) -> &HashSet<PeerId> {
+    pub(crate) fn current(&mut self) -> &HashSet<PeerId> {
         self.snapshots
             .get(&self.current_id)
             .expect("Current group should always exist")

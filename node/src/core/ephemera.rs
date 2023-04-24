@@ -218,10 +218,10 @@ impl<A: Application> Ephemera<A> {
                 self.broadcast_group.add_snapshot(peers);
                 self.block_manager.start();
             }
-            GroupChangeEvent::LocalPeerRemoved | GroupChangeEvent::NotEnoughPeers => {
+            GroupChangeEvent::LocalPeerRemoved(peers) | GroupChangeEvent::NotEnoughPeers(peers) => {
                 info!("Group update: Local peer removed or not enough peers");
                 self.broadcaster.group_updated(0);
-                self.broadcast_group.add_snapshot(Default::default());
+                self.broadcast_group.add_snapshot(peers);
                 self.block_manager.stop();
             }
         }
@@ -401,6 +401,6 @@ impl<A: Application> Ephemera<A> {
     }
 
     pub(crate) fn broadcast_group(&mut self) -> &HashSet<PeerId> {
-        self.broadcast_group.current_group()
+        self.broadcast_group.current()
     }
 }

@@ -17,7 +17,7 @@ struct ProviderArgs {
     #[clap(long)]
     all: Option<bool>,
     #[clap(long)]
-    reduced: Option<bool>,
+    reduced: Option<f64>,
     #[clap(long)]
     healthy: Option<bool>,
 }
@@ -32,13 +32,8 @@ struct RunProviderArgs {
 }
 
 const EPHEMERA_IP: &str = "127.0.0.1";
-
-// Node 1 port is 3000, Node2 port is 3001, etc.
-const EPHEMERA_PORT_BASE: u16 = 3000;
-
 // Node 1 http port is 7000, Node2 http port is 7001, etc.
 const HTTP_API_PORT_BASE: u16 = 7000;
-
 const PEERS_API_PORT: u16 = 8000;
 
 #[derive(serde::Deserialize)]
@@ -72,13 +67,14 @@ async fn main() -> anyhow::Result<()> {
 
 async fn get_provider(args: &ProviderArgs) -> Box<dyn Provider> {
     match args {
-        ProviderArgs { all: Some(_), .. } => Box::new(PeersProvider::new()),
+        ProviderArgs { all: Some(_), .. } => Box::new(PeersProvider),
         ProviderArgs {
-            reduced: Some(_), ..
-        } => Box::new(ReducingPeerProvider::new(0.7)),
+            reduced: Some(ratio),
+            ..
+        } => Box::new(ReducingPeerProvider::new(*ratio)),
         ProviderArgs {
             healthy: Some(_), ..
-        } => Box::new(HealthCheckPeersProvider::new()),
+        } => Box::new(HealthCheckPeersProvider),
         _ => panic!("No provider selected"),
     }
 }
