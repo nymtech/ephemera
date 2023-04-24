@@ -8,44 +8,17 @@ use crate::{
     block::types::block::Block,
     broadcast::{
         bracha::quorum::BrachaQuorum,
-        Command,
         MessageType::{Echo, Vote},
-        ProtocolContext, RawRbMsg, Status,
+        ProtocolContext, RawRbMsg,
     },
     utilities::hash::HashType,
 };
 
 #[derive(Debug)]
-pub(crate) struct ProtocolResponse {
-    pub(crate) status: Status,
-    pub(crate) command: Command,
-    pub(crate) protocol_reply: Option<RawRbMsg>,
-}
-
-impl ProtocolResponse {
-    pub(crate) fn broadcast(msg: RawRbMsg) -> ProtocolResponse {
-        ProtocolResponse {
-            status: Status::Pending,
-            command: Command::Broadcast,
-            protocol_reply: Some(msg),
-        }
-    }
-
-    pub(crate) fn deliver() -> ProtocolResponse {
-        ProtocolResponse {
-            status: Status::Completed,
-            command: Command::Drop,
-            protocol_reply: None,
-        }
-    }
-
-    pub(crate) fn drop() -> ProtocolResponse {
-        ProtocolResponse {
-            status: Status::Pending,
-            command: Command::Drop,
-            protocol_reply: None,
-        }
-    }
+pub(crate) enum BroadcastResponse {
+    Deliver(HashType),
+    Drop(HashType),
+    Broadcast(RawRbMsg),
 }
 
 pub(crate) struct Broadcaster {
@@ -63,13 +36,16 @@ impl Broadcaster {
         }
     }
 
-    pub(crate) async fn new_broadcast(&mut self, block: Block) -> anyhow::Result<ProtocolResponse> {
+    pub(crate) async fn new_broadcast(
+        &mut self,
+        block: Block,
+    ) -> anyhow::Result<BroadcastResponse> {
         debug!("Starting broadcast for new block {:?}", block.get_hash());
         let rb_msg = RawRbMsg::new(block, self.local_peer_id);
         self.handle(rb_msg).await
     }
 
-    pub(crate) async fn handle(&mut self, rb_msg: RawRbMsg) -> anyhow::Result<ProtocolResponse> {
+    pub(crate) async fn handle(&mut self, rb_msg: RawRbMsg) -> anyhow::Result<BroadcastResponse> {
         let block = &rb_msg.block();
         let hash = block.hash_with_default_hasher()?;
 
@@ -81,7 +57,7 @@ impl Broadcaster {
 
         if ctx.delivered {
             debug!("Block {hash:?} already delivered");
-            return Ok(ProtocolResponse::drop());
+            return Ok(BroadcastResponse::Drop(hash));
         }
 
         match rb_msg.message_type.clone() {
@@ -104,7 +80,7 @@ impl Broadcaster {
         &mut self,
         rb_msg: RawRbMsg,
         hash: HashType,
-    ) -> anyhow::Result<ProtocolResponse> {
+    ) -> anyhow::Result<BroadcastResponse> {
         let ctx = self.contexts.get_mut(&hash).unwrap();
 
         if self.local_peer_id != rb_msg.original_sender {
@@ -116,7 +92,7 @@ impl Broadcaster {
             ctx.add_echo(self.local_peer_id);
 
             trace!("Sending echo reply for {hash:?}",);
-            return Ok(ProtocolResponse::broadcast(
+            return Ok(BroadcastResponse::Broadcast(
                 rb_msg.echo_reply(self.local_peer_id, rb_msg.block()),
             ));
         }
@@ -130,19 +106,19 @@ impl Broadcaster {
             ctx.add_vote(self.local_peer_id);
 
             trace!("Sending vote reply for {hash:?}",);
-            return Ok(ProtocolResponse::broadcast(
+            return Ok(BroadcastResponse::Broadcast(
                 rb_msg.vote_reply(self.local_peer_id, rb_msg.block()),
             ));
         }
 
-        Ok(ProtocolResponse::drop())
+        Ok(BroadcastResponse::Drop(hash))
     }
 
     async fn process_vote(
         &mut self,
         rb_msg: RawRbMsg,
         hash: HashType,
-    ) -> anyhow::Result<ProtocolResponse> {
+    ) -> anyhow::Result<BroadcastResponse> {
         let block = &rb_msg.block();
         let ctx = self.contexts.get_mut(&hash).unwrap();
 
@@ -159,7 +135,7 @@ impl Broadcaster {
             ctx.add_vote(self.local_peer_id);
 
             trace!("Sending vote reply for {hash:?}",);
-            return Ok(ProtocolResponse::broadcast(
+            return Ok(BroadcastResponse::Broadcast(
                 rb_msg.vote_reply(self.local_peer_id, block.clone()),
             ));
         }
@@ -173,10 +149,10 @@ impl Broadcaster {
 
             ctx.delivered = true;
 
-            return Ok(ProtocolResponse::deliver());
+            return Ok(BroadcastResponse::Deliver(hash));
         }
 
-        Ok(ProtocolResponse::drop())
+        Ok(BroadcastResponse::Drop(hash))
     }
 }
 
@@ -196,7 +172,7 @@ mod tests {
 
     use assert_matches::assert_matches;
 
-    use crate::broadcast::bracha::broadcaster::ProtocolResponse;
+    use crate::broadcast::bracha::broadcaster::BroadcastResponse;
     use crate::peer::PeerId;
     use crate::utilities::hash::HashType;
     use crate::{
@@ -266,9 +242,7 @@ mod tests {
 
         let response = handle_double(broadcaster, rb_msg).await;
 
-        assert_matches!(response.status, broadcast::Status::Completed);
-        assert_matches!(response.command, broadcast::Command::Drop);
-        assert_matches!(response.protocol_reply, None);
+        assert_matches!(response, BroadcastResponse::Deliver(_));
     }
 
     async fn receive_nr_of_echo_messages_below_vote_threshold(
@@ -281,9 +255,7 @@ mod tests {
 
             let response = handle_double(broadcaster, rb_msg).await;
 
-            assert_matches!(response.status, broadcast::Status::Pending);
-            assert_matches!(response.command, broadcast::Command::Drop);
-            assert_matches!(response.protocol_reply, None);
+            assert_matches!(response, BroadcastResponse::Drop(_));
         }
     }
 
@@ -297,9 +269,7 @@ mod tests {
             let rb_msg = rb_msg.vote_reply(*peer_id, block.clone());
 
             let response = handle_double(broadcaster, rb_msg).await;
-            assert_matches!(response.status, broadcast::Status::Pending);
-            assert_matches!(response.command, broadcast::Command::Drop);
-            assert_matches!(response.protocol_reply, None);
+            assert_matches!(response, BroadcastResponse::Drop(_));
         }
     }
 
@@ -311,11 +281,9 @@ mod tests {
         let rb_msg = RawRbMsg::new(block.clone(), block_creator);
         let response = handle_double(broadcaster, rb_msg).await;
 
-        assert_matches!(response.status, broadcast::Status::Pending);
-        assert_matches!(response.command, broadcast::Command::Broadcast);
         assert_matches!(
-            response.protocol_reply,
-            Some(RawRbMsg {
+            response,
+            BroadcastResponse::Broadcast(RawRbMsg {
                 id: _,
                 request_id: _,
                 original_sender: _,
@@ -333,11 +301,9 @@ mod tests {
         let rb_msg = RawRbMsg::new(block.clone(), peer_id);
 
         let response = handle_double(broadcaster, rb_msg).await;
-        assert_matches!(response.status, broadcast::Status::Pending);
-        assert_matches!(response.command, broadcast::Command::Broadcast);
         assert_matches!(
-            response.protocol_reply,
-            Some(RawRbMsg {
+            response,
+            BroadcastResponse::Broadcast(RawRbMsg {
                 id: _,
                 request_id: _,
                 original_sender: _,
@@ -356,7 +322,7 @@ mod tests {
     }
 
     //make sure that duplicate messages doesn't have impact
-    async fn handle_double(broadcaster: &mut Broadcaster, rb_msg: RawRbMsg) -> ProtocolResponse {
+    async fn handle_double(broadcaster: &mut Broadcaster, rb_msg: RawRbMsg) -> BroadcastResponse {
         let response = broadcaster.handle(rb_msg.clone()).await.unwrap();
         broadcaster.handle(rb_msg).await.unwrap();
         response

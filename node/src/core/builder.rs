@@ -49,19 +49,12 @@ pub(crate) struct NodeInfo {
 impl NodeInfo {
     pub(crate) fn new(config: Configuration) -> anyhow::Result<Self> {
         let keypair = KeyManager::read_keypair_from_str(&config.node.private_key)?;
-        let peer_id = keypair.peer_id();
-
-        let ip = config.node.ip.clone();
-        let protocol_port = config.libp2p.port;
-        let ws_port = config.websocket.port;
-        let http_port = config.http.port;
-
         let info = Self {
-            ip,
-            protocol_port,
-            http_port,
-            ws_port,
-            peer_id,
+            ip: config.node.ip.clone(),
+            protocol_port: config.libp2p.port,
+            http_port: config.http.port,
+            ws_port: config.websocket.port,
+            peer_id: keypair.peer_id(),
             keypair,
             initial_config: config,
         };
@@ -104,7 +97,7 @@ impl Display for NodeInfo {
 pub struct EphemeraHandle {
     /// Ephemera API
     pub api: EphemeraExternalApi,
-    /// Ephemera shutdown handle
+    /// Allows to send shutdown signal to the node
     pub shutdown: ShutdownHandle,
 }
 
@@ -128,13 +121,11 @@ where
     api: EphemeraExternalApi,
 }
 
-//TODO: make keypair centrally accessible and coping everywhere(even Arc)
 impl<A, P> EphemeraStarter<A, P>
 where
     A: Application + 'static,
     P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
-    //Crate pure data structures, no resource allocation nor threads
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
         let instance_info = NodeInfo::new(config.clone())?;
 
@@ -173,10 +164,9 @@ where
         }
     }
 
-    pub fn with_application(self, application: A) -> EphemeraStarter<A, P>
+    pub fn with_application(self, application: A) -> Self
     where
         A: Application + 'static,
-        P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
     {
         Self {
             application: Some(application),
@@ -184,7 +174,7 @@ where
         }
     }
 
-    //opens database and spawns dependent tasks
+    //opens database and spawns services(http, websocket, network)
     pub async fn init_tasks(self) -> anyhow::Result<Ephemera<A>> {
         info!("Initializing ephemera tasks...");
         cfg_if::cfg_if! {
@@ -195,7 +185,7 @@ where
             } else {
                 compile_error!("Must enable either sqlite or rocksdb feature");
             }
-        };
+        }
 
         let mut builder = starter.init_block_manager().await?;
 
@@ -286,7 +276,6 @@ where
                     match http_stopped {
                         Ok(_) => info!("Http server stopped unexpectedly"),
                         Err(e) => error!("Http server stopped with error: {}", e),
-                        //http_shutdown.notify_error()
                     }
                 }
             }

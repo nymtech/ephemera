@@ -8,16 +8,14 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::api::application::CheckBlockResult;
+use crate::broadcast::bracha::broadcaster::BroadcastResponse;
 use crate::broadcast::group::BroadcastGroup;
 use crate::network::libp2p::network_sender::GroupChangeEvent;
 use crate::network::PeerId;
 use crate::{
     api::{application::Application, ApiListener},
     block::{manager::BlockManager, types::block::Block},
-    broadcast::{
-        bracha::broadcaster::{Broadcaster, ProtocolResponse},
-        Command, RbMsg, Status,
-    },
+    broadcast::{bracha::broadcaster::Broadcaster, RbMsg},
     core::{
         api_cmd::ApiCmdProcessor,
         builder::{EphemeraHandle, NodeInfo},
@@ -93,17 +91,12 @@ impl<A: Application> Ephemera<A> {
 
     /// Main loop of ephemera node.
     /// 1. Block manager generates new blocks.
-    /// 2. Receive new ephemera messages(transactions) from network.
-    /// 3. Receive new protocol messages(blocks) from network.
+    /// 2. Receive messages from network.
+    /// 3. Receive blocks from network.
     /// 4. Receive http api request
     /// 5. Receive rust api request
-    /// 6. Publish ephemera messages to network
-    /// 7. Publish broadcast messages to network
-    ///
-    /// It works in a loop like nodejs event loop. At current stage of development I haven't analyzed
-    /// how this workflow affects the overall system performance and its impact to each affected component
-    /// individually. Because it's not expected(at its current scope) to be an extremely high performance
-    /// system, I'm not worried about it at this stage.
+    /// 6. Publish(gossip) messages to network
+    /// 7. Publish blocks to network
     pub async fn run(mut self) {
         let mut shutdown_manager = self
             .shutdown_manager
@@ -274,25 +267,18 @@ impl<A: Application> Ephemera<A> {
         //Block manager generated new block that nobody hasn't seen yet.
         //We start reliable broadcaster protocol to broadcaster it to other nodes.
         match self.broadcaster.new_broadcast(new_block).await {
-            Ok(ProtocolResponse {
-                status: _,
-                command,
-                protocol_reply: Some(rp),
-            }) => {
-                if command == Command::Broadcast {
-                    trace!("Broadcasting new block: {:?}", rp);
+            Ok(resp) => {
+                if let BroadcastResponse::Broadcast(msg) = resp {
+                    trace!("Broadcasting new block: {:?}", msg);
 
-                    let rb_msg = RbMsg::new(rp, certificate);
+                    let rb_msg = RbMsg::new(msg, certificate);
                     self.to_network
                         .send_ephemera_event(EphemeraEvent::ProtocolMessage(rb_msg.into()))
                         .await?;
                 }
             }
-            Ok(_) => {
-                return Err(anyhow!("Error sending new block to broadcaster").into());
-            }
             Err(err) => {
-                return Err(anyhow!("Error sending new block to broadcaster: {err:?}").into());
+                error!("Error starting new broadcast: {:?}", err);
             }
         }
         Ok(())
@@ -323,80 +309,85 @@ impl<A: Application> Ephemera<A> {
         if let Err(err) = self.block_manager.on_block(sender, block, &certificate) {
             return Err(anyhow!("Error sending block to block manager: {:?}", err).into());
         }
-
-        //Send to local RB protocol
         match self.broadcaster.handle(msg.into()).await {
-            Ok(ProtocolResponse {
-                status: _,
-                command: Command::Broadcast,
-                protocol_reply: Some(rp),
-            }) => {
-                trace!("Broadcasting block to network: {:?}", rp);
+            Ok(resp) => {
+                match resp {
+                    BroadcastResponse::Broadcast(msg) => {
+                        trace!("Broadcasting block to network: {:?}", msg);
 
-                match self.block_manager.sign_block(&rp.block()) {
-                    Ok(certificate) => {
-                        let rb_msg = RbMsg::new(rp, certificate);
-                        self.to_network
-                            .send_ephemera_event(EphemeraEvent::ProtocolMessage(rb_msg.into()))
-                            .await?;
-                    }
-                    Err(err) => {
-                        return Err(anyhow!("Error signing block: {:?}", err).into());
-                    }
-                }
-            }
-            Ok(ProtocolResponse {
-                status: Status::Completed,
-                command: _,
-                protocol_reply: None,
-            }) => {
-                debug!("Block broadcast complete: {hash:?}",);
-                let block = self.block_manager.get_block_by_hash(&hash);
-                match block {
-                    Some(block) => {
-                        if block.header.creator == self.node_info.peer_id {
-                            debug!("It's local block: {hash:?}",);
-
-                            //DB
-                            let certificates = self
-                                .block_manager
-                                .get_block_certificates(&block.header.hash)
-                                .ok_or(anyhow!(
-                                    "Error: Block signatures not found in block manager"
-                                ))?;
-
-                            self.storage
-                                .lock()
-                                .await
-                                .store_block(&block, certificates)?;
-
-                            //BlockManager
-                            self.block_manager.on_block_committed(&block).map_err(|e| {
-                                anyhow!("Error: BlockManager failed to process block: {:?}", e)
-                            })?;
-
-                            //Application(ABCI)
-                            self.application
-                                .deliver_block(Into::into(block.clone()))
-                                .map_err(|e| {
-                                    anyhow!("Error: Deliver block to Application failed: {e:?}",)
-                                })?;
-
-                            //WS
-                            self.ws_message_broadcast.send_block(&block)?;
+                        match self.block_manager.sign_block(&msg.block()) {
+                            Ok(certificate) => {
+                                let rb_msg = RbMsg::new(msg, certificate);
+                                self.to_network
+                                    .send_ephemera_event(EphemeraEvent::ProtocolMessage(
+                                        rb_msg.into(),
+                                    ))
+                                    .await?;
+                            }
+                            Err(err) => {
+                                return Err(anyhow!("Error signing block: {:?}", err).into());
+                            }
                         }
                     }
-                    None => {
-                        return Err(anyhow!("Error: Block not found in block manager").into());
+                    BroadcastResponse::Deliver(hash) => {
+                        debug!("Block broadcast complete: {hash:?}",);
+                        let block = self.block_manager.get_block_by_hash(&hash);
+                        match block {
+                            Some(block) => {
+                                if block.header.creator == self.node_info.peer_id {
+                                    debug!("It's local block: {hash:?}",);
+
+                                    //DB
+                                    let certificates = self
+                                        .block_manager
+                                        .get_block_certificates(&block.header.hash)
+                                        .ok_or(anyhow!(
+                                            "Error: Block signatures not found in block manager"
+                                        ))?;
+
+                                    self.storage
+                                        .lock()
+                                        .await
+                                        .store_block(&block, certificates)?;
+
+                                    //BlockManager
+                                    self.block_manager.on_block_committed(&block).map_err(|e| {
+                                        anyhow!(
+                                            "Error: BlockManager failed to process block: {:?}",
+                                            e
+                                        )
+                                    })?;
+
+                                    //Application(ABCI)
+                                    self.application
+                                        .deliver_block(Into::into(block.clone()))
+                                        .map_err(|e| {
+                                            anyhow!(
+                                                "Error: Deliver block to Application failed: {e:?}",
+                                            )
+                                        })?;
+
+                                    //WS
+                                    self.ws_message_broadcast.send_block(&block)?;
+                                }
+                            }
+                            None => {
+                                return Err(
+                                    anyhow!("Error: Block not found in block manager").into()
+                                );
+                            }
+                        }
+                    }
+                    BroadcastResponse::Drop(hash) => {
+                        trace!("Ignoring broadcast message {:?}[block {:?}]", msg_id, hash);
+                        return Ok(());
                     }
                 }
             }
-            Ok(_) => {
-                trace!("Ignoring broadcast message {:?}[block {:?}]", msg_id, hash);
-                return Ok(());
+            Err(err) => {
+                error!("Error handling broadcast message: {:?}", err);
             }
-            Err(e) => error!("Error: {}", e),
-        };
+        }
         Ok(())
     }
 
