@@ -8,7 +8,7 @@ use tokio::sync::oneshot::Sender;
 
 use ephemera::configuration::Configuration;
 use ephemera::crypto::PublicKey;
-use ephemera::ephemera_api::EphemeraHttpClient;
+use ephemera::ephemera_api::Client;
 use ephemera::membership::JsonPeerInfo;
 use ephemera::peer::PeerId;
 
@@ -92,7 +92,7 @@ impl ProviderRunner {
             .clients
             .iter()
             .filter(|(id, _)| peer_ids.contains(id))
-            .collect::<HashMap<&PeerId, &EphemeraHttpClient>>();
+            .collect::<HashMap<&PeerId, &Client>>();
 
         let mut correct_count = 0;
         for (peer_id, client) in clients.iter() {
@@ -115,7 +115,7 @@ impl ProviderRunner {
 
 pub(crate) struct PeersStatus {
     all_peers: HashMap<PeerId, JsonPeerInfo>,
-    clients: HashMap<PeerId, EphemeraHttpClient>,
+    clients: HashMap<PeerId, Client>,
     node_names: BTreeMap<String, PeerId>,
 }
 
@@ -131,7 +131,7 @@ impl PeersStatus {
             let peer_id = PeerId::from_public_key(&pub_key);
 
             let url = format!("http://{EPHEMERA_IP}:{}", HTTP_API_PORT_BASE + i as u16);
-            let client = EphemeraHttpClient::new(url);
+            let client = Client::new(url);
 
             clients.insert(peer_id, client);
             all_peers.insert(peer_id, info.clone());
@@ -216,7 +216,7 @@ impl Provider for ReducingPeerProvider {
         let mut sorted_by_name: Vec<PeerId> = all_peers.keys().cloned().collect();
         sorted_by_name.sort_by(|a, b| {
             let p1 = &all_peers.get(a).unwrap().name;
-            let p2 = &all_peers.get(&b).unwrap().name;
+            let p2 = &all_peers.get(b).unwrap().name;
             p1.cmp(p2)
         });
 

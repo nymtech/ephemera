@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::crypto::PublicKey;
-
 use crate::network::{Address, Peer};
 use crate::peer::PeerId;
 
@@ -58,21 +57,23 @@ impl TryFrom<PeerInfo> for Peer {
 }
 
 #[derive(Error, Debug)]
-pub enum MembersProviderError {
-    //Just a placeholder for now
+pub enum ProviderError {
+    #[error("ResourceUnavailable: {0}")]
+    ResourceUnavailable(String),
     #[error("GeneralError: {0}")]
-    GeneralError(#[from] anyhow::Error),
+    Other(#[from] anyhow::Error),
 }
 
 /// Future type which allows user to implement their own peers membership source mechanism.
-pub type MembersProviderFut = BoxFuture<'static, Result<Vec<PeerInfo>>>;
+pub type ProviderFut = BoxFuture<'static, Result<Vec<PeerInfo>>>;
 
-pub type Result<T> = std::result::Result<T, MembersProviderError>;
+pub type Result<T> = std::result::Result<T, ProviderError>;
 
 /// A membership provider that does nothing.
 /// Might be useful for testing.
 pub struct DummyMembersProvider;
 
+#[allow(clippy::missing_errors_doc, clippy::unused_async)]
 impl DummyMembersProvider {
     pub async fn empty_peers_list() -> Result<Vec<PeerInfo>> {
         Ok(vec![])
@@ -82,7 +83,7 @@ impl DummyMembersProvider {
 #[derive(Error, Debug)]
 pub enum ConfigMembersProviderError {
     #[error("ConfigDoesNotExist: '{0}'")]
-    DoesNotExist(String),
+    NotExist(String),
     #[error("ParsingFailed: {0}")]
     ParsingFailed(#[from] config::ConfigError),
     #[error("TomlError: {0}")]
@@ -130,7 +131,7 @@ impl TryFrom<PeerSetting> for PeerInfo {
     }
 }
 
-///[MembersProviderFut] that reads the peers from a toml config file.
+///[`ProviderFut`] that reads the peers from a toml config file.
 ///
 /// # Configuration example
 /// ```toml
@@ -149,12 +150,37 @@ pub struct ConfigMembersProvider {
 }
 
 impl ConfigMembersProvider {
+    /// Creates a new [`ConfigMembersProvider`] instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the peers toml config file.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigMembersProviderError::NotExist`] if the file does not exist.
+    /// Returns [`ConfigMembersProviderError::ParsingFailed`] if the file is not a valid members file.
     pub fn init<I: Into<PathBuf>>(
         path: I,
     ) -> std::result::Result<Self, ConfigMembersProviderError> {
-        Ok(Self {
-            config_location: path.into(),
-        })
+        let path_buf = path.into();
+        if !path_buf.exists() {
+            return Err(ConfigMembersProviderError::NotExist(
+                path_buf.to_string_lossy().to_string(),
+            ));
+        }
+
+        let provider = Self {
+            config_location: path_buf,
+        };
+
+        if provider.read_config().is_err() {
+            return Err(ConfigMembersProviderError::ParsingFailed(
+                config::ConfigError::Message("Failed to parse config".to_string()),
+            ));
+        }
+
+        Ok(provider)
     }
 
     pub(crate) fn read_config(&self) -> Result<Vec<PeerInfo>> {
@@ -196,7 +222,7 @@ impl ConfigPeers {
             .add_source(config::File::from(path))
             .build()?;
 
-        config.try_deserialize().map_err(|err| err.into())
+        config.try_deserialize().map_err(Into::into)
     }
 
     pub(crate) fn try_write<I: Into<PathBuf>>(
@@ -240,6 +266,7 @@ pub struct JsonPeerInfo {
 }
 
 impl JsonPeerInfo {
+    #[must_use]
     pub fn new(name: String, address: String, pub_key: String) -> Self {
         Self {
             name,
@@ -262,9 +289,9 @@ impl TryFrom<JsonPeerInfo> for PeerInfo {
     }
 }
 
-///[MembersProviderFut] that reads peers from a http endpoint.
+///[`ProviderFut`] that reads peers from a http endpoint.
 ///
-/// The endpoint must return a json array of [JsonPeerInfo].
+/// The endpoint must return a json array of [`JsonPeerInfo`].
 /// # Configuration example
 /// ```json
 /// [
@@ -283,10 +310,11 @@ impl TryFrom<JsonPeerInfo> for PeerInfo {
 pub struct HttpMembersProvider {
     /// The url of the http endpoint.
     members_url: String,
-    fut: Option<MembersProviderFut>,
+    fut: Option<ProviderFut>,
 }
 
 impl HttpMembersProvider {
+    #[must_use]
     pub fn new(members_url: String) -> Self {
         Self {
             members_url,

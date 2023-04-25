@@ -9,9 +9,9 @@ use tokio::task::JoinHandle;
 
 use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, Keypair};
-use ephemera::ephemera_api::EphemeraExternalApi;
+use ephemera::ephemera_api::Commands;
 use ephemera::membership::HttpMembersProvider;
-use ephemera::{Ephemera, EphemeraStarter, ShutdownHandle};
+use ephemera::{Ephemera, EphemeraStarter, Handle};
 use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;
@@ -113,7 +113,7 @@ impl NymApi {
         args: Args,
         key_pair: Keypair,
         storage: Arc<Mutex<Storage<MetricsStorageType>>>,
-        ephemera_api: EphemeraExternalApi,
+        ephemera_api: Commands,
     ) -> RewardManager<V2> {
         let epoch = Epoch::request_epoch(args.smart_contract_url.clone()).await;
         let rewards: RewardManager<V2> = RewardManager::new(
@@ -128,7 +128,7 @@ impl NymApi {
 
     async fn shutdown_nym_api(
         shutdown: Receiver<()>,
-        ephemera_shutdown: &mut ShutdownHandle,
+        ephemera_shutdown: &mut Handle,
         shutdown_signal_tx: Sender<()>,
         ephemera: JoinHandle<()>,
         rewards: JoinHandle<()>,
@@ -167,7 +167,7 @@ impl NymApi {
 
     fn read_nym_api_keypair(ephemera_config: &Configuration) -> anyhow::Result<Keypair> {
         let key_pair = bs58::decode(&ephemera_config.node.private_key).into_vec()?;
-        let key_pair = Keypair::from_raw_vec(key_pair)?;
+        let key_pair = Keypair::from_bytes(key_pair)?;
         Ok(key_pair)
     }
 }

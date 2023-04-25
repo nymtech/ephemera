@@ -3,27 +3,27 @@
 //! It stores pending Ephemera messages which will be added to the next block.
 //! It doesn't have any other logic than just storing messages.
 //!
-//! It's up to the user provided [crate::ephemera_api::Application::check_tx] to decide which messages to include.
+//! It's up to the user provided [`crate::ephemera_api::Application::check_tx`] to decide which messages to include.
 
 use std::collections::HashMap;
 
 use log::{debug, trace, warn};
 
 use crate::block::types::message::EphemeraMessage;
-use crate::utilities::hash::HashType;
+use crate::utilities::hash::Hash;
 
 pub(crate) struct MessagePool {
-    pending_messages: HashMap<HashType, EphemeraMessage>,
+    pending_messages: HashMap<Hash, EphemeraMessage>,
 }
 
 impl MessagePool {
     pub(super) fn new() -> Self {
         Self {
-            pending_messages: Default::default(),
+            pending_messages: HashMap::default(),
         }
     }
 
-    pub(crate) fn contains(&self, hash: &HashType) -> bool {
+    pub(crate) fn contains(&self, hash: &Hash) -> bool {
         self.pending_messages.contains_key(hash)
     }
 

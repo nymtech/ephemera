@@ -1,13 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+use crate::utilities::codec::{Codec, DecodingError, EncodingError, EphemeraCodec};
 use crate::{
-    codec::{Decode, Encode, EphemeraEncoder},
+    codec::{Decode, Encode},
     utilities::{
         crypto::Certificate,
-        encoding::Encoder,
-        encoding::{Decoder, EphemeraDecoder},
         hash::{EphemeraHash, EphemeraHasher},
-        hash::{HashType, Hasher},
+        hash::{Hash, Hasher},
         time::EphemeraTime,
     },
 };
@@ -34,7 +33,7 @@ impl EphemeraMessage {
         }
     }
 
-    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<HashType> {
+    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<Hash> {
         let mut hasher = Hasher::default();
         self.hash(&mut hasher)?;
         let hash = hasher.finish().into();
@@ -43,16 +42,16 @@ impl EphemeraMessage {
 }
 
 impl Encode for EphemeraMessage {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Encoder::encode(&self)
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        Codec::encode(&self)
     }
 }
 
 impl Decode for EphemeraMessage {
     type Output = Self;
 
-    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
-        Decoder::decode(bytes)
+    fn decode(bytes: &[u8]) -> Result<Self::Output, DecodingError> {
+        Codec::decode(bytes)
     }
 }
 
@@ -92,7 +91,7 @@ impl From<EphemeraMessage> for RawEphemeraMessage {
 }
 
 impl Encode for RawEphemeraMessage {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Encoder::encode(&self)
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        Codec::encode(&self)
     }
 }

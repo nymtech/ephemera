@@ -2,6 +2,8 @@ use futures::{AsyncRead, AsyncWrite};
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 use log::error;
 
+#[allow(clippy::cast_possible_truncation)]
+
 pub(crate) async fn write_length_prefixed<D: AsRef<[u8]>, I: AsyncWrite + Unpin>(
     io: &mut I,
     data: D,
@@ -27,8 +29,7 @@ async fn read_varint<I: AsyncRead + Unpin>(io: &mut I) -> Result<u32, std::io::E
 
     loop {
         //read 1 byte at time because we don't know how it compacted 32 bit integer
-        io.read_exact(&mut buffer[buffer_len..buffer_len + 1])
-            .await?;
+        io.read_exact(&mut buffer[buffer_len..=buffer_len]).await?;
         buffer_len += 1;
         match unsigned_varint::decode::u32(&buffer[..buffer_len]) {
             Ok((len, _)) => {

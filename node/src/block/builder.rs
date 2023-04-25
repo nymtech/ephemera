@@ -12,19 +12,19 @@ use crate::{
         types::block::Block,
     },
     broadcast::signing::BlockSigner,
-    config::BlockConfig,
+    config::BlockManagerConfiguration,
     crypto::Keypair,
     storage::EphemeraDatabase,
 };
 
 pub(crate) struct BlockManagerBuilder {
-    config: BlockConfig,
+    config: BlockManagerConfiguration,
     block_producer: BlockProducer,
     keypair: Arc<Keypair>,
 }
 
 impl BlockManagerBuilder {
-    pub(crate) fn new(config: BlockConfig, keypair: Arc<Keypair>) -> Self {
+    pub(crate) fn new(config: BlockManagerConfiguration, keypair: Arc<Keypair>) -> Self {
         let block_producer = BlockProducer::new(keypair.peer_id());
         Self {
             config,
@@ -46,7 +46,7 @@ impl BlockManagerBuilder {
             info!("No last block found in database. Creating genesis block.");
 
             let genesis_block = Block::new_genesis_block(self.block_producer.peer_id);
-            storage.store_block(&genesis_block, vec![])?;
+            storage.store_block(&genesis_block, &[])?;
             most_recent_block = Some(genesis_block);
         }
 

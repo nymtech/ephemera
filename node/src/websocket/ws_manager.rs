@@ -81,6 +81,7 @@ pub(crate) struct WsManager {
 }
 
 impl WsManager {
+    #[allow(clippy::used_underscore_binding)]
     pub(crate) fn new(address: String) -> (WsManager, WsMessageBroadcaster) {
         let (pending_messages_tx, _pending_messages_rcv) = broadcast::channel(1000);
         let ws_message_broadcast = WsMessageBroadcaster::new(pending_messages_tx.clone());

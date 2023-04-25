@@ -75,16 +75,16 @@ impl From<kad::KademliaEvent> for GroupBehaviourEvent {
 //Gossipsub takes care of message delivery semantics
 //Membership takes care of providing peers who are part of the reliable broadcast group
 pub(crate) fn create_behaviour<P>(
-    keypair: Arc<Keypair>,
-    ephemera_msg_topic: Topic,
+    keypair: &Arc<Keypair>,
+    ephemera_msg_topic: &Topic,
     members_provider: P,
     members_provider_delay: Duration,
 ) -> GroupNetworkBehaviour<P>
 where
-    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
     let local_peer_id = keypair.peer_id();
-    let gossipsub = create_gossipsub(keypair.clone(), &ephemera_msg_topic);
+    let gossipsub = create_gossipsub(keypair, ephemera_msg_topic);
     let request_response = create_request_response();
     let rendezvous_behaviour =
         create_membership(members_provider, members_provider_delay, local_peer_id);
@@ -99,7 +99,7 @@ where
 }
 
 // Configure networking messaging stack(Gossipsub)
-pub(crate) fn create_gossipsub(local_key: Arc<Keypair>, topic: &Topic) -> gossipsub::Behaviour {
+pub(crate) fn create_gossipsub(local_key: &Arc<Keypair>, topic: &Topic) -> gossipsub::Behaviour {
     let gossipsub_config = gossipsub::ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(5))
         .message_id_fn(|msg: &gossipsub::Message| Hasher::digest(&msg.data).into())
@@ -119,7 +119,7 @@ pub(crate) fn create_gossipsub(local_key: Arc<Keypair>, topic: &Topic) -> gossip
 }
 
 pub(crate) fn create_request_response() -> libp2p_request_response::Behaviour<RbMsgMessagesCodec> {
-    let config = Default::default();
+    let config = libp2p_request_response::Config::default();
     libp2p_request_response::Behaviour::new(
         RbMsgMessagesCodec,
         iter::once((
@@ -136,7 +136,7 @@ pub(crate) fn create_membership<P>(
     local_peer_id: PeerId,
 ) -> membership::behaviour::Behaviour<P>
 where
-    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
     membership::behaviour::Behaviour::new(
         members_provider,
@@ -145,7 +145,7 @@ where
     )
 }
 
-pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::store::MemoryStore> {
+pub(super) fn create_kademlia(local_key: &Arc<Keypair>) -> kad::Kademlia<kad::store::MemoryStore> {
     let peer_id = local_key.peer_id();
     let mut cfg = kad::KademliaConfig::default();
     cfg.set_query_timeout(Duration::from_secs(5 * 60));
@@ -157,7 +157,7 @@ pub(super) fn create_kademlia(local_key: Arc<Keypair>) -> kad::Kademlia<kad::sto
 //Tcp protocol for networking
 //Noise protocol for encryption
 //Yamux protocol for multiplexing
-pub(crate) fn create_transport(local_key: Arc<Keypair>) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
+pub(crate) fn create_transport(local_key: &Arc<Keypair>) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
     let transport = TokioTransport::new(TokioConfig::default().nodelay(true));
     let noise_keypair = noise::Keypair::<noise::X25519Spec>::new()
         .into_authentic(local_key.inner())

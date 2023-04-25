@@ -7,7 +7,7 @@ use tokio::{sync::broadcast::Receiver, sync::Mutex};
 
 use ephemera::{
     crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair},
-    ephemera_api::{self, ApiBlock, ApiEphemeraMessage, ApiError, EphemeraExternalApi},
+    ephemera_api::{self, ApiBlock, ApiEphemeraMessage, ApiError, Commands},
 };
 
 use crate::contract::MixnodeToReward;
@@ -27,12 +27,12 @@ pub(crate) struct V1;
 pub(crate) struct V2;
 
 pub struct EphemeraAccess {
-    pub(crate) api: EphemeraExternalApi,
+    pub(crate) api: Commands,
     pub(crate) key_pair: Keypair,
 }
 
 impl EphemeraAccess {
-    pub(crate) fn new(api: EphemeraExternalApi, key_pair: Keypair) -> Self {
+    pub(crate) fn new(api: Commands, key_pair: Keypair) -> Self {
         Self { api, key_pair }
     }
 }

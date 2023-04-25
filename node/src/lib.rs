@@ -24,27 +24,29 @@
 //!
 //! Note that it *requires* a blockchain to be present.
 
+#![deny(clippy::pedantic)]
+
 pub use crate::core::builder::EphemeraStarter;
 pub use crate::core::ephemera::Ephemera;
-pub use crate::core::shutdown::ShutdownHandle;
+pub use crate::core::shutdown::Handle;
 
 pub mod ephemera_api {
     pub use crate::api::{
         application::{
-            Application, ApplicationError, CheckBlockResult, DummyApplication, RemoveMessages,
-            Result,
+            Application, CheckBlockResult, Dummy, Error as ApplicationError, RemoveMessages, Result,
         },
-        http::client::{EphemeraHttpClient, Error},
+        http::client::{Client, Error as HttpClientError},
         types::{
             ApiBlock, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest,
             ApiEphemeraConfig, ApiEphemeraMessage, ApiError, ApiHealth, RawApiEphemeraMessage,
         },
-        EphemeraExternalApi,
+        Commands,
     };
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub mod peer {
-    pub use super::network::{PeerId, ToPeerId};
+    pub use super::network::{PeerId, PeerIdError, ToPeerId};
 }
 
 pub mod membership {
@@ -56,31 +58,26 @@ pub mod membership {
 
 pub mod crypto {
     pub use super::utilities::crypto::{
-        Ed25519Keypair, Ed25519PublicKey, EphemeraKeypair, EphemeraPublicKey, KeyPairError,
-        Keypair, PublicKey,
+        EphemeraKeypair, EphemeraPublicKey, KeyPairError, Keypair, PublicKey,
     };
 }
 
 pub mod codec {
-    pub use super::utilities::encoding::{Decode, Encode, EphemeraEncoder};
+    pub use super::utilities::codec::{Decode, Encode};
 }
 
 pub mod configuration {
     pub use super::config::Configuration;
 }
 
-pub mod helpers {
-    pub use super::logging::{init_logging, init_logging_with_directives};
-}
-
 pub mod cli;
+pub mod logging;
 
 mod api;
 mod block;
 mod broadcast;
 mod config;
 mod core;
-mod logging;
 mod network;
 mod storage;
 mod utilities;

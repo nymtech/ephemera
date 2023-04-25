@@ -1,3 +1,4 @@
+use crate::cli::crypto::GenerateKeypairCmd;
 use clap::Parser;
 
 pub mod config;
@@ -17,7 +18,7 @@ pub struct Cli {
 
 #[derive(clap::Subcommand)]
 pub enum Subcommand {
-    InitConfig(init::InitCmd),
+    InitConfig(init::Cmd),
     InitLocalPeersConfig(peers::CreateLocalPeersConfiguration),
     RunNode(run_node::RunExternalNodeCmd),
     GenerateKeypair(crypto::GenerateKeypairCmd),
@@ -25,6 +26,8 @@ pub enum Subcommand {
 }
 
 impl Cli {
+    /// # Errors
+    /// Returns an error if the subcommand fails.
     pub async fn execute(self) -> anyhow::Result<()> {
         match self.subcommand {
             Subcommand::InitConfig(init) => {
@@ -34,8 +37,8 @@ impl Cli {
                 add_local_peers.execute();
             }
             Subcommand::RunNode(run_node) => run_node.execute().await?,
-            Subcommand::GenerateKeypair(gen_keypair) => {
-                gen_keypair.execute();
+            Subcommand::GenerateKeypair(_) => {
+                GenerateKeypairCmd::execute();
             }
             Subcommand::UpdateConfig(update_config) => {
                 update_config.execute();

@@ -3,11 +3,11 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-pub use ed25519::{Ed25519Keypair, Ed25519PublicKey};
+pub use ed25519::{Keypair as Ed25519Keypair, PublicKey as Ed25519PublicKey};
 pub use keypair::{EphemeraKeypair, EphemeraPublicKey, KeyPairError};
 
-use crate::codec::{Encode, EphemeraEncoder};
-use crate::utilities::encoding::Encoder;
+use crate::codec::Encode;
+use crate::utilities::codec::{Codec, EncodingError, EphemeraCodec};
 
 pub mod ed25519;
 pub mod key_manager;
@@ -96,15 +96,15 @@ impl Certificate {
 }
 
 impl Encode for Certificate {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        let mut result = Encoder::encode(&self.signature)?;
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        let mut result = Codec::encode(&self.signature)?;
         result.extend_from_slice(&self.public_key.encode()?);
         Ok(result)
     }
 }
 
 impl Encode for PublicKey {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
         Ok(self.to_bytes())
     }
 }

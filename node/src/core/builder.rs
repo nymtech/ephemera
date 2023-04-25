@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use std::future::Future;
-use std::ops::DerefMut;
+
 use std::sync::Arc;
 
 use log::{error, info};
@@ -13,14 +13,14 @@ use crate::storage::rocksdb::RocksDbStorage;
 #[cfg(feature = "sqlite_storage")]
 use crate::storage::sqlite::SqliteStorage;
 use crate::{
-    api::{application::Application, http, ApiListener, EphemeraExternalApi},
+    api::{application::Application, http, ApiListener, Commands},
     block::{builder::BlockManagerBuilder, manager::BlockManager},
     broadcast::bracha::broadcaster::Broadcaster,
     broadcast::group::BroadcastGroup,
     config::Configuration,
     core::{
         api_cmd::ApiCmdProcessor,
-        shutdown::{Shutdown, ShutdownHandle, ShutdownManager},
+        shutdown::{Handle, Shutdown, ShutdownManager},
     },
     crypto::Keypair,
     membership,
@@ -96,9 +96,9 @@ impl Display for NodeInfo {
 #[derive(Clone)]
 pub struct EphemeraHandle {
     /// Ephemera API
-    pub api: EphemeraExternalApi,
+    pub api: Commands,
     /// Allows to send shutdown signal to the node
-    pub shutdown: ShutdownHandle,
+    pub shutdown: Handle,
 }
 
 pub struct EphemeraStarter<A, P>
@@ -118,7 +118,7 @@ where
     ws_message_broadcast: Option<WsMessageBroadcaster>,
     storage: Option<Box<dyn EphemeraDatabase>>,
     api_listener: ApiListener,
-    api: EphemeraExternalApi,
+    api: Commands,
 }
 
 impl<A, P> EphemeraStarter<A, P>
@@ -126,6 +126,19 @@ where
     A: Application + 'static,
     P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
+    /// Creates a new Ephemera node builder.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration of the node
+    ///
+    /// # Returns
+    ///
+    /// * `EphemeraStarter` - Builder of the node
+    ///
+    /// # Errors
+    ///
+    /// * `anyhow::Error` - If the node info cannot be created
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
         let instance_info = NodeInfo::new(config.clone())?;
 
@@ -134,7 +147,7 @@ where
         let block_manager_builder =
             BlockManagerBuilder::new(config.block.clone(), instance_info.keypair.clone());
 
-        let (api, api_listener) = EphemeraExternalApi::new();
+        let (api, api_listener) = Commands::new();
 
         let builder = EphemeraStarter {
             config,
@@ -154,6 +167,7 @@ where
         Ok(builder)
     }
 
+    #[must_use]
     pub fn with_members_provider(self, members_provider: P) -> Self
     where
         P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
@@ -164,6 +178,7 @@ where
         }
     }
 
+    #[must_use]
     pub fn with_application(self, application: A) -> Self
     where
         A: Application + 'static,
@@ -174,12 +189,24 @@ where
         }
     }
 
-    //opens database and spawns services(http, websocket, network)
+    /// Starts all Ephemera internal services except the Ephemera itself.
+    ///
+    /// # Returns
+    ///
+    /// * `Ephemera` - Ephemera instance
+    ///
+    /// # Errors
+    ///
+    /// * `anyhow::Error` - If some of the services cannot be started
+    ///
+    /// # Panics
+    ///
+    /// * If builder is not initialized properly
     pub async fn init_tasks(self) -> anyhow::Result<Ephemera<A>> {
         info!("Initializing ephemera tasks...");
         cfg_if::cfg_if! {
             if #[cfg(feature = "sqlite_storage")] {
-                let starter = self.connect_sqlite().await?;
+                let starter = self.connect_sqlite()?;
             } else if #[cfg(feature = "rocksdb_storage")] {
                 let starter = self.connect_rocksdb().await?;
             } else {
@@ -187,11 +214,12 @@ where
             }
         }
 
-        let mut builder = starter.init_block_manager().await?;
+        let mut builder = starter.init_block_manager()?;
 
         let (mut shutdown_manager, shutdown_handle) = ShutdownManager::init();
         builder.start_tasks(&mut shutdown_manager).await?;
 
+        //TODO make unwrap safe by Builder type system
         let application = builder.application.take().unwrap();
         let ephemera = builder.ephemera(application, shutdown_handle, shutdown_manager);
         Ok(ephemera)
@@ -315,7 +343,7 @@ where
     fn ephemera(
         self,
         application: A,
-        shutdown_handle: ShutdownHandle,
+        shutdown_handle: Handle,
         shutdown_manager: ShutdownManager,
     ) -> Ephemera<A> {
         let ephemera_handle = EphemeraHandle {
@@ -342,7 +370,7 @@ where
 
     //allocate database connection
     #[cfg(feature = "rocksdb_storage")]
-    async fn connect_rocksdb(mut self) -> anyhow::Result<Self> {
+    fn connect_rocksdb(mut self) -> anyhow::Result<Self> {
         info!("Opening database...");
         let database = RocksDbStorage::open(self.config.storage.clone())?;
         self.storage = Some(Box::new(database));
@@ -350,14 +378,14 @@ where
     }
 
     #[cfg(feature = "sqlite_storage")]
-    async fn connect_sqlite(mut self) -> anyhow::Result<Self> {
+    fn connect_sqlite(mut self) -> anyhow::Result<Self> {
         info!("Opening database...");
         let database = SqliteStorage::open(self.config.storage.clone())?;
         self.storage = Some(Box::new(database));
         Ok(self)
     }
 
-    async fn init_block_manager(mut self) -> anyhow::Result<Self> {
+    fn init_block_manager(mut self) -> anyhow::Result<Self> {
         let db = self.storage.take();
         if db.is_none() {
             anyhow::bail!("Database connection is not initialized")
@@ -369,8 +397,8 @@ where
                 anyhow::bail!("Block manager builder is not initialized")
             }
             Some(bm_builder) => {
-                let block_manager = bm_builder.build(db.deref_mut())?;
-                self.block_manager = Some(block_manager)
+                let block_manager = bm_builder.build(&mut *db)?;
+                self.block_manager = Some(block_manager);
             }
         }
         self.storage = Some(db);

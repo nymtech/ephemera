@@ -5,7 +5,7 @@ use log::warn;
 use lru::LruCache;
 
 use crate::peer::PeerId;
-use crate::utilities::hash::HashType;
+use crate::utilities::hash::Hash;
 
 pub(crate) struct BroadcastGroup {
     /// The id of current group. Incremented every time a new snapshot is added.
@@ -13,7 +13,7 @@ pub(crate) struct BroadcastGroup {
     /// A cache of the group snapshots.
     pub(crate) snapshots: LruCache<u64, HashSet<PeerId>>,
     /// A cache of the groups for each block.
-    pub(crate) block_groups: LruCache<HashType, u64>,
+    pub(crate) block_groups: LruCache<Hash, u64>,
 }
 
 impl BroadcastGroup {
@@ -36,15 +36,13 @@ impl BroadcastGroup {
     pub(crate) fn is_member(&mut self, id: u64, peer_id: &PeerId) -> bool {
         self.snapshots
             .get(&id)
-            .map(|s| s.contains(peer_id))
-            .unwrap_or(false)
+            .map_or(false, |s| s.contains(peer_id))
     }
 
     pub(crate) fn is_empty(&mut self) -> bool {
         self.snapshots
             .get(&self.current_id)
-            .map(|s| s.is_empty())
-            .unwrap_or(true)
+            .map_or(true, HashSet::is_empty)
     }
 
     pub(crate) fn current(&mut self) -> &HashSet<PeerId> {
@@ -55,7 +53,7 @@ impl BroadcastGroup {
 
     pub(crate) fn check_membership(
         &mut self,
-        hash: HashType,
+        hash: Hash,
         block_creator: &PeerId,
         message_ender: &PeerId,
     ) -> bool {

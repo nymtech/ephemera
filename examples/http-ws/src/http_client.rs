@@ -2,18 +2,18 @@ use std::sync::{Arc, Mutex};
 
 use ephemera::crypto::Keypair;
 use ephemera::ephemera_api;
-use ephemera::ephemera_api::EphemeraHttpClient;
+use ephemera::ephemera_api::Client;
 
 use crate::Data;
 
 pub(crate) struct SignedMessageClient {
-    client: EphemeraHttpClient,
+    client: Client,
     pub(crate) data: Arc<Mutex<Data>>,
 }
 
 impl SignedMessageClient {
     pub(crate) fn new(url: String, data: Arc<Mutex<Data>>) -> SignedMessageClient {
-        let client = EphemeraHttpClient::new(url);
+        let client = Client::new(url);
         SignedMessageClient { client, data }
     }
 

@@ -5,7 +5,7 @@ lazy_static! {
     pub static ref RUST_LOG_JSON: bool = std::env::var("RUST_LOG_JSON").is_ok();
 }
 
-pub fn init_logging() {
+pub fn init() {
     if let Ok(directives) = ::std::env::var("RUST_LOG") {
         println!("Logging enabled with directives: {directives}",);
         pretty_env_logger::formatted_timed_builder()
@@ -17,7 +17,7 @@ pub fn init_logging() {
     }
 }
 
-pub fn init_logging_with_directives(directives: &str) {
+pub fn init_with_directives(directives: &str) {
     println!("Logging enabled with directives: {directives}",);
     pretty_env_logger::formatted_timed_builder()
         .parse_filters(directives)
@@ -33,6 +33,6 @@ pub fn pretty_json<T: Serialize + std::fmt::Debug>(value: &T) -> String {
             _ => json.to_string(),
         }
     } else {
-        format!("{:?}", value)
+        format!("{value:?}",)
     }
 }

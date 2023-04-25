@@ -48,12 +48,12 @@ use log::info;
 use tokio::signal::unix::{signal, SignalKind};
 
 use ephemera::configuration::Configuration;
-use ephemera::helpers::init_logging;
+use ephemera::helpers::init;
 use nym_api::{nym_api_ephemera::NymApi, Args};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init_logging();
+    init();
 
     let args = Args::parse();
     let ephemera_config = Configuration::try_load(args.ephemera_config.clone()).unwrap();

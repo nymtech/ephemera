@@ -20,11 +20,11 @@ pub(crate) enum BrachaAction {
 }
 
 impl BrachaAction {
-    pub(crate) fn is_vote(&self) -> bool {
+    pub(crate) fn is_vote(self) -> bool {
         matches!(self, BrachaAction::Vote)
     }
 
-    pub(crate) fn is_deliver(&self) -> bool {
+    pub(crate) fn is_deliver(self) -> bool {
         matches!(self, BrachaAction::Deliver)
     }
 }
@@ -48,6 +48,11 @@ impl BrachaQuorum {
         }
     }
 
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation
+    )]
     pub(crate) fn update_group_size(&mut self, size: usize) {
         //As we don't have strong guarantees/consensus/timing constraints on the
         //broadcast, we just update group immediately.
@@ -136,6 +141,7 @@ mod test {
         ProtocolContext,
     };
     use crate::peer::PeerId;
+    use std::collections::HashSet;
 
     #[test]
     fn test_max_faulty_nodes() {
@@ -231,8 +237,8 @@ mod test {
         let mut ctx = ProtocolContext {
             local_peer_id: PeerId::random(),
             hash: [0; 32].into(),
-            echo: Default::default(),
-            vote: Default::default(),
+            echo: HashSet::default(),
+            vote: HashSet::default(),
             delivered: false,
         };
         for _ in 0..n {
@@ -245,8 +251,8 @@ mod test {
         let mut ctx = ProtocolContext {
             local_peer_id: local_peer_id.unwrap_or(PeerId::random()),
             hash: [0; 32].into(),
-            echo: Default::default(),
-            vote: Default::default(),
+            echo: HashSet::default(),
+            vote: HashSet::default(),
             delivered: false,
         };
         for _ in 0..n {

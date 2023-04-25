@@ -2,7 +2,7 @@ use log::{error, trace};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Row};
 
 use crate::block::types::block::Block;
-use crate::config::DbConfig;
+use crate::config::DatabaseConfiguration;
 use crate::utilities::crypto::Certificate;
 
 pub(crate) struct DbQuery {
@@ -10,13 +10,13 @@ pub(crate) struct DbQuery {
 }
 
 impl DbQuery {
-    pub(crate) fn open(db_conf: DbConfig, flags: OpenFlags) -> anyhow::Result<Self> {
+    pub(crate) fn open(db_conf: DatabaseConfiguration, flags: OpenFlags) -> anyhow::Result<Self> {
         let connection = Connection::open_with_flags(db_conf.sqlite_path, flags)?;
         let query = Self { connection };
         Ok(query)
     }
 
-    pub(crate) fn get_block_by_hash(&self, block_hash: String) -> anyhow::Result<Option<Block>> {
+    pub(crate) fn get_block_by_hash(&self, block_hash: &str) -> anyhow::Result<Option<Block>> {
         let mut stmt = self
             .connection
             .prepare_cached("SELECT block FROM blocks WHERE block_hash = ?1")?;
@@ -68,7 +68,7 @@ impl DbQuery {
 
     pub(crate) fn get_block_certificates(
         &self,
-        block_hash: String,
+        block_hash: &str,
     ) -> anyhow::Result<Option<Vec<Certificate>>> {
         let mut stmt = self
             .connection

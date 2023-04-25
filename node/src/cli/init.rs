@@ -1,7 +1,8 @@
 use clap::Parser;
 
 use crate::config::{
-    BlockConfig, Configuration, DbConfig, HttpConfig, Libp2pConfig, NodeConfig, WsConfig,
+    BlockManagerConfiguration, Configuration, DatabaseConfiguration, HttpConfiguration,
+    Libp2pConfiguration, NodeConfiguration, WebsocketConfiguration,
 };
 use crate::crypto::{EphemeraKeypair, Keypair};
 
@@ -14,7 +15,7 @@ const DEFAULT_MESSAGES_TOPIC_NAME: &str = "nym-ephemera-proposed";
 const DEFAULT_HEARTBEAT_INTERVAL_SEC: u64 = 1;
 
 #[derive(Debug, Clone, Parser)]
-pub struct InitCmd {
+pub struct Cmd {
     #[arg(long, default_value = "default")]
     pub node_name: String,
     #[clap(long, default_value = DEFAULT_LISTEN_ADDRESS)]
@@ -35,17 +36,21 @@ pub struct InitCmd {
     pub members_provider_delay_sec: u64,
 }
 
-impl InitCmd {
+impl Cmd {
+    /// # Panics
+    /// Panics if the config file already exists.
     pub fn execute(self) {
-        if Configuration::try_load_from_home_dir(&self.node_name).is_ok() {
-            panic!("Configuration file already exists: {}", self.node_name);
-        }
+        assert!(
+            Configuration::try_load_from_home_dir(&self.node_name).is_err(),
+            "Configuration file already exists: {}",
+            self.node_name
+        );
 
         let path = Configuration::ephemera_root_dir()
             .unwrap()
             .join(&self.node_name);
-        println!("Creating ephemera node configuration in: {:?}", path);
-        println!("Configuration: {:?}", self);
+        println!("Creating ephemera node configuration in: {path:?}",);
+        println!("Configuration: {self:?}",);
 
         let db_dir = path.join("db");
         let rocksdb_path = db_dir.join("rocksdb");
@@ -57,34 +62,34 @@ impl InitCmd {
         let private_key = keypair.to_base58();
 
         let configuration = Configuration {
-            node: NodeConfig {
+            node: NodeConfiguration {
                 ip: self.ip,
                 private_key,
             },
-            libp2p: Libp2pConfig {
+            libp2p: Libp2pConfiguration {
                 port: self.protocol_port,
                 ephemera_msg_topic_name: DEFAULT_MESSAGES_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
                 members_provider_delay_sec: self.members_provider_delay_sec,
             },
-            storage: DbConfig {
-                rocket_path: rocksdb_path.as_os_str().to_str().unwrap().to_string(),
+            storage: DatabaseConfiguration {
+                rocksdb_path: rocksdb_path.as_os_str().to_str().unwrap().to_string(),
                 sqlite_path: sqlite_path.as_os_str().to_str().unwrap().to_string(),
                 create_if_not_exists: true,
             },
-            websocket: WsConfig {
+            websocket: WebsocketConfiguration {
                 port: self.websocket_port,
             },
-            http: HttpConfig {
+            http: HttpConfiguration {
                 port: self.http_api_port,
             },
-            block: BlockConfig {
+            block: BlockManagerConfiguration {
                 producer: self.block_producer,
                 creation_interval_sec: self.block_creation_interval_sec,
-                repeat_last_block: self.repeat_last_block,
+                repeat_last_block_messages: self.repeat_last_block,
             },
         };
-        if let Err(err) = configuration.try_create_root_dir(&self.node_name) {
+        if let Err(err) = configuration.try_write_home_dir(&self.node_name) {
             eprintln!("Error creating configuration file: {err:?}",);
         }
     }

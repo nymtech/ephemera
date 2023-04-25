@@ -6,19 +6,21 @@
 //!
 //! This behaviour is responsible for keeping membership up to date.
 //!
-//! User provides a [MembersProviderFut] implementation to the [Behaviour] which is responsible for fetching the list of peers.
+//! `MembersProviderFuture`: `Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static`.
+//!
+//! User provides a [`MembersProviderFuture`] implementation to the [Behaviour] which is responsible for fetching the list of peers.
 //!
 //! [Behaviour] accepts only peers that are actually online.
 //!
 //! When peers become available or unavailable, [Behaviour] adjusts the list of connected peers accordingly and notifies `reliable broadcast`
 //! about the membership change.
 //!
-//! It is configurable what `threshold` of peers(from the total list provided by [MembersProviderFut]) should be available at any given time.
-//! Or if just to use all peers who are online. See [MembershipKind] for more details.
+//! It is configurable what `threshold` of peers(from the total list provided by [`MembersProviderFuture`]) should be available at any given time.
+//! Or if just to use all peers who are online. See [`MembershipKind`] for more details.
 //!
-//! Ideally [MembersProviderFut] can depend on a resource that gives reliable results. Some kind of registry which itself keeps track of actually online nodes.
-//! As Ephemera uses only peers provided by [MembersProviderFut], it depends on its accuracy.
-//! At the same time it tries to be flexible and robust to handle less reliable [MembersProviderFut] implementations.
+//! Ideally [`MembersProviderFuture`] can depend on a resource that gives reliable results. Some kind of registry which itself keeps track of actually online nodes.
+//! As Ephemera uses only peers provided by [`MembersProviderFuture`], it depends on its accuracy.
+//! At the same time it tries to be flexible and robust to handle less reliable [`MembersProviderFuture`] implementations.
 
 // When peer gets disconnected, we try to dial it and if that fails, we update group.
 // (it may connect us meanwhile).
@@ -74,7 +76,7 @@ use crate::{
     },
 };
 
-/// [MembersProviderFut] state when we are trying to connect to new peers.
+/// [`MembersProviderFuture`] state when we are trying to connect to new peers.
 ///
 /// We try to connect few times before giving up. Generally speaking an another peer is either online or offline
 /// at any given time. But it has been helpful for testing when whole cluster comes up around the same time.
@@ -99,7 +101,7 @@ impl SyncPeers {
     }
 }
 
-/// [MembersProviderFut] behaviour states.
+/// Behaviour states.
 enum State {
     /// Waiting for new peers from the members provider trait.
     WaitingPeers,
@@ -118,9 +120,9 @@ pub(crate) enum Event {
     PeerUpdatePending,
     /// We have finished trying to connect to new peers and going to report it.
     PeersUpdated(HashSet<PeerId>),
-    /// MembersProviderFut reported us new peers and this set doesn't contain our local peer.
+    /// MembersProviderFuture reported us new peers and this set doesn't contain our local peer.
     LocalRemoved(HashSet<PeerId>),
-    /// MembersProviderFut reported us new peers and we failed to connect to enough of them.
+    /// MembersProviderFuture reported us new peers and we failed to connect to enough of them.
     NotEnoughPeers(HashSet<PeerId>),
 }
 
@@ -152,7 +154,7 @@ where
 
 impl<P> Behaviour<P>
 where
-    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
     pub(crate) fn new(
         members_provider: P,
@@ -167,7 +169,7 @@ where
             members_provider_interval: Some(delay),
             members_provider_delay,
             state: State::WaitingPeers,
-            all_connections: Default::default(),
+            all_connections: ConnectedPeers::default(),
             membership_kind: MembershipKind::Threshold(MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO),
             last_sync_time: Instant::now(),
             minimum_time_between_sync: Duration::from_secs(MEMBERSHIP_SYNC_INTERVAL_SEC),
@@ -181,6 +183,227 @@ where
 
     pub(crate) fn active_peer_ids_with_local(&mut self) -> HashSet<PeerId> {
         self.memberships.current().connected_peer_ids_with_local()
+    }
+
+    fn waiting_peers(&mut self, cx: &mut Context) -> Poll<ToSwarm<Event, ToHandler>> {
+        if let Some(mut tick) = self.members_provider_interval.take() {
+            if !tick.poll_tick(cx).is_ready() {
+                self.members_provider_interval = Some(tick);
+                return Poll::Pending;
+            }
+        }
+        let peers = match self.members_provider.poll_unpin(cx) {
+            Poll::Ready(peers) => {
+                let wait_time = Instant::now() + self.members_provider_delay;
+                self.members_provider_interval =
+                    time::interval_at(wait_time, self.members_provider_delay).into();
+                self.last_sync_time = Instant::now();
+                peers
+            }
+            Poll::Pending => {
+                return Poll::Pending;
+            }
+        };
+
+        match peers {
+            Ok(peers) => {
+                if peers.is_empty() {
+                    //Not sure what to do here. Tempted to think that if this happens
+                    //we should ignore it and assume that this is a bug in the membership service.
+
+                    warn!("Received empty peers from provider. To try again before preconfigured interval, please restart the node.");
+                    return Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers(
+                        HashSet::default(),
+                    )));
+                }
+
+                let mut new_peers = HashMap::new();
+
+                for peer_info in peers {
+                    match <PeerInfo as TryInto<Peer>>::try_into(peer_info) {
+                        Ok(peer) => {
+                            debug!("Received peer: {:?}, {:?}", peer.peer_id.inner(), peer.name);
+                            new_peers.insert(*peer.peer_id.inner(), peer);
+                        }
+                        Err(err) => {
+                            error!("Error while converting peer info to peer: {}", err);
+                        }
+                    }
+                }
+
+                //If we are not part of the new membership, notify immediately
+                if !new_peers.contains_key(&self.local_peer_id) {
+                    debug!(
+                        "Local peer {:?} is not part of the new membership. Notifying immediately.",
+                        self.local_peer_id
+                    );
+                    let pending_membership = Membership::new(new_peers.clone());
+                    self.memberships.set_pending(pending_membership);
+                    self.state = State::NotifyPeersUpdated;
+                    return Poll::Pending;
+                }
+
+                let mut pending_membership =
+                    Membership::new_with_local(new_peers.clone(), self.local_peer_id);
+                let mut pending_update = PendingPeersUpdate::default();
+
+                for peer_id in new_peers.keys() {
+                    if self.all_connections.is_peer_connected(peer_id) {
+                        pending_membership.peer_connected(*peer_id);
+                    } else {
+                        pending_update.waiting_to_dial.insert(*peer_id);
+                    }
+                }
+
+                self.memberships.set_pending(pending_membership);
+
+                //It seems that all peers from updated membership set are already connected
+                if pending_update.waiting_to_dial.is_empty() {
+                    self.state = State::NotifyPeersUpdated;
+                    Poll::Pending
+                } else {
+                    self.state = State::WaitingDial(pending_update);
+
+                    //Just let the rest of the system to know that we are in the middle of updating membership
+                    Poll::Ready(ToSwarm::GenerateEvent(Event::PeerUpdatePending))
+                }
+            }
+            Err(err) => {
+                error!("Error while getting peers from provider: {:?}", err);
+                Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers(
+                    HashSet::default(),
+                )))
+            }
+        }
+    }
+
+    fn waiting_dial(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<ToSwarm<Event, THandlerInEvent<Self>>> {
+        if let State::WaitingDial(PendingPeersUpdate {
+            waiting_to_dial,
+            dial_attempts,
+            interval_between_dial_attempts,
+        }) = &mut self.state
+        {
+            //Refresh the list of connected peers
+            for peer_id in self.all_connections.all_connected_peers_ref() {
+                waiting_to_dial.remove(peer_id);
+            }
+
+            //FIXME
+            waiting_to_dial.remove(&self.local_peer_id);
+
+            let pending_membership = self
+                .memberships
+                .pending()
+                .expect("Pending membership should be set");
+
+            //With each 'poll' we can tell Swarm to dial one peer
+            let next_waiting = waiting_to_dial.iter().next().copied();
+
+            if let Some(peer_id) = next_waiting {
+                waiting_to_dial.remove(&peer_id);
+
+                let address = pending_membership
+                    .peer_address(&peer_id)
+                    .expect("Peer should exist");
+
+                debug!("Dialing peer: {:?} {:?}", peer_id, address);
+
+                let opts = DialOpts::peer_id(peer_id)
+                    .condition(PeerCondition::NotDialing)
+                    .addresses(vec![address.clone()])
+                    .build();
+
+                debug!("Dialing peer: {:?}", peer_id);
+                Poll::Ready(ToSwarm::Dial { opts })
+            } else {
+                let all_peers = pending_membership.all_peer_ids();
+                let connected_peers = pending_membership.connected_peers();
+
+                //Exclude local peer
+                let all_connected = connected_peers.len() == all_peers.len() - 1;
+
+                if all_connected || *dial_attempts >= MAX_DIAL_ATTEMPT_ROUNDS {
+                    interval_between_dial_attempts.take();
+                    self.state = State::NotifyPeersUpdated;
+                    return Poll::Pending;
+                }
+                //Try again few times before notifying the rest of the system about membership update.
+                //Dialing attempt
+                if let Some(interval) = interval_between_dial_attempts {
+                    if interval.poll_tick(cx) == Poll::Pending {
+                        return Poll::Pending;
+                    }
+                    *dial_attempts += 1;
+                    trace!("Next attempt({dial_attempts:?}) to dial failed peers");
+                } else {
+                    let start_at = time::Instant::now() + Duration::from_secs(5);
+                    *interval_between_dial_attempts =
+                        Some(time::interval_at(start_at, Duration::from_secs(10)));
+                }
+                if *dial_attempts > 0 {
+                    waiting_to_dial.extend(all_peers.difference(connected_peers).copied());
+                }
+
+                Poll::Pending
+            }
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn notify_peers_updated(&mut self) -> Poll<ToSwarm<Event, ToHandler>> {
+        if let Some(membership) = self.memberships.remove_pending() {
+            self.memberships.update(membership);
+        }
+
+        let membership = self.memberships.current();
+        let membership_connected_peers = membership.connected_peer_ids();
+
+        let event = if membership.includes_local() {
+            if self.membership_kind.accept(membership) {
+                debug!("Membership accepted by kind: {:?}", self.membership_kind);
+                Event::PeersUpdated(membership_connected_peers)
+            } else {
+                debug!("Membership rejected by kind: {:?}", self.membership_kind);
+                Event::NotEnoughPeers(membership_connected_peers)
+            }
+        } else {
+            debug!("Membership does not include local peer");
+            Event::LocalRemoved(membership_connected_peers)
+        };
+
+        //TODO: this list should also include "old" peers(peers who aren't part of new membership).
+        let connected_peers = membership
+            .connected_peer_ids()
+            .into_iter()
+            .collect::<Vec<_>>();
+        self.state = State::SyncPeers(SyncPeers::new(connected_peers));
+        Poll::Ready(ToSwarm::GenerateEvent(event))
+    }
+
+    fn sync_peers(&mut self) -> Poll<ToSwarm<Event, ToHandler>> {
+        if let State::SyncPeers(SyncPeers { pending_peers }) = &mut self.state {
+            match pending_peers.pop() {
+                None => {
+                    self.state = State::WaitingPeers;
+                    Poll::Pending
+                }
+                Some(peer_id) => {
+                    debug!("Notifying {peer_id:?} about membership update",);
+                    Poll::Ready(ToSwarm::NotifyHandler {
+                        peer_id,
+                        handler: NotifyHandler::Any,
+                        event: ToHandler::Message(ProtocolMessage::Sync),
+                    })
+                }
+            }
+        } else {
+            unreachable!("State should be SyncPeers")
+        }
     }
 }
 
@@ -316,218 +539,10 @@ where
         _params: &mut impl PollParameters,
     ) -> Poll<ToSwarm<Self::OutEvent, THandlerInEvent<Self>>> {
         match &mut self.state {
-            State::WaitingPeers => {
-                if let Some(mut tick) = self.members_provider_interval.take() {
-                    if !tick.poll_tick(cx).is_ready() {
-                        self.members_provider_interval = Some(tick);
-                        return Poll::Pending;
-                    }
-                }
-                let peers = match self.members_provider.poll_unpin(cx) {
-                    Poll::Ready(peers) => {
-                        let wait_time = time::Instant::now() + self.members_provider_delay;
-                        self.members_provider_interval =
-                            time::interval_at(wait_time, self.members_provider_delay).into();
-                        self.last_sync_time = Instant::now();
-                        peers
-                    }
-                    Poll::Pending => {
-                        return Poll::Pending;
-                    }
-                };
-
-                match peers {
-                    Ok(peers) => {
-                        if peers.is_empty() {
-                            //Not sure what to do here. Tempted to think that if this happens
-                            //we should ignore it and assume that this is a bug in the membership service.
-
-                            warn!("Received empty peers from provider. To try again before preconfigured interval, please restart the node.");
-                            return Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers(
-                                Default::default(),
-                            )));
-                        }
-
-                        let mut new_peers = HashMap::new();
-
-                        for peer_info in peers {
-                            match <PeerInfo as TryInto<Peer>>::try_into(peer_info) {
-                                Ok(peer) => {
-                                    debug!(
-                                        "Received peer: {:?}, {:?}",
-                                        peer.peer_id.inner(),
-                                        peer.name
-                                    );
-                                    new_peers.insert(*peer.peer_id.inner(), peer);
-                                }
-                                Err(err) => {
-                                    error!("Error while converting peer info to peer: {}", err);
-                                }
-                            }
-                        }
-
-                        //If we are not part of the new membership, notify immediately
-                        if !new_peers.contains_key(&self.local_peer_id) {
-                            debug!(
-                            "Local peer {:?} is not part of the new membership. Notifying immediately.",
-                            self.local_peer_id
-                        );
-                            let pending_membership = Membership::new(new_peers.clone());
-                            self.memberships.set_pending(pending_membership);
-                            self.state = State::NotifyPeersUpdated;
-                            return Poll::Pending;
-                        }
-
-                        let mut pending_membership =
-                            Membership::new_with_local(new_peers.clone(), self.local_peer_id);
-                        let mut pending_update = PendingPeersUpdate::default();
-
-                        for peer_id in new_peers.keys() {
-                            if self.all_connections.is_peer_connected(peer_id) {
-                                pending_membership.peer_connected(*peer_id);
-                            } else {
-                                pending_update.waiting_to_dial.insert(*peer_id);
-                            }
-                        }
-
-                        self.memberships.set_pending(pending_membership);
-
-                        //It seems that all peers from updated membership set are already connected
-                        if pending_update.waiting_to_dial.is_empty() {
-                            self.state = State::NotifyPeersUpdated;
-                            Poll::Pending
-                        } else {
-                            self.state = State::WaitingDial(pending_update);
-
-                            //Just let the rest of the system to know that we are in the middle of updating membership
-                            Poll::Ready(ToSwarm::GenerateEvent(Event::PeerUpdatePending))
-                        }
-                    }
-                    Err(err) => {
-                        error!("Error while getting peers from provider: {:?}", err);
-                        Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers(
-                            Default::default(),
-                        )))
-                    }
-                }
-            }
-            State::WaitingDial(PendingPeersUpdate {
-                waiting_to_dial,
-                dial_attempts,
-                interval_between_dial_attempts,
-            }) => {
-                //Refresh the list of connected peers
-                for peer_id in self.all_connections.all_connected_peers_ref() {
-                    waiting_to_dial.remove(peer_id);
-                }
-
-                //FIXME
-                waiting_to_dial.remove(&self.local_peer_id);
-
-                let pending_membership = self
-                    .memberships
-                    .pending()
-                    .expect("Pending membership should be set");
-
-                //With each 'poll' we can tell Swarm to dial one peer
-                let next_waiting = waiting_to_dial.iter().next().cloned();
-
-                match next_waiting {
-                    Some(peer_id) => {
-                        waiting_to_dial.remove(&peer_id);
-
-                        let address = pending_membership
-                            .peer_address(&peer_id)
-                            .expect("Peer should exist");
-
-                        debug!("Dialing peer: {:?} {:?}", peer_id, address);
-
-                        let opts = DialOpts::peer_id(peer_id)
-                            .condition(PeerCondition::NotDialing)
-                            .addresses(vec![address.clone()])
-                            .build();
-
-                        debug!("Dialing peer: {:?}", peer_id);
-                        Poll::Ready(ToSwarm::Dial { opts })
-                    }
-                    None => {
-                        let all_peers = pending_membership.all_peer_ids();
-                        let connected_peers = pending_membership.connected_peers();
-
-                        //Exclude local peer
-                        let all_connected = connected_peers.len() == all_peers.len() - 1;
-
-                        if all_connected || *dial_attempts >= MAX_DIAL_ATTEMPT_ROUNDS {
-                            interval_between_dial_attempts.take();
-                            self.state = State::NotifyPeersUpdated;
-                            return Poll::Pending;
-                        } else {
-                            //Try again few times before notifying the rest of the system about membership update.
-                            //Dialing attempt
-                            if let Some(interval) = interval_between_dial_attempts {
-                                if interval.poll_tick(cx) == Poll::Pending {
-                                    return Poll::Pending;
-                                } else {
-                                    *dial_attempts += 1;
-                                    trace!("Next attempt({dial_attempts:?}) to dial failed peers");
-                                }
-                            } else {
-                                let start_at = time::Instant::now() + Duration::from_secs(5);
-                                *interval_between_dial_attempts =
-                                    Some(time::interval_at(start_at, Duration::from_secs(10)));
-                            }
-                            if *dial_attempts > 0 {
-                                waiting_to_dial
-                                    .extend(all_peers.difference(connected_peers).cloned());
-                            }
-                        }
-                        Poll::Pending
-                    }
-                }
-            }
-            State::NotifyPeersUpdated => {
-                if let Some(membership) = self.memberships.remove_pending() {
-                    self.memberships.update(membership);
-                }
-
-                let membership = self.memberships.current();
-                let membership_connected_peers = membership.connected_peer_ids();
-
-                let event = if membership.includes_local() {
-                    if self.membership_kind.accept(membership) {
-                        debug!("Membership accepted by kind: {:?}", self.membership_kind);
-                        Event::PeersUpdated(membership_connected_peers)
-                    } else {
-                        debug!("Membership rejected by kind: {:?}", self.membership_kind);
-                        Event::NotEnoughPeers(membership_connected_peers)
-                    }
-                } else {
-                    debug!("Membership does not include local peer");
-                    Event::LocalRemoved(membership_connected_peers)
-                };
-
-                //TODO: this list should also include "old" peers(peers who aren't part of new membership).
-                let connected_peers = membership
-                    .connected_peer_ids()
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                self.state = State::SyncPeers(SyncPeers::new(connected_peers));
-                Poll::Ready(ToSwarm::GenerateEvent(event))
-            }
-            State::SyncPeers(SyncPeers { pending_peers }) => match pending_peers.pop() {
-                None => {
-                    self.state = State::WaitingPeers;
-                    Poll::Pending
-                }
-                Some(peer_id) => {
-                    debug!("Notifying {peer_id:?} about membership update",);
-                    Poll::Ready(ToSwarm::NotifyHandler {
-                        peer_id,
-                        handler: NotifyHandler::Any,
-                        event: ToHandler::Message(ProtocolMessage::Sync),
-                    })
-                }
-            },
+            State::WaitingPeers => self.waiting_peers(cx),
+            State::WaitingDial(_) => self.waiting_dial(cx),
+            State::NotifyPeersUpdated => self.notify_peers_updated(),
+            State::SyncPeers(_) => self.sync_peers(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::block::types::block::Block;
 use crate::block::types::message::EphemeraMessage;
 use crate::codec::Encode;
-use crate::utilities::hash::{EphemeraHasher, HashType, Hasher};
+use crate::utilities::hash::{EphemeraHasher, Hash, Hasher};
 use log::info;
 
 pub(crate) struct Merkle;
@@ -11,7 +11,7 @@ impl Merkle {
     pub(crate) fn calculate_merkle_root<H: EphemeraHasher>(
         block: &Block,
         mut hasher: H,
-    ) -> anyhow::Result<HashType> {
+    ) -> anyhow::Result<Hash> {
         let header_bytes = block.header.encode()?;
         hasher.update(&header_bytes);
 
@@ -56,10 +56,10 @@ impl Merkle {
                 hash.extend_from_slice(&new_hashes[1]);
                 messages_root = Hasher::digest(&hash).to_vec();
                 break;
-            } else {
-                info!("Merkle tree has {} hashes", new_hashes.len());
-                iter = new_hashes.into_iter();
             }
+
+            info!("Merkle tree has {} hashes", new_hashes.len());
+            iter = new_hashes.into_iter();
         }
 
         let mut header_hash = hasher.finish().to_vec();
@@ -70,17 +70,17 @@ impl Merkle {
     }
 
     /// Verify that a message is in a block.
-    /// The message is verified by checking that the merkle_root of the block matches the given merkle_root.
+    /// The message is verified by checking that the `merkle_root` of the block matches the given `merkle_root`.
     ///
     /// PS! It doesn't check message index
     pub(crate) fn verify_message_hash_in_block(
-        merkle_root: HashType,
+        merkle_root: Hash,
         block: &Block,
-        message: EphemeraMessage,
+        message: &EphemeraMessage,
     ) -> anyhow::Result<bool> {
         let mut correct_index = false;
-        for msg in block.messages.clone().into_iter() {
-            if msg == message {
+        for msg in block.messages.clone() {
+            if msg == *message {
                 correct_index = true;
             }
         }
@@ -114,17 +114,15 @@ mod tests {
             let (block, messages) = new_block(i);
             let merkle_root = Merkle::calculate_merkle_root(&block, Hasher::default()).unwrap();
 
-            for m in 0..i {
-                assert!(Merkle::verify_message_hash_in_block(
-                    merkle_root.clone(),
-                    &block,
-                    messages[m].clone().into(),
-                )
-                .unwrap());
+            for message in messages.iter().take(i) {
+                assert!(
+                    Merkle::verify_message_hash_in_block(merkle_root, &block, message,).unwrap()
+                );
             }
         }
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     fn new_block(nr_of_messages: usize) -> (Block, Vec<EphemeraMessage>) {
         let peer_id = PeerId::random();
         let header = RawBlockHeader::new(peer_id, 0);
@@ -136,12 +134,12 @@ mod tests {
         let mut messages = vec![];
         for i in 0..nr_of_messages {
             messages.push(EphemeraMessage::new(
-                RawEphemeraMessage::new(format!("label{}", i), vec![i as u8]),
+                RawEphemeraMessage::new(format!("label{i}"), vec![i as u8]),
                 certificate.clone(),
             ));
         }
 
-        let raw_block = RawBlock::new(header.clone(), messages.clone());
+        let raw_block = RawBlock::new(header, messages.clone());
         let block_hash = raw_block.hash_with_default_hasher().unwrap();
         let block = Block::new(raw_block, block_hash);
         (block, messages)

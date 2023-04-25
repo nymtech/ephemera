@@ -85,6 +85,7 @@ pub struct Ephemera<A: Application> {
 
 impl<A: Application> Ephemera<A> {
     ///Provides external api for Rust code to interact with ephemera node.
+    #[must_use]
     pub fn handle(&self) -> EphemeraHandle {
         self.ephemera_handle.clone()
     }
@@ -266,7 +267,7 @@ impl<A: Application> Ephemera<A> {
 
         //Block manager generated new block that nobody hasn't seen yet.
         //We start reliable broadcaster protocol to broadcaster it to other nodes.
-        match self.broadcaster.new_broadcast(new_block).await {
+        match self.broadcaster.new_broadcast(new_block) {
             Ok(resp) => {
                 if let BroadcastResponse::Broadcast(msg) = resp {
                     trace!("Broadcasting new block: {:?}", msg);
@@ -309,7 +310,8 @@ impl<A: Application> Ephemera<A> {
         if let Err(err) = self.block_manager.on_block(sender, block, &certificate) {
             return Err(anyhow!("Error sending block to block manager: {:?}", err).into());
         }
-        match self.broadcaster.handle(msg.into()).await {
+        let raw_mgs = msg.into();
+        match self.broadcaster.handle(&raw_mgs) {
             Ok(resp) => {
                 match resp {
                     BroadcastResponse::Broadcast(msg) => {
@@ -348,7 +350,7 @@ impl<A: Application> Ephemera<A> {
                                     self.storage
                                         .lock()
                                         .await
-                                        .store_block(&block, certificates)?;
+                                        .store_block(&block, &certificates)?;
 
                                     //BlockManager
                                     self.block_manager.on_block_committed(&block).map_err(|e| {

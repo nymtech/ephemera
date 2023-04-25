@@ -6,20 +6,19 @@ use log::trace;
 use reqwest::Url;
 use tokio::signal::unix::{signal, SignalKind};
 
+use crate::utilities::codec::{Codec, EphemeraCodec};
 use crate::{
     api::application::CheckBlockResult,
     cli::PEERS_CONFIG_FILE,
-    codec::EphemeraEncoder,
     config::Configuration,
     core::builder::EphemeraStarter,
     crypto::EphemeraKeypair,
     crypto::Keypair,
     ephemera_api::{
-        ApiBlock, ApiEphemeraMessage, Application, DummyApplication, RawApiEphemeraMessage, Result,
+        ApiBlock, ApiEphemeraMessage, Application, Dummy, RawApiEphemeraMessage, Result,
     },
     membership::HttpMembersProvider,
     network::members::ConfigMembersProvider,
-    utilities::encoding::Encoder,
 };
 
 #[derive(Clone, Debug)]
@@ -44,16 +43,21 @@ pub struct RunExternalNodeCmd {
 }
 
 impl RunExternalNodeCmd {
+    /// # Errors
+    /// If the members provider cannot be created.
+    ///
+    /// # Panics
+    /// If the ephemera cannot be created.
     pub async fn execute(&self) -> anyhow::Result<()> {
         let ephemera_conf = match Configuration::try_load(self.config_file.clone()) {
             Ok(conf) => conf,
             Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
-        let members_provider = Self::http_members_provider(self.http_provider_url.to_string())?;
+        let members_provider = Self::http_members_provider(self.http_provider_url.to_string());
         let ephemera = EphemeraStarter::new(ephemera_conf.clone())
             .unwrap()
-            .with_application(DummyApplication)
+            .with_application(Dummy)
             .with_members_provider(members_provider)
             .init_tasks()
             .await
@@ -95,9 +99,8 @@ impl RunExternalNodeCmd {
         Ok(peers_conf)
     }
 
-    fn http_members_provider(url: String) -> anyhow::Result<HttpMembersProvider> {
-        let http_members_provider = HttpMembersProvider::new(url);
-        Ok(http_members_provider)
+    fn http_members_provider(url: String) -> HttpMembersProvider {
+        HttpMembersProvider::new(url)
     }
 }
 
@@ -106,6 +109,7 @@ pub struct SignatureVerificationApplication {
 }
 
 impl SignatureVerificationApplication {
+    #[must_use]
     pub fn new(keypair: Arc<Keypair>) -> Self {
         Self { keypair }
     }
@@ -113,7 +117,7 @@ impl SignatureVerificationApplication {
     pub(crate) fn verify_message(&self, msg: ApiEphemeraMessage) -> anyhow::Result<()> {
         let signature = msg.certificate.clone();
         let raw_message: RawApiEphemeraMessage = msg.into();
-        let encoded_message = Encoder::encode(&raw_message)?;
+        let encoded_message = Codec::encode(&raw_message)?;
         if self.keypair.verify(&encoded_message, &signature.signature) {
             Ok(())
         } else {

@@ -5,7 +5,7 @@ use log::trace;
 use serde::{Deserialize, Serialize};
 
 use crate::broadcast::RbMsg;
-use crate::utilities::encoding::varint_async::{read_length_prefixed, write_length_prefixed};
+use crate::utilities::codec::varint_async::{read_length_prefixed, write_length_prefixed};
 use crate::utilities::id::EphemeraId;
 
 #[derive(Clone)]

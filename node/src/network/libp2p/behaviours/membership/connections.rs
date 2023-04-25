@@ -92,6 +92,6 @@ impl ConnectedPeers {
 impl Debug for ConnectedPeers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let output = pretty_json(self);
-        write!(f, "{}", output)
+        write!(f, "{output}",)
     }
 }

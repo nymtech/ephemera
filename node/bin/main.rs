@@ -1,11 +1,11 @@
 use clap::Parser;
 
 use ephemera::cli::Cli;
-use ephemera::helpers::init_logging;
+use ephemera::logging;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_logging();
+    logging::init();
 
     Cli::parse().execute().await?;
     Ok(())

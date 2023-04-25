@@ -65,7 +65,7 @@ impl EphemeraIdentifier for UuidEphemeraIdentifier {
     type Identifier = String;
 
     fn generate() -> Self {
-        Default::default()
+        UuidEphemeraIdentifier::default()
     }
 
     fn inner(&self) -> &Self::Identifier {

@@ -3,7 +3,7 @@ use log::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::api::EphemeraExternalApi;
+use crate::api::Commands;
 use crate::core::builder::NodeInfo;
 
 pub(crate) mod client;
@@ -11,7 +11,7 @@ pub(crate) mod query;
 pub(crate) mod submit;
 
 /// Starts the HTTP server.
-pub(crate) fn init(node_info: &NodeInfo, api: EphemeraExternalApi) -> anyhow::Result<Server> {
+pub(crate) fn init(node_info: &NodeInfo, api: Commands) -> anyhow::Result<Server> {
     print_startup_messages(node_info);
 
     let server = HttpServer::new(move || {
@@ -72,7 +72,7 @@ fn swagger_ui() -> SwaggerUi {
 }
 
 /// Prints messages saying which ports HTTP is running on, and some helpful pointers
-/// to the Swagger UI and OpenAPI spec.
+/// `OpenAPI` and `Swagger UI` endpoints.
 fn print_startup_messages(info: &NodeInfo) {
     let http_root = info.api_address_http();
     info!("Server running on {}", http_root);

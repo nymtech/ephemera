@@ -45,6 +45,7 @@ impl BlockProducer {
 mod test {
     use crate::crypto::{EphemeraKeypair, Keypair};
     use crate::ephemera_api::RawApiEphemeraMessage;
+    use std::cmp::Ordering;
 
     use super::*;
 
@@ -76,15 +77,18 @@ mod test {
 
         //Nondeterministic because of timestamp
         match signed_message1.cmp(&signed_message2) {
-            std::cmp::Ordering::Less => {
+            Ordering::Less => {
                 assert_eq!(block.messages[0], signed_message1);
                 assert_eq!(block.messages[1], signed_message2);
             }
-            std::cmp::Ordering::Greater => {
+            Ordering::Greater => {
                 assert_eq!(block.messages[0], signed_message2);
                 assert_eq!(block.messages[1], signed_message1);
             }
-            _ => panic!("Messages are equal"),
+
+            Ordering::Equal => {
+                panic!("Messages are equal");
+            }
         }
     }
 }

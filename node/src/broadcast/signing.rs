@@ -8,12 +8,12 @@ use lru::LruCache;
 use crate::{
     block::types::block::{Block, RawBlock},
     crypto::Keypair,
-    utilities::{crypto::Certificate, crypto::EphemeraPublicKey, encoding::Encode, hash::HashType},
+    utilities::{codec::Encode, crypto::Certificate, crypto::EphemeraPublicKey, hash::Hash},
 };
 
 pub(crate) struct BlockSigner {
     /// All signatures of the last blocks that we received from the network(+ our own)
-    verified_signatures: LruCache<HashType, HashSet<Certificate>>,
+    verified_signatures: LruCache<Hash, HashSet<Certificate>>,
     /// Our own keypair
     signing_keypair: Arc<Keypair>,
 }
@@ -26,20 +26,13 @@ impl BlockSigner {
         }
     }
 
-    pub(crate) fn get_block_certificates(
-        &mut self,
-        block_id: &HashType,
-    ) -> Option<Vec<Certificate>> {
+    pub(crate) fn get_block_certificates(&mut self, block_id: &Hash) -> Option<Vec<Certificate>> {
         self.verified_signatures
             .get(block_id)
             .map(|signatures| signatures.iter().cloned().collect())
     }
 
-    pub(crate) fn sign_block(
-        &mut self,
-        block: &Block,
-        hash: &HashType,
-    ) -> anyhow::Result<Certificate> {
+    pub(crate) fn sign_block(&mut self, block: &Block, hash: &Hash) -> anyhow::Result<Certificate> {
         debug!("Signing block: {:?}", block.get_hash());
 
         let certificate = block.sign(self.signing_keypair.as_ref())?;
@@ -70,10 +63,10 @@ impl BlockSigner {
         }
     }
 
-    fn add_certificate(&mut self, hash: &HashType, certificate: Certificate) {
+    fn add_certificate(&mut self, hash: &Hash, certificate: Certificate) {
         trace!("Adding certificate to block: {}", hash);
         self.verified_signatures
-            .get_or_insert_mut(hash.to_owned(), HashSet::new)
+            .get_or_insert_mut(*hash, HashSet::new)
             .insert(certificate);
     }
 }
@@ -89,7 +82,7 @@ mod test {
 
     #[test]
     fn test_sign_verify_block_ok() {
-        let mut signer = BlockSigner::new(Arc::new(Keypair::generate(None)).clone());
+        let mut signer = BlockSigner::new(Arc::new(Keypair::generate(None)));
 
         let message_signing_keypair = Keypair::generate(None);
 
@@ -103,7 +96,7 @@ mod test {
 
     #[test]
     fn test_sign_signatures_cached_correctly() {
-        let mut signer = BlockSigner::new(Arc::new(Keypair::generate(None)).clone());
+        let mut signer = BlockSigner::new(Arc::new(Keypair::generate(None)));
 
         let block = new_block(&Keypair::generate(None), "label1");
         let hash = block.hash_with_default_hasher().unwrap();
@@ -115,13 +108,13 @@ mod test {
         let certificate2 = block.sign(&Keypair::generate(None)).unwrap();
         signer.verify_block(&block, &certificate2).unwrap();
 
-        let certificates = signer.get_block_certificates(&hash).unwrap();
-        assert_eq!(certificates.len(), 2);
+        let block_certificates = signer.get_block_certificates(&hash).unwrap();
+        assert_eq!(block_certificates.len(), 2);
     }
 
     #[test]
     fn test_sign_verify_block_fail() {
-        let mut signer = BlockSigner::new(Arc::new(Keypair::generate(None)).clone());
+        let mut signer = BlockSigner::new(Arc::new(Keypair::generate(None)));
         let message_signing_keypair = Keypair::generate(None);
 
         let block = new_block(&message_signing_keypair, "label1");

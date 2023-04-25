@@ -12,6 +12,8 @@ use crate::network::members::ConfigPeers;
 pub struct CreateLocalPeersConfiguration;
 
 impl CreateLocalPeersConfiguration {
+    /// # Panics
+    /// Panics if the configuration file cannot be written.
     pub fn execute(self) {
         let peers = Self::from_ephemera_dev_cluster_conf().unwrap();
         let config_peers = ConfigPeers::new(peers);
@@ -40,7 +42,7 @@ impl CreateLocalPeersConfiguration {
                     continue;
                 }
 
-                println!("Reading peer info config from node {}", node_name);
+                println!("Reading peer info config from node {node_name}",);
 
                 let conf = Configuration::try_load_from_home_dir(node_name)
                     .unwrap_or_else(|_| panic!("Error loading configuration for node {node_name}"));
@@ -48,7 +50,7 @@ impl CreateLocalPeersConfiguration {
                 let node_info = conf.node;
 
                 let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
-                let keypair = Keypair::from_raw_vec(keypair).unwrap();
+                let keypair = Keypair::from_bytes(keypair).unwrap();
 
                 let peer = PeerSetting {
                     name: node_name.to_string(),
@@ -57,7 +59,7 @@ impl CreateLocalPeersConfiguration {
                 };
                 peers.push(peer);
 
-                println!("Loaded config for node {}", node_name);
+                println!("Loaded config for node {node_name}",);
             }
         }
 

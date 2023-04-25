@@ -4,15 +4,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     block::types::message::EphemeraMessage,
-    codec::{Decode, EphemeraEncoder},
+    codec::{Decode, Encode},
     crypto::Keypair,
     peer::PeerId,
-    utilities::encoding::{Decoder, EphemeraDecoder},
-    utilities::hash::{HashType, Hasher},
     utilities::{
+        codec::{Codec, DecodingError, EncodingError, EphemeraCodec},
         crypto::Certificate,
-        encoding::{Encode, Encoder},
         hash::{EphemeraHash, EphemeraHasher},
+        hash::{Hash, Hasher},
         time::EphemeraTime,
     },
 };
@@ -22,11 +21,11 @@ pub(crate) struct BlockHeader {
     pub(crate) timestamp: u64,
     pub(crate) creator: PeerId,
     pub(crate) height: u64,
-    pub(crate) hash: HashType,
+    pub(crate) hash: Hash,
 }
 
 impl BlockHeader {
-    pub(crate) fn new(raw_header: RawBlockHeader, hash: HashType) -> Self {
+    pub(crate) fn new(raw_header: &RawBlockHeader, hash: Hash) -> Self {
         Self {
             timestamp: raw_header.timestamp,
             creator: raw_header.creator,
@@ -50,22 +49,22 @@ impl Display for BlockHeader {
 }
 
 impl Encode for BlockHeader {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Encoder::encode(&self)
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        Codec::encode(&self)
     }
 }
 
 impl Decode for BlockHeader {
     type Output = Self;
 
-    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
-        Decoder::decode(bytes)
+    fn decode(bytes: &[u8]) -> Result<Self::Output, DecodingError> {
+        Codec::decode(bytes)
     }
 }
 
 impl EphemeraHash for BlockHeader {
     fn hash<H: EphemeraHasher>(&self, state: &mut H) -> anyhow::Result<()> {
-        let bytes = Encoder::encode(&self)?;
+        let bytes = Codec::encode(&self)?;
         state.update(&bytes);
         Ok(())
     }
@@ -113,15 +112,15 @@ pub(crate) struct Block {
 }
 
 impl Block {
-    pub(crate) fn new(raw_block: RawBlock, block_hash: HashType) -> Self {
-        let header = BlockHeader::new(raw_block.header.clone(), block_hash);
+    pub(crate) fn new(raw_block: RawBlock, block_hash: Hash) -> Self {
+        let header = BlockHeader::new(&raw_block.header, block_hash);
         Self {
             header,
             messages: raw_block.messages,
         }
     }
 
-    pub(crate) fn get_hash(&self) -> HashType {
+    pub(crate) fn get_hash(&self) -> Hash {
         self.header.hash
     }
 
@@ -135,7 +134,7 @@ impl Block {
                 timestamp: EphemeraTime::now(),
                 creator,
                 height: 0,
-                hash: HashType::new([0; 32]),
+                hash: Hash::new([0; 32]),
             },
             messages: Vec::new(),
         }
@@ -152,7 +151,7 @@ impl Block {
         certificate.verify(&raw_block)
     }
 
-    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<HashType> {
+    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<Hash> {
         let raw_block: RawBlock = self.clone().into();
         raw_block.hash_with_default_hasher()
     }
@@ -166,16 +165,16 @@ impl Display for Block {
 }
 
 impl Encode for Block {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Encoder::encode(&self)
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        Codec::encode(&self)
     }
 }
 
 impl Decode for Block {
     type Output = Block;
 
-    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
-        Decoder::decode(bytes)
+    fn decode(bytes: &[u8]) -> Result<Self::Output, DecodingError> {
+        Codec::decode(bytes)
     }
 }
 
@@ -190,7 +189,7 @@ impl RawBlock {
         Self { header, messages }
     }
 
-    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<HashType> {
+    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<Hash> {
         let mut hasher = Hasher::default();
         self.hash(&mut hasher)?;
         let block_hash = hasher.finish().into();
@@ -208,30 +207,30 @@ impl From<Block> for RawBlock {
 }
 
 impl Encode for RawBlockHeader {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Encoder::encode(&self)
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        Codec::encode(&self)
     }
 }
 
 impl Decode for RawBlockHeader {
     type Output = RawBlockHeader;
 
-    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
-        Decoder::decode(bytes)
+    fn decode(bytes: &[u8]) -> Result<Self::Output, DecodingError> {
+        Codec::decode(bytes)
     }
 }
 
 impl Encode for RawBlock {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Encoder::encode(&self)
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        Codec::encode(&self)
     }
 }
 
 impl Decode for RawBlock {
     type Output = RawBlock;
 
-    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
-        Decoder::decode(bytes)
+    fn decode(bytes: &[u8]) -> Result<Self::Output, DecodingError> {
+        Codec::decode(bytes)
     }
 }
 

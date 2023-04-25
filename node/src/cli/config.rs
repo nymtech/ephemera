@@ -19,6 +19,8 @@ pub struct UpdateConfigCmd {
 }
 
 impl UpdateConfigCmd {
+    /// # Panics
+    /// Panics if the config file does not exist.
     pub fn execute(self) {
         let path: PathBuf = self.config_path.clone().into();
         if Configuration::try_load(path.clone()).is_err() {
@@ -63,6 +65,7 @@ impl<'a> ConfigVisitor<'a> {
         }
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn process(&mut self, table: Table) -> Table {
         let key = self.keys[0];
         let value = table.get(key).unwrap();
@@ -97,7 +100,7 @@ impl<'a> ConfigVisitor<'a> {
                 table.insert(root_key.to_string(), Value::Boolean(value));
             }
             Value::Datetime(_) => {
-                println!("Datetime not supported")
+                println!("Datetime not supported");
             }
             Value::Array(ar) => {
                 self.in_array = true;

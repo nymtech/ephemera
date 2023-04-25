@@ -1,13 +1,15 @@
+use std::collections::HashSet;
+use std::future::Future;
+use std::str::FromStr;
+
 use futures::StreamExt;
+use libp2p::kad::{GetClosestPeersResult, GetRecordResult};
 use libp2p::swarm::{NetworkBehaviour, SwarmBuilder};
 use libp2p::{
     gossipsub, gossipsub::IdentTopic as Topic, kad, request_response, swarm::SwarmEvent, Multiaddr,
     Swarm,
 };
 use log::{debug, error, info, trace};
-use std::collections::HashSet;
-use std::future::Future;
-use std::str::FromStr;
 
 use crate::membership::PeerInfo;
 use crate::{
@@ -66,14 +68,14 @@ where
         let ephemera_msg_topic =
             Topic::new(&node_info.initial_config.libp2p.ephemera_msg_topic_name);
 
-        let transport = create_transport(local_key.clone());
+        let transport = create_transport(&local_key);
 
         let members_provider_delay = std::time::Duration::from_secs(
             node_info.initial_config.libp2p.members_provider_delay_sec,
         );
         let behaviour = create_behaviour(
-            local_key,
-            ephemera_msg_topic.clone(),
+            &local_key,
+            &ephemera_msg_topic,
             members_provider,
             members_provider_delay,
         );
@@ -116,19 +118,19 @@ where
                     }
                 },
                 Some(event) = self.from_ephemera_rcv.net_event_rcv.recv() => {
-                    self.process_ephemera_events(event).await;
+                    self.process_ephemera_events(event);
                 }
             }
         }
     }
 
-    async fn process_ephemera_events(&mut self, event: EphemeraEvent) {
+    fn process_ephemera_events(&mut self, event: EphemeraEvent) {
         match event {
             EphemeraEvent::EphemeraMessage(em) => {
-                self.send_ephemera_message(*em).await;
+                self.send_ephemera_message(em.as_ref());
             }
             EphemeraEvent::ProtocolMessage(pm) => {
-                self.send_broadcast_message(*pm).await;
+                self.send_broadcast_message(pm.as_ref());
             }
             EphemeraEvent::StoreInDht { key, value } => {
                 let record = kad::Record::new(key, value);
@@ -164,8 +166,8 @@ where
             if let Err(err) = self.process_group_behaviour_event(b).await {
                 error!("Error handling behaviour event: {:?}", err);
             }
-        } else if let Err(err) = self.process_other_swarm_events(swarm_event).await {
-            error!("Error handling swarm event: {:?}", err);
+        } else {
+            Self::process_other_swarm_events(swarm_event);
         }
         Ok(())
     }
@@ -333,9 +335,6 @@ where
 
     async fn process_kad_event(&mut self, event: kad::KademliaEvent) -> anyhow::Result<()> {
         match event {
-            kad::KademliaEvent::InboundRequest { request } => {
-                trace!("Inbound request: {:?}", request);
-            }
             kad::KademliaEvent::OutboundQueryProgressed {
                 id,
                 result,
@@ -350,42 +349,14 @@ where
                     step
                 );
                 match result {
+                    kad::QueryResult::GetClosestPeers(gcp) => {
+                        self.process_closest_peers(gcp).await?;
+                    }
+                    kad::QueryResult::GetRecord(get_res) => {
+                        self.process_get_record(get_res).await?;
+                    }
                     kad::QueryResult::Bootstrap(bt) => {
                         trace!("Bootstrap: {:?}", bt);
-                    }
-                    kad::QueryResult::GetClosestPeers(gcp) => {
-                        trace!("GetClosestPeers: {:?}", gcp);
-                        //TODO: we need also to make sure that we have enough peers
-                        // (Repeat if not enough, may need to wait network to stabilize)
-                        match gcp {
-                            Ok(cp) => {
-                                if cp.peers.is_empty() {
-                                    return Ok(());
-                                }
-
-                                let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
-                                for peer_id in cp.peers {
-                                    gossipsub.add_explicit_peer(&peer_id);
-                                }
-
-                                let active_peers = self
-                                    .swarm
-                                    .behaviour_mut()
-                                    .members_provider
-                                    .active_peer_ids_with_local();
-                                let active_peers = active_peers
-                                    .into_iter()
-                                    .map(|peer_id| peer_id.into())
-                                    .collect::<HashSet<_>>();
-                                let group_update = NetworkEvent::GroupUpdate(
-                                    GroupChangeEvent::PeersUpdated(active_peers),
-                                );
-                                self.to_ephemera_tx.send_network_event(group_update).await?;
-                            }
-                            Err(err) => {
-                                error!("Error getting closest peers: {:?}", err);
-                            }
-                        }
                     }
                     kad::QueryResult::GetProviders(gp) => {
                         trace!("GetProviders: {:?}", gp);
@@ -396,31 +367,6 @@ where
                     kad::QueryResult::RepublishProvider(rp) => {
                         trace!("RepublishProvider: {:?}", rp);
                     }
-                    kad::QueryResult::GetRecord(get_res) => {
-                        trace!("GetRecord: {:?}", get_res);
-                        match get_res {
-                            Ok(ok) => {
-                                trace!("GetRecordOk: {:?}", ok);
-                                match ok {
-                                    kad::GetRecordOk::FoundRecord(fr) => {
-                                        debug!("FoundRecord: {:?}", fr);
-                                        let record = fr.record;
-                                        let event = NetworkEvent::QueryDhtResponse {
-                                            key: record.key.to_vec(),
-                                            value: record.value,
-                                        };
-                                        self.to_ephemera_tx.send_network_event(event).await?;
-                                    }
-                                    kad::GetRecordOk::FinishedWithNoAdditionalRecord { .. } => {
-                                        trace!("FinishedWithNoAdditionalRecord");
-                                    }
-                                }
-                            }
-                            Err(err) => {
-                                trace!("Not getting record: {:?}", err);
-                            }
-                        }
-                    }
                     kad::QueryResult::PutRecord(pr) => {
                         debug!("PutRecord: {:?}", pr);
                     }
@@ -429,6 +375,11 @@ where
                     }
                 }
             }
+
+            kad::KademliaEvent::InboundRequest { request } => {
+                trace!("Inbound request: {:?}", request);
+            }
+
             kad::KademliaEvent::RoutingUpdated {
                 peer: peer_id,
                 is_new_peer: _,
@@ -451,7 +402,70 @@ where
         Ok(())
     }
 
-    async fn send_broadcast_message(&mut self, msg: RbMsg) {
+    async fn process_get_record(&mut self, get_res: GetRecordResult) -> anyhow::Result<()> {
+        trace!("GetRecord: {:?}", get_res);
+        match get_res {
+            Ok(ok) => {
+                trace!("GetRecordOk: {:?}", ok);
+                match ok {
+                    kad::GetRecordOk::FoundRecord(fr) => {
+                        debug!("FoundRecord: {:?}", fr);
+                        let record = fr.record;
+                        let event = NetworkEvent::QueryDhtResponse {
+                            key: record.key.to_vec(),
+                            value: record.value,
+                        };
+                        self.to_ephemera_tx.send_network_event(event).await?;
+                    }
+                    kad::GetRecordOk::FinishedWithNoAdditionalRecord { .. } => {
+                        trace!("FinishedWithNoAdditionalRecord");
+                    }
+                }
+            }
+            Err(err) => {
+                trace!("Not getting record: {:?}", err);
+            }
+        }
+        Ok(())
+    }
+
+    async fn process_closest_peers(&mut self, gcp: GetClosestPeersResult) -> anyhow::Result<()> {
+        trace!("GetClosestPeers: {:?}", gcp);
+        //TODO: we need also to make sure that we have enough peers
+        // (Repeat if not enough, may need to wait network to stabilize)
+        match gcp {
+            Ok(cp) => {
+                if cp.peers.is_empty() {
+                    log::warn!("No peers found");
+                    return Ok(());
+                }
+
+                let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
+                for peer_id in cp.peers {
+                    gossipsub.add_explicit_peer(&peer_id);
+                }
+
+                let active_peers = self
+                    .swarm
+                    .behaviour_mut()
+                    .members_provider
+                    .active_peer_ids_with_local();
+                let active_peers = active_peers
+                    .into_iter()
+                    .map(Into::into)
+                    .collect::<HashSet<_>>();
+                let group_update =
+                    NetworkEvent::GroupUpdate(GroupChangeEvent::PeersUpdated(active_peers));
+                self.to_ephemera_tx.send_network_event(group_update).await?;
+            }
+            Err(err) => {
+                error!("Error getting closest peers: {:?}", err);
+            }
+        }
+        Ok(())
+    }
+
+    fn send_broadcast_message(&mut self, msg: &RbMsg) {
         debug!(
             "Sending broadcast message: {:?} to all peers",
             msg.short_fmt()
@@ -468,7 +482,7 @@ where
         }
     }
 
-    async fn send_ephemera_message(&mut self, msg: EphemeraMessage) {
+    fn send_ephemera_message(&mut self, msg: &EphemeraMessage) {
         trace!("Sending Ephemera message: {:?}", msg);
         match msg.encode() {
             Ok(vec) => {
@@ -484,10 +498,8 @@ where
     }
 
     //Just logging
-    async fn process_other_swarm_events<E>(
-        &mut self,
-        swarm_event: SwarmEvent<GroupBehaviourEvent, E>,
-    ) -> anyhow::Result<()> {
+    #[allow(clippy::too_many_lines)]
+    fn process_other_swarm_events<E>(swarm_event: SwarmEvent<GroupBehaviourEvent, E>) {
         match swarm_event {
             SwarmEvent::ConnectionEstablished {
                 peer_id,
@@ -595,6 +607,5 @@ where
                 trace!("Unexpected behaviour event");
             }
         }
-        Ok(())
     }
 }

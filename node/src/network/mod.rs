@@ -1,26 +1,32 @@
+use std::fmt::Display;
 use std::net::IpAddr;
 use std::str::FromStr;
 
 use ::libp2p::{multiaddr::Protocol, Multiaddr};
 use libp2p_identity::PeerId as Libp2pPeerId;
 use log::info;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::crypto::PublicKey;
 
 pub(crate) mod libp2p;
 pub(crate) mod members;
 
-use serde::{Deserialize, Serialize};
-use std::fmt::Display;
-
-use crate::crypto::PublicKey;
-
 pub(crate) type PeerIdType = Libp2pPeerId;
+
+#[derive(Debug, Error)]
+pub enum PeerIdError {
+    #[error("Invalid peer ID: {0}")]
+    InvalidPeerId(String),
+}
 
 /// Unique identifier of a peer.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PeerId(pub(crate) PeerIdType);
 
 impl PeerId {
+    #[must_use]
     pub fn random() -> Self {
         Self(PeerIdType::random())
     }
@@ -31,16 +37,28 @@ impl PeerId {
     }
 
     /// Returns a raw representation of the peer ID.
+    #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         self.0.to_bytes()
     }
 
     /// Returns a peer ID from a raw representation.
-    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
-        Ok(Self(PeerIdType::from_bytes(bytes)?))
+    ///
+    /// # Returns
+    ///
+    /// A `PeerId` if the bytes are valid.
+    ///
+    /// # Errors
+    ///
+    /// An error if input has wrong format. This function is reverse to [`PeerId::to_bytes`].
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, PeerIdError> {
+        Ok(Self(PeerIdType::from_bytes(bytes).map_err(|e| {
+            PeerIdError::InvalidPeerId(format!("Invalid peer ID: {e}"))
+        })?))
     }
 
     /// Builds a `PeerId` from a public key.
+    #[must_use]
     pub fn from_public_key(public_key: &PublicKey) -> Self {
         Self(PeerIdType::from_public_key(public_key.inner()))
     }

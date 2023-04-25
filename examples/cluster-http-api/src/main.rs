@@ -4,7 +4,7 @@ use clap::Parser;
 use log::info;
 
 use ephemera::crypto::EphemeraKeypair;
-use ephemera::helpers::init_logging_with_directives;
+use ephemera::logging;
 
 mod cluster;
 mod node;
@@ -32,7 +32,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-    init_logging_with_directives("info");
+    logging::init_with_directives("info");
 
     let keypair = ephemera::crypto::Keypair::generate(None);
     let args = Args::parse();

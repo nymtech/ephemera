@@ -11,7 +11,7 @@ use libp2p::{InboundUpgrade, OutboundUpgrade};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
-use crate::utilities::encoding::varint_bytes::{read_length_prefixed, write_length_prefixed};
+use crate::utilities::codec::varint_bytes::{read_length_prefixed, write_length_prefixed};
 
 pub const PROTOCOL_NAME: &[u8] = b"/ephemera/membership/1.0.0";
 

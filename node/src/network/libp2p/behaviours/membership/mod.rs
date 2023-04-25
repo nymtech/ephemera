@@ -1,5 +1,5 @@
 //! In Ephemera, membership of reliable broadcast protocol is decided by membership provider.
-//! Only peers who are returned by [crate::membership::MembersProviderFut] are allowed to participate.
+//! Only peers who are returned by [`crate::membership::MembersProviderFut`] are allowed to participate.
 
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
@@ -28,13 +28,6 @@ const MEMBERSHIP_SYNC_INTERVAL_SEC: u64 = 60;
 /// //TODO: make this configurable
 const _MEMBERSHIP_MAXIMUM_ALLOWED_CHANGE_RATIO: f64 = 0.2;
 
-pub(crate) fn _calculate_membership_change(
-    _previous: HashSet<PeerId>,
-    _current: HashSet<PeerId>,
-) -> usize {
-    0
-}
-
 /// Membership provider returns list of peers. But it is up to the Ephemera user to decide
 /// how reliable the list is. For example, it can contain peers who are offline.
 
@@ -54,6 +47,11 @@ pub(crate) enum MembershipKind {
 }
 
 impl MembershipKind {
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation
+    )]
     pub(crate) fn accept(&self, membership: &Membership) -> bool {
         let total_number_of_peers = membership.all_members.len();
         let connected_peers = membership.connected_peers_ids.len();
@@ -79,7 +77,7 @@ pub(crate) struct Memberships {
 impl Memberships {
     pub(crate) fn new() -> Self {
         let mut snapshots = LruCache::new(NonZeroUsize::new(1000).unwrap());
-        snapshots.put(0, Membership::new(Default::default()));
+        snapshots.put(0, Membership::new(HashMap::default()));
         Self {
             snapshots,
             current: 0,
@@ -127,7 +125,7 @@ impl Membership {
         all_members: HashMap<PeerId, Peer>,
         local_peer_id: PeerId,
     ) -> Self {
-        let all_peers_ids = all_members.keys().cloned().collect();
+        let all_peers_ids = all_members.keys().copied().collect();
         Self {
             local_peer_id,
             all_members,
@@ -137,7 +135,7 @@ impl Membership {
     }
 
     pub(crate) fn new(all_members: HashMap<PeerId, Peer>) -> Self {
-        let all_peers_ids = all_members.keys().cloned().collect();
+        let all_peers_ids = all_members.keys().copied().collect();
         Self {
             local_peer_id: PeerId::random(),
             all_members,

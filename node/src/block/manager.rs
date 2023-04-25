@@ -31,8 +31,8 @@ use crate::{
         types::{block::Block, message::EphemeraMessage},
     },
     broadcast::signing::BlockSigner,
-    config::BlockConfig,
-    utilities::{crypto::Certificate, hash::HashType},
+    config::BlockManagerConfiguration,
+    utilities::{crypto::Certificate, hash::Hash},
 };
 
 pub(crate) type Result<T> = std::result::Result<T, BlockManagerError>;
@@ -48,7 +48,7 @@ pub(crate) enum BlockManagerError {
 
 /// It helps to use atomic state management for new blocks.
 pub(crate) struct BlockChainState {
-    pub(crate) last_blocks: LruCache<HashType, Block>,
+    pub(crate) last_blocks: LruCache<Hash, Block>,
     /// Last block that we created.
     /// It's not Option because we always have genesis block
     last_produced_block: Option<Block>,
@@ -74,7 +74,7 @@ impl BlockChainState {
             .expect("Block should be present");
     }
 
-    fn is_last_produced_block(&self, hash: HashType) -> bool {
+    fn is_last_produced_block(&self, hash: Hash) -> bool {
         match self.last_produced_block.as_ref() {
             Some(block) => block.get_hash() == hash,
             None => false,
@@ -153,7 +153,7 @@ impl Future for BackOffInterval {
 }
 
 pub(crate) struct BlockManager {
-    pub(crate) config: BlockConfig,
+    pub(crate) config: BlockManagerConfiguration,
     /// Block producer. Simple helper that creates blocks
     pub(crate) block_producer: BlockProducer,
     /// Message pool. Contains all messages that we received from the network and not included in any(committed) block yet.
@@ -218,9 +218,7 @@ impl BlockManager {
             return Err(anyhow!("Block signature is invalid: {hash}").into());
         }
 
-        self.block_chain_state
-            .last_blocks
-            .put(hash, block.to_owned());
+        self.block_chain_state.last_blocks.put(hash, block.clone());
         Ok(())
     }
 
@@ -292,11 +290,11 @@ impl BlockManager {
         Ok(())
     }
 
-    pub(crate) fn get_block_by_hash(&mut self, block_id: &HashType) -> Option<Block> {
+    pub(crate) fn get_block_by_hash(&mut self, block_id: &Hash) -> Option<Block> {
         self.block_chain_state.last_blocks.get(block_id).cloned()
     }
 
-    pub(crate) fn get_block_certificates(&mut self, hash: &HashType) -> Option<Vec<Certificate>> {
+    pub(crate) fn get_block_certificates(&mut self, hash: &Hash) -> Option<Vec<Certificate>> {
         self.block_signer.get_block_certificates(hash)
     }
 
@@ -358,7 +356,7 @@ impl Stream for BlockManager {
         }
 
         //If backoff is expired and we still don't have previous block committed
-        let repeat_previous = is_previous_pending && self.config.repeat_last_block;
+        let repeat_previous = is_previous_pending && self.config.repeat_last_block_messages;
 
         let pending_messages = if repeat_previous {
             let block = self
@@ -476,7 +474,7 @@ mod test {
         let mut block = block();
         let certificate = manager.sign_block(&block).unwrap();
 
-        block.header.hash = HashType::new([0; 32]);
+        block.header.hash = Hash::new([0; 32]);
         let result = manager.on_block(&peer_id, &block, &certificate);
 
         assert!(result.is_err());
@@ -546,7 +544,7 @@ mod test {
 
     #[tokio::test]
     async fn test_next_block_previous_not_committed_repeat_false() {
-        let config = BlockConfig::new(true, 0, false);
+        let config = BlockManagerConfiguration::new(true, 0, false);
         let (mut manager, _) = block_manager_with_config(config);
 
         let signed_message = message("test");
@@ -650,11 +648,11 @@ mod test {
     }
 
     fn block_manager_with_defaults() -> (BlockManager, PeerId) {
-        let config = BlockConfig::new(true, 0, true);
+        let config = BlockManagerConfiguration::new(true, 0, true);
         block_manager_with_config(config)
     }
 
-    fn block_manager_with_config(config: BlockConfig) -> (BlockManager, PeerId) {
+    fn block_manager_with_config(config: BlockManagerConfiguration) -> (BlockManager, PeerId) {
         let keypair: Arc<Keypair> = Keypair::generate(None).into();
         let peer_id = keypair.public_key().peer_id();
         let genesis_block = Block::new_genesis_block(peer_id);

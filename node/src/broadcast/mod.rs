@@ -1,4 +1,4 @@
-//! This a basic implementation of a broadcast_protocol where participating peers go through three rounds to
+//! This a basic implementation of a `broadcast_protocol` where participating peers go through three rounds to
 //! reach a consensus on if/when to deliver a message.
 //!
 //! PRE-PREPARE:
@@ -25,7 +25,7 @@
 //! - Prepare and commit messages can reach out of order due to network and node processing delays. Nevertheless,
 //!   a peer won't commit a message until it receives a quorum of prepare messages.
 //! - Current implementation makes only progress(updates its state machine) when it receives a message from another peer.
-//!   If for some reason messages are lost, the broadcast_protocol will not make progress. This can be fixed by introducing a timer and some concept
+//!   If for some reason messages are lost, the `broadcast_protocol` will not make progress. This can be fixed by introducing a timer and some concept
 //!   of views/epoch.
 //! - It doesn't try to total order different messages. All messages reach quorum consensus independently.
 //!   All it does is that a quorum or no quorum of peers deliver the message.
@@ -42,7 +42,7 @@ use crate::{
     peer::PeerId,
     utilities::{
         crypto::Certificate,
-        hash::HashType,
+        hash::Hash,
         id::{EphemeraId, EphemeraIdentifier},
         time::EphemeraTime,
     },
@@ -52,11 +52,12 @@ pub(crate) mod bracha;
 pub(crate) mod group;
 pub(crate) mod signing;
 
+/// Context keeps the broadcast state for a block
 #[derive(Debug, Clone)]
 pub(crate) struct ProtocolContext {
     pub(crate) local_peer_id: PeerId,
     /// Message id
-    pub(crate) hash: HashType,
+    pub(crate) hash: Hash,
     /// Peers that sent prepare message(this peer included)
     pub(crate) echo: HashSet<PeerId>,
     /// Peers that sent commit message(this peer included)
@@ -66,7 +67,7 @@ pub(crate) struct ProtocolContext {
 }
 
 impl ProtocolContext {
-    pub(crate) fn new(hash: HashType, local_peer_id: PeerId) -> ProtocolContext {
+    pub(crate) fn new(hash: Hash, local_peer_id: PeerId) -> ProtocolContext {
         ProtocolContext {
             local_peer_id,
             hash,
@@ -220,16 +221,4 @@ impl Display for RbMsg {
 pub(crate) enum MessageType {
     Echo(Block),
     Vote(Block),
-}
-
-#[derive(Debug, PartialEq)]
-pub(crate) enum Status {
-    Pending,
-    Completed,
-}
-
-#[derive(Debug, PartialEq)]
-pub(crate) enum Command {
-    Broadcast,
-    Drop,
 }

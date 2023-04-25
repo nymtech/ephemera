@@ -4,7 +4,7 @@ use log::info;
 use rocksdb::{TransactionDB, TransactionDBOptions};
 
 use crate::block::types::block::Block;
-use crate::config::DbConfig;
+use crate::config::DatabaseConfiguration;
 use crate::storage::rocksdb::query::DbQuery;
 use crate::storage::rocksdb::store::DbStore;
 use crate::storage::EphemeraDatabase;
@@ -24,8 +24,8 @@ const PREFIX_BLOCK_HEIGHT: &str = "block_height";
 const PREFIX_CERTIFICATES: &str = "block_certificates";
 
 impl RocksDbStorage {
-    pub fn open(db_conf: DbConfig) -> anyhow::Result<Self> {
-        info!("Opening RocksDB database at {}", db_conf.rocket_path);
+    pub fn open(db_conf: DatabaseConfiguration) -> anyhow::Result<Self> {
+        info!("Opening RocksDB database at {}", db_conf.rocksdb_path);
 
         let mut options = rocksdb::Options::default();
         options.create_if_missing(db_conf.create_if_not_exists);
@@ -33,14 +33,14 @@ impl RocksDbStorage {
         let db = TransactionDB::open(
             &options,
             &TransactionDBOptions::default(),
-            db_conf.rocket_path.clone(),
+            db_conf.rocksdb_path.clone(),
         )?;
         let db = Arc::new(db);
         let db_store = DbStore::new(db.clone());
         let db_query = DbQuery::new(db);
         let storage = Self { db_store, db_query };
 
-        info!("Opened RocksDB database at {}", db_conf.rocket_path);
+        info!("Opened RocksDB database at {}", db_conf.rocksdb_path);
         Ok(storage)
     }
 }

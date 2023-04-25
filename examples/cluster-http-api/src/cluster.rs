@@ -8,7 +8,7 @@ use rand::Rng;
 use tokio::task::JoinHandle;
 
 use ephemera::crypto::Keypair;
-use ephemera::ephemera_api::{ApiDhtQueryRequest, ApiDhtStoreRequest, EphemeraHttpClient};
+use ephemera::ephemera_api::{ApiDhtQueryRequest, ApiDhtStoreRequest, Client};
 
 use crate::node::Node;
 use crate::util::create_ephemera_message;
@@ -365,7 +365,7 @@ impl Cluster {
                     let value = value.as_bytes();
                     let request = ApiDhtStoreRequest::new(key, value);
 
-                    client.store_dht_request(request.clone()).await.unwrap();
+                    client.store_in_dht(request.clone()).await.unwrap();
 
                     dht_pending_stores.lock().await.push(request);
 
@@ -410,7 +410,7 @@ impl Cluster {
 
                     let request = ApiDhtQueryRequest::new(store.key().as_slice());
 
-                    let response = client.query_dht_key(request).await.unwrap();
+                    let response = client.query_dht(request).await.unwrap();
                     match response {
                         Some(response) => {
                             info!(
@@ -447,10 +447,10 @@ impl Cluster {
         Duration::from_secs(avg_interval)
     }
 
-    async fn clients(&self) -> HashMap<usize, EphemeraHttpClient> {
+    async fn clients(&self) -> HashMap<usize, Client> {
         let mut clients = HashMap::new();
         for node in self.nodes.lock().await.iter() {
-            let client = EphemeraHttpClient::new_with_timeout(node.url.clone(), 30);
+            let client = Client::new_with_timeout(node.url.clone(), 30);
             clients.insert(node.id, client);
         }
         clients

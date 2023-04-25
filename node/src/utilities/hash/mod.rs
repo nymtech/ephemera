@@ -7,9 +7,9 @@ use std::str::FromStr;
 pub type Hasher = Blake2bHasher;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
-pub struct HashType([u8; 32]);
+pub struct Hash([u8; 32]);
 
-impl HashType {
+impl Hash {
     pub fn new(hash: [u8; 32]) -> Self {
         Self(hash)
     }
@@ -19,7 +19,7 @@ impl HashType {
     }
 }
 
-impl FromStr for HashType {
+impl FromStr for Hash {
     type Err = bs58::decode::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -30,19 +30,19 @@ impl FromStr for HashType {
     }
 }
 
-impl Debug for HashType {
+impl Debug for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.base58())
     }
 }
 
-impl Display for HashType {
+impl Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.base58())
     }
 }
 
-impl From<[u8; 32]> for HashType {
+impl From<[u8; 32]> for Hash {
     fn from(hash: [u8; 32]) -> Self {
         Self(hash)
     }
@@ -67,8 +67,8 @@ pub struct Blake2bHasher {
 
 impl EphemeraHasher for Blake2bHasher {
     fn digest(data: &[u8]) -> [u8; 32] {
-        let mut dest = [0; 32];
         type Blake2b256 = blake2::Blake2b<U32>;
+        let mut dest = [0; 32];
         dest.copy_from_slice(Blake2b256::digest(data).as_slice());
         dest
     }

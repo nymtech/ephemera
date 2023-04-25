@@ -4,16 +4,16 @@
 //!
 //! ## Types
 //!
-//! - ApiEphemeraMessage
-//! - RawApiEphemeraMessage
-//! - ApiBlock
-//! - ApiCertificate
-//! - Health
-//! - ApiError
-//! - ApiEphemeraConfig
-//! - ApiDhtQueryRequest
-//! - ApiDhtQueryResponse
-//! - ApiDhtStoreRequest
+//! - `ApiEphemeraMessage`
+//! - `RawApiEphemeraMessage`
+//! - `ApiBlock`
+//! - `ApiCertificate`
+//! - `Health`
+//! - `ApiError`
+//! - `ApiEphemeraConfig`
+//! - `ApiDhtQueryRequest`
+//! - `ApiDhtQueryResponse`
+//! - `ApiDhtStoreRequest`
 
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -24,14 +24,14 @@ use thiserror::Error;
 use utoipa::ToSchema;
 
 use crate::peer::PeerId;
+use crate::utilities::codec::{Codec, DecodingError, EncodingError, EphemeraCodec};
 use crate::{
     block::types::{block::Block, block::BlockHeader, message::EphemeraMessage},
-    codec::{Decode, Encode, EphemeraEncoder},
+    codec::{Decode, Encode},
     crypto::{Keypair, PublicKey},
-    ephemera_api::ApplicationError,
+    ephemera_api,
     utilities::{
         crypto::{Certificate, Signature},
-        encoding::{Decoder, Encoder, EphemeraDecoder},
         time::EphemeraTime,
     },
 };
@@ -45,7 +45,7 @@ pub enum ApiError {
     #[error("Invalid block hash: {0}")]
     InvalidBlockHash(#[from] bs58::decode::Error),
     #[error("ApplicationError: {0}")]
-    Application(#[from] ApplicationError),
+    Application(#[from] ephemera_api::ApplicationError),
     #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
 }
@@ -62,7 +62,7 @@ pub enum ApiError {
 /// - label
 /// - data
 ///
-/// Currently it's up provided [ephemera_api::application::Application] to verify the signature.
+/// Currently it's up provided [`ephemera_api::application::Application`] to verify the signature.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiEphemeraMessage {
     /// The timestamp of the message.
@@ -76,6 +76,7 @@ pub struct ApiEphemeraMessage {
 }
 
 impl ApiEphemeraMessage {
+    #[must_use]
     pub fn new(raw_message: RawApiEphemeraMessage, certificate: ApiCertificate) -> Self {
         Self {
             timestamp: raw_message.timestamp,
@@ -86,7 +87,7 @@ impl ApiEphemeraMessage {
     }
 }
 
-/// RawApiEphemeraMessage contains the fields of the ApiEphemeraMessage that are signed.
+/// `RawApiEphemeraMessage` contains the fields of the `ApiEphemeraMessage` that are signed.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct RawApiEphemeraMessage {
     /// The timestamp of the message. It's initialized when the message is created.
@@ -99,6 +100,7 @@ pub struct RawApiEphemeraMessage {
 }
 
 impl RawApiEphemeraMessage {
+    #[must_use]
     pub fn new(label: String, data: Vec<u8>) -> Self {
         Self {
             timestamp: EphemeraTime::now(),
@@ -126,6 +128,10 @@ impl RawApiEphemeraMessage {
     /// let bytes = raw_message.encode().unwrap();
     /// assert!(keypair.public_key().verify(&bytes, &signed_message.certificate.signature));
     /// ```
+    ///
+    /// # Errors
+    /// - If the message can't be encoded.
+    /// - If the message can't be signed.
     pub fn sign(&self, keypair: &Keypair) -> anyhow::Result<ApiEphemeraMessage> {
         let certificate = Certificate::prepare(keypair, &self)?;
         let message = ApiEphemeraMessage::new(self.clone(), certificate.into());
@@ -244,10 +250,7 @@ impl ApiBroadcastInfo {
 
 impl Display for ApiBroadcastInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let current_members = self
-            .current_members
-            .iter()
-            .map(|peer_id| peer_id.to_string());
+        let current_members = self.current_members.iter().map(ToString::to_string);
         write!(
             f,
             "{{ local_peer_id: {}, current_members: {current_members:?} }}",
@@ -290,20 +293,20 @@ impl From<ApiEphemeraMessage> for EphemeraMessage {
 impl Decode for RawApiEphemeraMessage {
     type Output = Self;
 
-    fn decode(bytes: &[u8]) -> anyhow::Result<Self::Output> {
-        Decoder::decode(bytes)
+    fn decode(bytes: &[u8]) -> Result<Self::Output, DecodingError> {
+        Codec::decode(bytes)
     }
 }
 
 impl Encode for RawApiEphemeraMessage {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Encoder::encode(self)
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        Codec::encode(self)
     }
 }
 
 impl Encode for &RawApiEphemeraMessage {
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Encoder::encode(self)
+    fn encode(&self) -> Result<Vec<u8>, EncodingError> {
+        Codec::encode(self)
     }
 }
 
@@ -318,21 +321,28 @@ impl Display for ApiBlockHeader {
 }
 
 impl ApiBlock {
+    #[must_use]
     pub fn as_raw_block(&self) -> ApiRawBlock {
         ApiRawBlock {
             header: self.header.clone(),
-            messages: self.messages.to_vec(),
+            messages: self.messages.clone(),
         }
     }
 
+    #[must_use]
     pub fn message_count(&self) -> usize {
         self.messages.len()
     }
 
+    #[must_use]
     pub fn hash(&self) -> String {
         self.header.hash.clone()
     }
 
+    /// # Errors
+    /// - If the block is invalid.
+    /// - If the block's certificate is invalid.
+    /// - If the block's certificate is not signed by the block's creator.
     pub fn verify(&self, certificate: &ApiCertificate) -> Result<bool, ApiError> {
         let block: Block = self.clone().try_into()?;
         let valid = block.verify(&(certificate.clone()).into())?;
@@ -358,10 +368,14 @@ impl ApiRawBlock {
 }
 
 impl ApiCertificate {
+    /// # Errors
+    /// -
     pub fn prepare<D: Encode>(key_pair: &Keypair, data: &D) -> anyhow::Result<Self> {
-        Certificate::prepare(key_pair, data).map(|c| c.into())
+        Certificate::prepare(key_pair, data).map(Into::into)
     }
 
+    /// # Errors
+    /// -
     pub fn verify<D: Encode>(&self, data: &D) -> anyhow::Result<bool> {
         let certificate: Certificate = (self.clone()).into();
         Certificate::verify(&certificate, data)
@@ -416,11 +430,7 @@ impl From<Block> for ApiBlock {
                 height: block.header.height,
                 hash: block.header.hash.to_string(),
             },
-            messages: block
-                .messages
-                .into_iter()
-                .map(|signed_message| signed_message.into())
-                .collect(),
+            messages: block.messages.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -432,7 +442,7 @@ impl TryFrom<ApiBlock> for Block {
         let messages: Vec<EphemeraMessage> = api_block
             .messages
             .into_iter()
-            .map(|message| message.into())
+            .map(Into::into)
             .collect::<Vec<EphemeraMessage>>();
         Ok(Self {
             header: BlockHeader {
@@ -447,17 +457,22 @@ impl TryFrom<ApiBlock> for Block {
 }
 
 impl ApiDhtStoreRequest {
+    #[must_use]
     pub fn new(key: &[u8], value: &[u8]) -> Self {
         let key = bytes2hex("0x", key);
         let value = bytes2hex("0x", value);
         Self { key, value }
     }
 
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
     pub fn key(&self) -> Vec<u8> {
         //We can unwrap here because the key is always valid.
         hex2bytes(&self.key).unwrap()
     }
 
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
     pub fn value(&self) -> Vec<u8> {
         //We can unwrap here because the value is always valid.
         hex2bytes(&self.value).unwrap()
@@ -465,16 +480,21 @@ impl ApiDhtStoreRequest {
 }
 
 impl ApiDhtQueryRequest {
+    #[must_use]
     pub fn new(key: &[u8]) -> Self {
         let key = bytes2hex("0x", key);
         Self { key }
     }
 
+    #[must_use]
     pub fn key_encoded(&self) -> String {
         self.key.clone()
     }
 
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
     pub fn key(&self) -> Vec<u8> {
+        //We can unwrap here because the value is always valid.
         hex2bytes(&self.key).unwrap()
     }
 
@@ -490,11 +510,15 @@ impl ApiDhtQueryResponse {
         Self { key, value }
     }
 
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
     pub fn key(&self) -> Vec<u8> {
         //We can unwrap here because the key is always valid.
         hex2bytes(&self.key).unwrap()
     }
 
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
     pub fn value(&self) -> Vec<u8> {
         //We can unwrap here because the value is always valid.
         hex2bytes(&self.value).unwrap()

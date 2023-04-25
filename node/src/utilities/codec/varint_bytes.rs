@@ -13,6 +13,8 @@ pub(crate) enum VarintError {
     TooLarge,
 }
 
+#[allow(clippy::cast_possible_truncation)]
+
 pub(crate) fn write_length_prefixed<D: AsRef<[u8]>>(dst: &mut BytesMut, data: D) {
     write_varint(dst, data.as_ref().len() as u32);
     dst.extend_from_slice(data.as_ref());

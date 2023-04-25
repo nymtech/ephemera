@@ -14,12 +14,18 @@ pub(crate) struct Shutdown {
 }
 
 #[derive(Clone)]
-pub struct ShutdownHandle {
+pub struct Handle {
     pub(crate) external_shutdown: mpsc::UnboundedSender<()>,
     pub(crate) shutdown_started: bool,
 }
 
-impl ShutdownHandle {
+impl Handle {
+    /// Shutdown the node.
+    /// This will send a shutdown signal to all tasks and wait for them to finish.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if shutdown signal can't be sent.
     pub fn shutdown(&mut self) {
         self.shutdown_started = true;
         self.external_shutdown.send(()).unwrap();
@@ -27,10 +33,10 @@ impl ShutdownHandle {
 }
 
 impl ShutdownManager {
-    pub(crate) fn init() -> (ShutdownManager, ShutdownHandle) {
+    pub(crate) fn init() -> (ShutdownManager, Handle) {
         let (shutdown_tx, shutdown_rcv) = broadcast::channel(1);
         let (external_tx, external_rcv) = mpsc::unbounded_channel();
-        let shutdown_handle = ShutdownHandle {
+        let shutdown_handle = Handle {
             external_shutdown: external_tx,
             shutdown_started: false,
         };
@@ -47,7 +53,7 @@ impl ShutdownManager {
         info!("Starting Ephemera shutdown");
         self.shutdown_tx.send(()).unwrap();
         info!("Waiting for tasks to finish");
-        for handle in self.handles.into_iter() {
+        for handle in self.handles {
             handle.await.unwrap();
         }
     }

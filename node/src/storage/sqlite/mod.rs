@@ -2,9 +2,9 @@ use log::{error, info};
 use rusqlite::Connection;
 
 use crate::block::types::block::Block;
-use crate::config::DbConfig;
+use crate::config::DatabaseConfiguration;
 use crate::storage::sqlite::query::DbQuery;
-use crate::storage::sqlite::store::DbStore;
+use crate::storage::sqlite::store::Database;
 use crate::storage::EphemeraDatabase;
 use crate::utilities::crypto::Certificate;
 
@@ -18,12 +18,12 @@ mod migrations {
 }
 
 pub(crate) struct SqliteStorage {
-    pub(crate) db_store: DbStore,
+    pub(crate) db_store: Database,
     pub(crate) db_query: DbQuery,
 }
 
 impl SqliteStorage {
-    pub fn open(db_conf: DbConfig) -> anyhow::Result<Self> {
+    pub fn open(db_conf: DatabaseConfiguration) -> anyhow::Result<Self> {
         let mut flags = rusqlite::OpenFlags::default();
         if !db_conf.create_if_not_exists {
             flags.remove(rusqlite::OpenFlags::SQLITE_OPEN_CREATE);
@@ -33,7 +33,7 @@ impl SqliteStorage {
         Self::run_migrations(&mut connection)?;
 
         info!("Starting db backend with path: {}", db_conf.sqlite_path);
-        let db_store = DbStore::open(db_conf.clone(), flags)?;
+        let db_store = Database::open(db_conf.clone(), flags)?;
         let db_query = DbQuery::open(db_conf, flags)?;
         let storage = Self { db_store, db_query };
         Ok(storage)
@@ -55,7 +55,7 @@ impl SqliteStorage {
 }
 
 impl EphemeraDatabase for SqliteStorage {
-    fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<Block>> {
+    fn get_block_by_id(&self, block_id: &str) -> anyhow::Result<Option<Block>> {
         self.db_query.get_block_by_hash(block_id)
     }
 
@@ -67,11 +67,11 @@ impl EphemeraDatabase for SqliteStorage {
         self.db_query.get_block_by_height(height)
     }
 
-    fn get_block_certificates(&self, block_id: String) -> anyhow::Result<Option<Vec<Certificate>>> {
+    fn get_block_certificates(&self, block_id: &str) -> anyhow::Result<Option<Vec<Certificate>>> {
         self.db_query.get_block_certificates(block_id)
     }
 
-    fn store_block(&mut self, block: &Block, certificates: Vec<Certificate>) -> anyhow::Result<()> {
+    fn store_block(&mut self, block: &Block, certificates: &[Certificate]) -> anyhow::Result<()> {
         self.db_store.store_block(block, certificates)
     }
 }
