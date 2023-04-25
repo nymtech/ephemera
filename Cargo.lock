@@ -1149,6 +1149,8 @@ dependencies = [
  "anyhow",
  "clap",
  "ephemera",
+ "futures",
+ "futures-util",
  "log",
  "rand 0.8.5",
  "reqwest",

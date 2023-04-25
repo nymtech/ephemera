@@ -1,4 +1,4 @@
-use log::{info, trace};
+use log::trace;
 
 use crate::broadcast::{MessageType, ProtocolContext};
 
@@ -136,13 +136,13 @@ mod test {
 
     #[test]
     fn test_max_faulty_nodes() {
-        let mut quorum = Quorum::new(10);
+        let quorum = Quorum::new(10);
         assert_eq!(quorum.max_faulty_nodes, 3);
     }
 
     #[test]
     fn test_vote_threshold_from_n_minus_f_peers() {
-        let mut quorum = Quorum::new(10);
+        let quorum = Quorum::new(10);
 
         let ctx = ctx_with_nr_echoes(0);
         assert_eq!(
@@ -165,7 +165,7 @@ mod test {
 
     #[test]
     fn test_vote_threshold_from_f_plus_one_peers() {
-        let mut quorum = Quorum::new(10);
+        let quorum = Quorum::new(10);
 
         let ctx = ctx_with_nr_votes(0, None);
         assert_eq!(
@@ -188,7 +188,7 @@ mod test {
 
     #[test]
     fn test_deliver_threshold_from_n_minus_f_peers() {
-        let mut quorum = Quorum::new(10);
+        let quorum = Quorum::new(10);
 
         let local_peer_id = PeerId::random();
         let ctx = ctx_with_nr_votes(0, local_peer_id.into());

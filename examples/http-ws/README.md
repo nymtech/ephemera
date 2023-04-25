@@ -60,11 +60,49 @@ Options:
 ```
 
 ```bash
-  cargo run -- --host 127.0.0.1 --http-port 7001 --ws-port 6001
+cargo run -- --host 127.0.0.1 --http-port 7001 --ws-port 6001 --messages-frequency-ms 10000
 ```
 
 ## Stop the cluster
 
 ```bash
 ../../scripts/local-cluster stop
+```
+
+## Example output
+
+```text
+Connecting to ephemera node on 127.0.0.1
+
+Querying new blocks 10 ms
+
+Listening to ws blocks on ws://127.0.0.1:6001
+
+Sending messages to http://127.0.0.1:7001
+
+Sending signed messages every 10000 ms
+
+Received new block
+Received nr of blocks: 1
+
+Block found by hash: "aFEUaCYfP8iBNwQy3EVjgfE1LmojibGr56Q9vx39cuu"
+
+Comparing block aFEUaCYfP8iBNwQy3EVjgfE1LmojibGr56Q9vx39cuu
+
+Block header match
+Comparing block messages, count: 103
+Block messages match
+Verifying messages signatures: 103
+
+All messages signatures are valid
+Block certificates found by hash: "aFEUaCYfP8iBNwQy3EVjgfE1LmojibGr56Q9vx39cuu", len 6
+
+Verifying block certificates: 6
+
+Certificate from peer 12D3KooWQrvPUr9kFM8KkVoWwgUT13NXaFnryVa6RzDJAxYJMnV9 is valid
+Certificate from peer 12D3KooWBGdcpj361Zpez5Psjdz8U11D69wvTThphqXCLQZHxqWT is valid
+Certificate from peer 12D3KooW9wcn2XUQxfeL5MRnMMpe7ickcjBz1B2aSAfbHPwjHziy is valid
+Certificate from peer 12D3KooWNiJyRXhBmKmTWsvZXamedDWBS3rG3ojKKE7tcEGsttgY is valid
+Certificate from peer 12D3KooWJSZzExhcoP1F2k1yBbEkkpSyMHMFFkq6KSnESU8WC334 is valid
+Certificate from peer 12D3KooWRfPuqp65cKBT8d5k3ECbpVZMrbrK4GhpW2QfNxyPBuRv is valid
 ```

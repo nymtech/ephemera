@@ -1,10 +1,12 @@
-use ephemera::ephemera_api;
-use log::{info, warn};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use log::{info, warn};
+
 use ephemera::ephemera_api::{
-    ApiBlock, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, ApiHealth, Client,
+    ApiBlock, ApiBroadcastInfo, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage,
 };
+
+use crate::util::HealthyClient;
 
 pub(crate) struct Node {
     pub(crate) id: usize,
@@ -20,7 +22,7 @@ pub(crate) struct Node {
 impl Node {
     pub(crate) async fn init(id: usize, url: String) -> Self {
         //Use separate client instances elsewhere so they don't block each other
-        let client = Client::new(url.clone());
+        let client = HealthyClient::new(url.clone());
         let last_block = client.get_last_block().await.unwrap();
         let ephemera_config = client.get_ephemera_config().await.unwrap();
         info!("Node {} config {:?}", id, ephemera_config);
@@ -104,18 +106,14 @@ impl Node {
 
     pub(crate) async fn get_node_config(
         &self,
-        client: &mut Client,
-    ) -> anyhow::Result<ephemera_api::ApiEphemeraConfig> {
+        client: &HealthyClient,
+    ) -> anyhow::Result<ApiEphemeraConfig> {
         client.get_ephemera_config().await.map_err(|e| e.into())
-    }
-
-    pub(crate) async fn health(&self, client: &mut Client) -> anyhow::Result<ApiHealth> {
-        client.health().await.map_err(|e| e.into())
     }
 
     pub(crate) async fn get_block_by_hash(
         &self,
-        client: &mut Client,
+        client: &HealthyClient,
         hash: &str,
     ) -> anyhow::Result<Option<ApiBlock>> {
         client.get_block_by_hash(hash).await.map_err(|e| e.into())
@@ -123,7 +121,7 @@ impl Node {
 
     pub(crate) async fn get_block_certificates(
         &self,
-        client: &mut Client,
+        client: &HealthyClient,
         hash: &str,
     ) -> anyhow::Result<Option<Vec<ApiCertificate>>> {
         client
@@ -134,7 +132,7 @@ impl Node {
 
     pub(crate) async fn get_block_and_certificates_by_height(
         &self,
-        client: &mut Client,
+        client: &HealthyClient,
         height: u64,
     ) -> anyhow::Result<Option<(ApiBlock, Vec<ApiCertificate>)>> {
         match client.get_block_by_height(height).await {
@@ -150,13 +148,20 @@ impl Node {
         }
     }
 
-    pub(crate) async fn get_last_block(&self, client: &mut Client) -> anyhow::Result<ApiBlock> {
+    pub(crate) async fn get_last_block(&self, client: &HealthyClient) -> anyhow::Result<ApiBlock> {
         client.get_last_block().await.map_err(|e| e.into())
+    }
+
+    pub(crate) async fn broadcast_info(
+        &self,
+        client: &HealthyClient,
+    ) -> anyhow::Result<ApiBroadcastInfo> {
+        client.broadcast_info().await.map_err(|e| e.into())
     }
 
     pub(crate) async fn submit_message(
         &self,
-        client: &mut Client,
+        client: &HealthyClient,
         message: ApiEphemeraMessage,
     ) -> anyhow::Result<()> {
         client.submit_message(message).await.map_err(|e| e.into())

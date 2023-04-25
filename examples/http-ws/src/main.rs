@@ -130,7 +130,6 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
                     println!("Block found by hash: {:?}\n", block.hash());
                     compare_blocks(&block, &http_block);
 
-                    println!("Verifying messages signatures");
                     if verify_messages_signatures(block.clone()).is_ok() {
                         println!("All messages signatures are valid");
                     } else {

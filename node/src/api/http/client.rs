@@ -19,7 +19,7 @@ pub enum Error {
     },
 }
 
-pub(crate) type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Client to interact with the node over HTTP api.
 pub struct Client {

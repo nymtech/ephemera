@@ -1,7 +1,8 @@
 use ephemera::{
     configuration::Configuration,
     ephemera_api::{
-        ApiBlock, ApiEphemeraMessage, Application, CheckBlockResult, RemoveMessages, Result,
+        ApiBlock, ApiEphemeraMessage, Application, ApplicationResult, CheckBlockResult,
+        RemoveMessages,
     },
 };
 use log::{debug, error, info};
@@ -45,7 +46,7 @@ impl Application for RewardsEphemeraApplication {
     /// Perform validation checks:
     /// - Check that the transaction has a valid signature, we don't want to accept garbage messages
     ///   or messages from unknown peers
-    fn check_tx(&self, tx: ApiEphemeraMessage) -> Result<bool> {
+    fn check_tx(&self, tx: ApiEphemeraMessage) -> ApplicationResult<bool> {
         if serde_json::from_slice::<Vec<MixnodeToReward>>(&tx.data).is_err() {
             error!("Message is not a valid Reward message");
             return Ok(false);
@@ -58,7 +59,7 @@ impl Application for RewardsEphemeraApplication {
 
     /// Agree to accept the block if it contains threshold number of transactions
     /// We trust that transactions are valid(checked by check_tx)
-    fn check_block(&self, block: &ApiBlock) -> Result<CheckBlockResult> {
+    fn check_block(&self, block: &ApiBlock) -> ApplicationResult<CheckBlockResult> {
         info!("Block message count: {}", block.message_count());
 
         let block_threshold = ((block.message_count() as f64
@@ -85,7 +86,7 @@ impl Application for RewardsEphemeraApplication {
     }
 
     /// It is possible to use this method as a callback to get notified when block is committed
-    fn deliver_block(&self, _block: ApiBlock) -> Result<()> {
+    fn deliver_block(&self, _block: ApiBlock) -> ApplicationResult<()> {
         Ok(())
     }
 }

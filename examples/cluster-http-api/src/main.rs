@@ -1,18 +1,29 @@
+// Test full HTTP API for each node
+//
+// Endpoints to test:
+// * ephemera/node/health (GET) ✅
+// * ephemera/node/block/{hash} (GET) ✅
+// * ephemera/node/block/certificates/{hash} (GET) ✅
+// * ephemera/node/block/height/{height} (GET) ✅
+// * ephemera/node/block/last (GET) ✅
+// * ephemera/node/config (GET) ✅
+// * ephemera/node/dht/query (GET) ✅
+// * ephemera/node/broadcast/info (GET)
+// * ephemera/node/submit (POST) ✅
+// * ephemera/node/dht/store (POST) ✅
+
 use std::time::Duration;
 
 use clap::Parser;
 use log::info;
 
-use ephemera::crypto::EphemeraKeypair;
 use ephemera::logging;
+
+use crate::cluster::Cluster;
 
 mod cluster;
 mod node;
 mod util;
-
-const EPHEMERA_IP: &str = "127.0.0.1";
-// Node 1 http port is 7000, Node2 http port is 7001, etc.
-const HTTP_API_PORT_BASE: u16 = 7000;
 
 #[derive(Parser, Clone)]
 #[command(name = "cluster-http-api")]
@@ -27,68 +38,40 @@ struct Args {
     messages_post_frequency_ms: u64,
 }
 
-//1. Submit messages to different nodes
-//2. Use full HTTP API for each node
-
 #[tokio::main]
 async fn main() {
     logging::init_with_directives("info");
 
-    let keypair = ephemera::crypto::Keypair::generate(None);
     let args = Args::parse();
+    let cluster = Cluster::init(args).await;
 
-    let mut nodes = vec![];
-    for i in 0..args.nr_of_nodes {
-        let node = node::Node::init(
-            i,
-            format!("http://{}:{}", EPHEMERA_IP, HTTP_API_PORT_BASE as usize + i),
-        )
-        .await;
-        nodes.push(node);
-    }
+    // SUBMIT MESSAGES - ephemera/node/submit
+    let mut submit_messages = Box::pin(cluster.submit_messages_to_at_random_burst_and_wait(100));
 
-    for node in nodes.iter_mut() {
-        info!("Node {} last block: {}", node.id, node.last_block);
-    }
+    // QUERY LAST BLOCK - ephemera/node/block/last
+    let mut last_block = Box::pin(cluster.query_last_block());
 
-    let mut cluster = cluster::Cluster::new(args.clone(), nodes, keypair);
+    // QUERY BLOCKS BY HEIGHT - ephemera/node/block/height/{height}
+    let mut blocks_by_height = Box::pin(cluster.query_blocks_by_height());
 
-    let mut submit_messages_handle = cluster
-        .submit_messages_to_at_random_burst_and_wait(100)
-        .await
-        .unwrap();
+    // QUERY BLOCKS BY HASH - ephemera/node/block/{hash}
+    let mut block_hashes = Box::pin(cluster.query_blocks_by_hash());
 
-    let mut query_blocks_by_height_handle = cluster.query_blocks_by_height().await.unwrap();
+    // STORE IN DHT - ephemera/node/dht/store
+    let mut store_in_dht =
+        Box::pin(cluster.store_in_dht_using_random_node(Duration::from_secs(10)));
 
-    let mut query_block_hashes_handle = cluster.query_blocks_by_hash().await.unwrap();
-
-    let mut store_in_dht_handle = cluster
-        .store_in_dht_using_random_node(Duration::from_secs(10))
-        .await
-        .unwrap();
-
-    let mut query_dht_handle = cluster
-        .query_dht_using_random_node(Duration::from_secs(8))
-        .await
-        .unwrap();
+    // QUERY DHT - ephemera/node/dht/query
+    let mut query_dht = Box::pin(cluster.query_dht_using_random_node(Duration::from_secs(8)));
 
     tokio::select! {
-        _ = &mut submit_messages_handle => {
-            info!("Submit messages task exited");
-        }
-        _ = &mut query_blocks_by_height_handle => {
-            info!("Query blocks by height task exited");
-        }
-        _ = &mut query_block_hashes_handle => {
-            info!("Query blocks by hash task exited");
-        }
-        _ = &mut store_in_dht_handle => {
-            info!("Store in dht task exited");
-        }
-        _ = &mut query_dht_handle => {
-            info!("Query dht task exited");
-        }
+        _ = &mut submit_messages => info!("Submit messages finished"),
+        _ = &mut blocks_by_height => info!("Blocks by height finished"),
+        _ = &mut block_hashes => info!("Block hashes finished"),
+        _ = &mut last_block => info!("Last block finished"),
+        _ = &mut store_in_dht => info!("Store in DHT finished"),
+        _ = &mut query_dht => info!("Query DHT finished"),
     }
 
-    info!("Cluster started");
+    info!("Cluster test finished");
 }

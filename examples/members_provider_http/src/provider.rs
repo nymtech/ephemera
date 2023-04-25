@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::thread;
 use std::time::Duration;
 
@@ -116,7 +116,6 @@ impl ProviderRunner {
 pub(crate) struct PeersStatus {
     all_peers: HashMap<PeerId, JsonPeerInfo>,
     clients: HashMap<PeerId, Client>,
-    node_names: BTreeMap<String, PeerId>,
 }
 
 impl PeersStatus {
@@ -124,7 +123,6 @@ impl PeersStatus {
         let peers = Self::read_peers_config();
         let mut clients = HashMap::new();
         let mut all_peers = HashMap::new();
-        let mut nodes = BTreeMap::new();
 
         for (i, info) in peers.iter().enumerate() {
             let pub_key = info.public_key.parse::<PublicKey>().unwrap();
@@ -135,13 +133,8 @@ impl PeersStatus {
 
             clients.insert(peer_id, client);
             all_peers.insert(peer_id, info.clone());
-            nodes.insert(info.name.clone(), peer_id);
         }
-        Self {
-            all_peers,
-            clients,
-            node_names: nodes,
-        }
+        Self { all_peers, clients }
     }
 
     fn json_info(&self, ids: &HashSet<PeerId>) -> Vec<JsonPeerInfo> {

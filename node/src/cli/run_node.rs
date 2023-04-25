@@ -6,6 +6,7 @@ use log::trace;
 use reqwest::Url;
 use tokio::signal::unix::{signal, SignalKind};
 
+use crate::ephemera_api::ApplicationResult;
 use crate::utilities::codec::{Codec, EphemeraCodec};
 use crate::{
     api::application::CheckBlockResult,
@@ -14,9 +15,7 @@ use crate::{
     core::builder::EphemeraStarter,
     crypto::EphemeraKeypair,
     crypto::Keypair,
-    ephemera_api::{
-        ApiBlock, ApiEphemeraMessage, Application, Dummy, RawApiEphemeraMessage, Result,
-    },
+    ephemera_api::{ApiBlock, ApiEphemeraMessage, Application, Dummy, RawApiEphemeraMessage},
     membership::HttpMembersProvider,
     network::members::ConfigMembersProvider,
 };
@@ -127,17 +126,17 @@ impl SignatureVerificationApplication {
 }
 
 impl Application for SignatureVerificationApplication {
-    fn check_tx(&self, tx: ApiEphemeraMessage) -> Result<bool> {
+    fn check_tx(&self, tx: ApiEphemeraMessage) -> ApplicationResult<bool> {
         trace!("SignatureVerificationApplicationHook::check_tx");
         self.verify_message(tx)?;
         Ok(true)
     }
 
-    fn check_block(&self, _block: &ApiBlock) -> Result<CheckBlockResult> {
+    fn check_block(&self, _block: &ApiBlock) -> ApplicationResult<CheckBlockResult> {
         Ok(CheckBlockResult::Accept)
     }
 
-    fn deliver_block(&self, _block: ApiBlock) -> Result<()> {
+    fn deliver_block(&self, _block: ApiBlock) -> ApplicationResult<()> {
         trace!("SignatureVerificationApplicationHook::deliver_block");
         Ok(())
     }

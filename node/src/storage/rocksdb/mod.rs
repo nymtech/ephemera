@@ -5,7 +5,7 @@ use rocksdb::{TransactionDB, TransactionDBOptions};
 
 use crate::block::types::block::Block;
 use crate::config::DatabaseConfiguration;
-use crate::storage::rocksdb::query::DbQuery;
+use crate::storage::rocksdb::query::Database;
 use crate::storage::rocksdb::store::DbStore;
 use crate::storage::EphemeraDatabase;
 use crate::utilities::crypto::Certificate;
@@ -15,7 +15,7 @@ pub(crate) mod store;
 
 pub(crate) struct RocksDbStorage {
     pub(crate) db_store: DbStore,
-    pub(crate) db_query: DbQuery,
+    pub(crate) db_query: Database,
 }
 
 const PREFIX_LAST_BLOCK_KEY: &str = "last_block";
@@ -37,7 +37,7 @@ impl RocksDbStorage {
         )?;
         let db = Arc::new(db);
         let db_store = DbStore::new(db.clone());
-        let db_query = DbQuery::new(db);
+        let db_query = Database::new(db);
         let storage = Self { db_store, db_query };
 
         info!("Opened RocksDB database at {}", db_conf.rocksdb_path);

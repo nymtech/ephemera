@@ -7,19 +7,20 @@ use rocksdb::TransactionDB;
 
 use crate::utilities::crypto::Certificate;
 
-pub struct DbQuery {
+pub struct Database {
     database: Arc<TransactionDB>,
 }
 
-impl DbQuery {
-    pub fn new(db: Arc<TransactionDB>) -> DbQuery {
-        DbQuery { database: db }
+impl Database {
+    #[allow(dead_code)]
+    pub fn new(db: Arc<TransactionDB>) -> Database {
+        Database { database: db }
     }
 
     pub(crate) fn get_block_by_hash(&self, block_hash: &str) -> anyhow::Result<Option<Block>> {
         trace!("Getting block by id: {:?}", block_hash);
 
-        let block_id_key = block_hash_key(&block_hash);
+        let block_id_key = block_hash_key(block_hash);
 
         let block = if let Some(block) = self.database.get(block_id_key)? {
             let block = serde_json::from_slice::<Block>(&block)?;
@@ -62,7 +63,7 @@ impl DbQuery {
     ) -> anyhow::Result<Option<Vec<Certificate>>> {
         trace!("Getting block signatures: {}", block_hash);
 
-        let certificates_key = certificates_key(&block_hash);
+        let certificates_key = certificates_key(block_hash);
 
         if let Some(certificates) = self.database.get(certificates_key)? {
             let certificates: Vec<Certificate> = serde_json::from_slice(&certificates)?;
