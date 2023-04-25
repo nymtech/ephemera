@@ -19,7 +19,7 @@ impl DbStore {
     pub(crate) fn store_block(
         &self,
         block: &Block,
-        certificates: Vec<Certificate>,
+        certificates: &[Certificate],
     ) -> anyhow::Result<()> {
         debug!("Storing block: {}", block.header);
         trace!("Storing block certificates: {}", certificates.len());

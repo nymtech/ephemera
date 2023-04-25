@@ -15,7 +15,7 @@ use crate::storage::sqlite::SqliteStorage;
 use crate::{
     api::{application::Application, http, ApiListener, Commands},
     block::{builder::BlockManagerBuilder, manager::BlockManager},
-    broadcast::bracha::broadcaster::Broadcaster,
+    broadcast::bracha::broadcast::Broadcaster,
     broadcast::group::BroadcastGroup,
     config::Configuration,
     core::{

@@ -1,2 +1,2 @@
-pub(crate) mod broadcaster;
-mod quorum;
+pub(crate) mod broadcast;
+pub(crate) mod quorum;

@@ -46,7 +46,7 @@ impl RocksDbStorage {
 }
 
 impl EphemeraDatabase for RocksDbStorage {
-    fn get_block_by_id(&self, block_id: String) -> anyhow::Result<Option<Block>> {
+    fn get_block_by_id(&self, block_id: &str) -> anyhow::Result<Option<Block>> {
         self.db_query.get_block_by_hash(block_id)
     }
 
@@ -58,11 +58,11 @@ impl EphemeraDatabase for RocksDbStorage {
         self.db_query.get_block_by_height(height)
     }
 
-    fn get_block_certificates(&self, block_id: String) -> anyhow::Result<Option<Vec<Certificate>>> {
+    fn get_block_certificates(&self, block_id: &str) -> anyhow::Result<Option<Vec<Certificate>>> {
         self.db_query.get_block_certificates(block_id)
     }
 
-    fn store_block(&mut self, block: &Block, certificates: Vec<Certificate>) -> anyhow::Result<()> {
+    fn store_block(&mut self, block: &Block, certificates: &[Certificate]) -> anyhow::Result<()> {
         self.db_store.store_block(block, certificates)
     }
 }

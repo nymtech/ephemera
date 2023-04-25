@@ -1,10 +1,6 @@
-use crate::broadcast::{MessageType, ProtocolContext};
 use log::{info, trace};
 
-pub(crate) struct BrachaQuorum {
-    pub(crate) cluster_size: usize,
-    pub(crate) max_faulty_nodes: usize,
-}
+use crate::broadcast::{MessageType, ProtocolContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BrachaMessageType {
@@ -40,30 +36,24 @@ impl From<MessageType> for BrachaMessageType {
 
 const MAX_FAULTY_RATIO: f64 = 1.0 / 3.0;
 
-impl BrachaQuorum {
-    pub fn new() -> Self {
-        Self {
-            cluster_size: 0,
-            max_faulty_nodes: 0,
-        }
-    }
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Quorum {
+    pub(crate) cluster_size: usize,
+    pub(crate) max_faulty_nodes: usize,
+}
 
+impl Quorum {
     #[allow(
         clippy::cast_precision_loss,
         clippy::cast_sign_loss,
         clippy::cast_possible_truncation
     )]
-    pub(crate) fn update_group_size(&mut self, size: usize) {
-        //As we don't have strong guarantees/consensus/timing constraints on the
-        //broadcast, we just update group immediately.
-        //Theoretically it can break existing ongoing broadcast but timing chances for it
-        //probably are very low.
-        self.cluster_size = size;
-        self.max_faulty_nodes = (self.cluster_size as f64 * MAX_FAULTY_RATIO).floor() as usize;
-        info!(
-            "Bracha quorum: cluster_size: {}, max_faulty_nodes: {}",
-            self.cluster_size, self.max_faulty_nodes
-        );
+    pub fn new(cluster_size: usize) -> Self {
+        let max_faulty_nodes = (cluster_size as f64 * MAX_FAULTY_RATIO).floor() as usize;
+        Self {
+            cluster_size,
+            max_faulty_nodes,
+        }
     }
 
     pub(crate) fn check_threshold(
@@ -136,24 +126,23 @@ impl BrachaQuorum {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
+
     use crate::broadcast::{
-        bracha::quorum::{BrachaAction, BrachaMessageType, BrachaQuorum},
+        bracha::quorum::{BrachaAction, BrachaMessageType, Quorum},
         ProtocolContext,
     };
     use crate::peer::PeerId;
-    use std::collections::HashSet;
 
     #[test]
     fn test_max_faulty_nodes() {
-        let mut quorum = BrachaQuorum::new();
-        quorum.update_group_size(10);
+        let mut quorum = Quorum::new(10);
         assert_eq!(quorum.max_faulty_nodes, 3);
     }
 
     #[test]
     fn test_vote_threshold_from_n_minus_f_peers() {
-        let mut quorum = BrachaQuorum::new();
-        quorum.update_group_size(10);
+        let mut quorum = Quorum::new(10);
 
         let ctx = ctx_with_nr_echoes(0);
         assert_eq!(
@@ -176,8 +165,7 @@ mod test {
 
     #[test]
     fn test_vote_threshold_from_f_plus_one_peers() {
-        let mut quorum = BrachaQuorum::new();
-        quorum.update_group_size(10);
+        let mut quorum = Quorum::new(10);
 
         let ctx = ctx_with_nr_votes(0, None);
         assert_eq!(
@@ -200,8 +188,7 @@ mod test {
 
     #[test]
     fn test_deliver_threshold_from_n_minus_f_peers() {
-        let mut quorum = BrachaQuorum::new();
-        quorum.update_group_size(10);
+        let mut quorum = Quorum::new(10);
 
         let local_peer_id = PeerId::random();
         let ctx = ctx_with_nr_votes(0, local_peer_id.into());
@@ -223,22 +210,13 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_change_group() {
-        let mut quorum = BrachaQuorum::new();
-        quorum.update_group_size(10);
-        assert_eq!(quorum.max_faulty_nodes, 3);
-
-        quorum.update_group_size(13);
-        assert_eq!(quorum.max_faulty_nodes, 4);
-    }
-
     fn ctx_with_nr_echoes(n: usize) -> ProtocolContext {
         let mut ctx = ProtocolContext {
             local_peer_id: PeerId::random(),
             hash: [0; 32].into(),
             echo: HashSet::default(),
             vote: HashSet::default(),
+            quorum: Quorum::new(10),
             delivered: false,
         };
         for _ in 0..n {
@@ -253,6 +231,7 @@ mod test {
             hash: [0; 32].into(),
             echo: HashSet::default(),
             vote: HashSet::default(),
+            quorum: Quorum::new(10),
             delivered: false,
         };
         for _ in 0..n {

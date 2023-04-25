@@ -37,6 +37,7 @@ use std::fmt::Display;
 
 use serde_derive::{Deserialize, Serialize};
 
+use crate::broadcast::bracha::quorum::Quorum;
 use crate::{
     block::types::block::Block,
     peer::PeerId,
@@ -56,23 +57,26 @@ pub(crate) mod signing;
 #[derive(Debug, Clone)]
 pub(crate) struct ProtocolContext {
     pub(crate) local_peer_id: PeerId,
-    /// Message id
+    /// Block hash
     pub(crate) hash: Hash,
     /// Peers that sent prepare message(this peer included)
     pub(crate) echo: HashSet<PeerId>,
     /// Peers that sent commit message(this peer included)
     pub(crate) vote: HashSet<PeerId>,
+    /// Quorum logic for Bracha protocol
+    pub(crate) quorum: Quorum,
     /// Flag indicating if the message was delivered to the client
     pub(crate) delivered: bool,
 }
 
 impl ProtocolContext {
-    pub(crate) fn new(hash: Hash, local_peer_id: PeerId) -> ProtocolContext {
+    pub(crate) fn new(hash: Hash, local_peer_id: PeerId, quorum: Quorum) -> ProtocolContext {
         ProtocolContext {
             local_peer_id,
             hash,
             echo: HashSet::new(),
             vote: HashSet::new(),
+            quorum,
             delivered: false,
         }
     }

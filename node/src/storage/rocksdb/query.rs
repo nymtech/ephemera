@@ -16,7 +16,7 @@ impl DbQuery {
         DbQuery { database: db }
     }
 
-    pub(crate) fn get_block_by_hash(&self, block_hash: String) -> anyhow::Result<Option<Block>> {
+    pub(crate) fn get_block_by_hash(&self, block_hash: &str) -> anyhow::Result<Option<Block>> {
         trace!("Getting block by id: {:?}", block_hash);
 
         let block_id_key = block_hash_key(&block_hash);
@@ -36,7 +36,8 @@ impl DbQuery {
         trace!("Getting last block");
 
         if let Some(block_id) = self.database.get(last_block_key())? {
-            self.get_block_by_hash(String::from_utf8(block_id)?)
+            let block_hash = String::from_utf8(block_id)?;
+            self.get_block_by_hash(&block_hash)
         } else {
             trace!("Unable to get last block");
             Ok(None)
@@ -47,7 +48,8 @@ impl DbQuery {
         trace!("Getting block by height: {}", height);
 
         if let Some(block_id) = self.database.get(block_height_key(&height))? {
-            self.get_block_by_hash(String::from_utf8(block_id)?)
+            let block_hash = String::from_utf8(block_id)?;
+            self.get_block_by_hash(&block_hash)
         } else {
             trace!("Didn't find block");
             Ok(None)
@@ -56,7 +58,7 @@ impl DbQuery {
 
     pub(crate) fn get_block_certificates(
         &self,
-        block_hash: String,
+        block_hash: &str,
     ) -> anyhow::Result<Option<Vec<Certificate>>> {
         trace!("Getting block signatures: {}", block_hash);
 

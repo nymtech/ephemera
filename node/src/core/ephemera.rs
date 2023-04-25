@@ -8,14 +8,14 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::api::application::CheckBlockResult;
-use crate::broadcast::bracha::broadcaster::BroadcastResponse;
+use crate::broadcast::bracha::broadcast::BroadcastResponse;
 use crate::broadcast::group::BroadcastGroup;
 use crate::network::libp2p::network_sender::GroupChangeEvent;
 use crate::network::PeerId;
 use crate::{
     api::{application::Application, ApiListener},
     block::{manager::BlockManager, types::block::Block},
-    broadcast::{bracha::broadcaster::Broadcaster, RbMsg},
+    broadcast::{bracha::broadcast::Broadcaster, RbMsg},
     core::{
         api_cmd::ApiCmdProcessor,
         builder::{EphemeraHandle, NodeInfo},

@@ -7,7 +7,7 @@ use crate::peer::PeerId;
 use crate::{
     block::types::block::Block,
     broadcast::{
-        bracha::quorum::BrachaQuorum,
+        bracha::quorum::Quorum,
         MessageType::{Echo, Vote},
         ProtocolContext, RawRbMsg,
     },
@@ -27,8 +27,8 @@ pub(crate) struct Broadcaster {
     local_peer_id: PeerId,
     /// We keep a context for each block we are processing.
     contexts: LruCache<Hash, ProtocolContext>,
-    /// Bracha quorum - checks if a block is ready to move to the next stage.
-    quorum: BrachaQuorum,
+    /// Current cluster size
+    cluster_size: usize,
 }
 
 impl Broadcaster {
@@ -37,7 +37,7 @@ impl Broadcaster {
             //At any given time we are processing in parallel about n messages, where n is the number of peers in the group.
             //This is just large enough buffer.
             contexts: LruCache::new(NonZeroUsize::new(1000).unwrap()),
-            quorum: BrachaQuorum::new(),
+            cluster_size: 0,
             local_peer_id: peer_id,
         }
     }
@@ -49,14 +49,14 @@ impl Broadcaster {
     }
 
     pub(crate) fn handle(&mut self, rb_msg: &RawRbMsg) -> anyhow::Result<BroadcastResponse> {
+        debug!("Processing new broadcast message: {:?}", rb_msg.short_fmt());
+
         let block = &rb_msg.block();
         let hash = block.hash_with_default_hasher()?;
 
-        debug!("Processing new broadcast message: {:?}", rb_msg.short_fmt());
-
-        let ctx = self
-            .contexts
-            .get_or_insert(hash, || ProtocolContext::new(hash, self.local_peer_id));
+        let ctx = self.contexts.get_or_insert(hash, || {
+            ProtocolContext::new(hash, self.local_peer_id, Quorum::new(self.cluster_size))
+        });
 
         if ctx.delivered {
             debug!("Block {hash:?} already delivered");
@@ -76,7 +76,7 @@ impl Broadcaster {
     }
 
     pub(crate) fn group_updated(&mut self, size: usize) {
-        self.quorum.update_group_size(size);
+        self.cluster_size = size;
     }
 
     fn process_echo(&mut self, rb_msg: &RawRbMsg, hash: Hash) -> BroadcastResponse {
@@ -97,7 +97,7 @@ impl Broadcaster {
         }
 
         if !ctx.voted()
-            && self
+            && ctx
                 .quorum
                 .check_threshold(ctx, rb_msg.message_type.clone().into())
                 .is_vote()
@@ -122,7 +122,7 @@ impl Broadcaster {
             ctx.add_vote(rb_msg.original_sender);
         }
 
-        if self
+        if ctx
             .quorum
             .check_threshold(ctx, rb_msg.message_type.clone().into())
             .is_vote()
@@ -135,7 +135,7 @@ impl Broadcaster {
             );
         }
 
-        if self
+        if ctx
             .quorum
             .check_threshold(ctx, rb_msg.message_type.clone().into())
             .is_deliver()
@@ -167,12 +167,12 @@ mod tests {
 
     use assert_matches::assert_matches;
 
-    use crate::broadcast::bracha::broadcaster::BroadcastResponse;
+    use crate::broadcast::bracha::broadcast::BroadcastResponse;
     use crate::peer::PeerId;
     use crate::utilities::hash::Hash;
     use crate::{
         block::types::block::{Block, RawBlock, RawBlockHeader},
-        broadcast::{self, bracha::broadcaster::Broadcaster, RawRbMsg},
+        broadcast::{self, bracha::broadcast::Broadcaster, RawRbMsg},
     };
 
     #[test]
