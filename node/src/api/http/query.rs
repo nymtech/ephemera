@@ -139,7 +139,10 @@ responses(
 params(("query", description = "Dht query")),
 )]
 #[get("/ephemera/dht/query/{key}")]
-pub(crate) async fn query_dht(api: web::Data<CommandExecutor>, key: web::Path<String>) -> impl Responder {
+pub(crate) async fn query_dht(
+    api: web::Data<CommandExecutor>,
+    key: web::Path<String>,
+) -> impl Responder {
     let key = ApiDhtQueryRequest::parse_key(key.into_inner().as_str());
 
     match api.query_dht(key).await {

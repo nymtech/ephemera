@@ -49,10 +49,14 @@ impl Display for ToEphemeraApiCmd {
             ToEphemeraApiCmd::SubmitEphemeraMessage(message, _) => {
                 write!(f, "SubmitEphemeraMessage({message})",)
             }
-            ToEphemeraApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})",),
+            ToEphemeraApiCmd::QueryBlockByHeight(height, _) => {
+                write!(f, "QueryBlockByHeight({height})",)
+            }
             ToEphemeraApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})",),
             ToEphemeraApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
-            ToEphemeraApiCmd::QueryBlockCertificates(id, _) => write!(f, "QueryBlockSignatures{id}"),
+            ToEphemeraApiCmd::QueryBlockCertificates(id, _) => {
+                write!(f, "QueryBlockSignatures{id}")
+            }
             ToEphemeraApiCmd::QueryDht(_, _) => {
                 write!(f, "QueryDht")
             }
@@ -129,7 +133,8 @@ impl CommandExecutor {
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_last_block(&self) -> Result<ApiBlock> {
         trace!("get_last_block()");
-        self.send_and_wait_response(ToEphemeraApiCmd::QueryLastBlock).await
+        self.send_and_wait_response(ToEphemeraApiCmd::QueryLastBlock)
+            .await
     }
 
     /// Returns signatures for given block id
@@ -198,7 +203,8 @@ impl CommandExecutor {
     /// * `ApiEphemeraConfig` - Node configuration
     pub async fn get_node_config(&self) -> Result<ApiEphemeraConfig> {
         trace!("get_node_config()");
-        self.send_and_wait_response(ToEphemeraApiCmd::EphemeraConfig).await
+        self.send_and_wait_response(ToEphemeraApiCmd::EphemeraConfig)
+            .await
     }
 
     /// Returns broadcast group
@@ -212,7 +218,8 @@ impl CommandExecutor {
     /// * `ApiBroadcastInfo` - Broadcast group
     pub async fn get_broadcast_info(&self) -> Result<ApiBroadcastInfo> {
         trace!("get_broadcast_group()");
-        self.send_and_wait_response(ToEphemeraApiCmd::BroadcastGroup).await
+        self.send_and_wait_response(ToEphemeraApiCmd::BroadcastGroup)
+            .await
     }
 
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers
@@ -226,8 +233,10 @@ impl CommandExecutor {
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn send_ephemera_message(&self, message: ApiEphemeraMessage) -> Result<()> {
         trace!("send_ephemera_message({message})",);
-        self.send_and_wait_response(|tx| ToEphemeraApiCmd::SubmitEphemeraMessage(message.into(), tx))
-            .await
+        self.send_and_wait_response(|tx| {
+            ToEphemeraApiCmd::SubmitEphemeraMessage(message.into(), tx)
+        })
+        .await
     }
 
     async fn send_and_wait_response<F, R>(&self, f: F) -> Result<R>

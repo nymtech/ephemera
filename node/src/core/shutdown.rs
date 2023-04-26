@@ -54,7 +54,7 @@ impl ShutdownManager {
         self.shutdown_tx.send(()).unwrap();
         info!("Waiting for tasks to finish");
         for handle in self.handles {
-            match handle.await.unwrap(){
+            match handle.await.unwrap() {
                 Ok(_) => info!("Task finished successfully"),
                 Err(e) => info!("Task finished with error: {}", e),
             }

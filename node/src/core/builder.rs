@@ -7,9 +7,13 @@ use futures_util::FutureExt;
 use log::{error, info};
 use tokio::sync::Mutex;
 
-
+use crate::membership::PeerInfo;
+#[cfg(feature = "rocksdb_storage")]
+use crate::storage::rocksdb::RocksDbStorage;
+#[cfg(feature = "sqlite_storage")]
+use crate::storage::sqlite::SqliteStorage;
 use crate::{
-    api::{ApiListener, application::Application, CommandExecutor, http},
+    api::{application::Application, http, ApiListener, CommandExecutor},
     block::{builder::BlockManagerBuilder, manager::BlockManager},
     broadcast::bracha::broadcast::Broadcaster,
     broadcast::group::BroadcastGroup,
@@ -19,7 +23,6 @@ use crate::{
         shutdown::{Handle, Shutdown, ShutdownManager},
     },
     crypto::Keypair,
-    Ephemera,
     membership,
     network::libp2p::{
         ephemera_sender::EphemeraToNetworkSender, network_sender::NetCommunicationReceiver,
@@ -29,12 +32,8 @@ use crate::{
     storage::EphemeraDatabase,
     utilities::crypto::key_manager::KeyManager,
     websocket::ws_manager::{WsManager, WsMessageBroadcaster},
+    Ephemera,
 };
-use crate::membership::PeerInfo;
-#[cfg(feature = "rocksdb_storage")]
-use crate::storage::rocksdb::RocksDbStorage;
-#[cfg(feature = "sqlite_storage")]
-use crate::storage::sqlite::SqliteStorage;
 
 #[derive(Clone)]
 pub(crate) struct NodeInfo {
@@ -103,9 +102,9 @@ pub struct EphemeraHandle {
 }
 
 pub struct EphemeraStarter<A, P>
-    where
-        A: Application + 'static,
-        P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + 'static,
+where
+    A: Application + 'static,
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
 {
     config: Configuration,
     node_info: NodeInfo,
@@ -124,9 +123,9 @@ pub struct EphemeraStarter<A, P>
 }
 
 impl<A, P> EphemeraStarter<A, P>
-    where
-        A: Application + 'static,
-        P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
+where
+    A: Application + 'static,
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
     /// Creates a new Ephemera node builder.
     ///
@@ -172,8 +171,8 @@ impl<A, P> EphemeraStarter<A, P>
 
     #[must_use]
     pub fn with_members_provider(self, members_provider: P) -> Self
-        where
-            P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    where
+        P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
     {
         Self {
             members_provider: Some(members_provider),
@@ -183,8 +182,8 @@ impl<A, P> EphemeraStarter<A, P>
 
     #[must_use]
     pub fn with_application(self, application: A) -> Self
-        where
-            A: Application + 'static,
+    where
+        A: Application + 'static,
     {
         Self {
             application: Some(application),
@@ -205,8 +204,7 @@ impl<A, P> EphemeraStarter<A, P>
     /// # Panics
     ///
     /// * If builder is not initialized properly
-    pub fn init_tasks(self) -> anyhow::Result<Ephemera<A>> {
-        info!("Initializing ephemera tasks...");
+    pub fn build(self) -> anyhow::Result<Ephemera<A>> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "sqlite_storage")] {
                 let starter = self.connect_sqlite()?;
@@ -221,21 +219,18 @@ impl<A, P> EphemeraStarter<A, P>
 
         let (mut shutdown_manager, shutdown_handle) = ShutdownManager::init();
 
-        builder.init_services(&mut shutdown_manager).unwrap();
+        builder.init_services(&mut shutdown_manager)?;
 
-        //TODO make unwrap safe by Builder type system
-        let application = builder.application.take().unwrap();
-        let ephemera = builder.ephemera(application, shutdown_handle, shutdown_manager);
+        let ephemera = builder.ephemera(shutdown_handle, shutdown_manager);
         Ok(ephemera)
     }
 
     fn init_services(&mut self, shutdown_manager: &mut ShutdownManager) -> anyhow::Result<()> {
-        let net_fut = self.init_libp2p(shutdown_manager.subscribe());
-        let http_fut = self.init_http(shutdown_manager.subscribe())?;
-        let ws_fut = self.init_websocket(shutdown_manager.subscribe());
-        self.services.push(net_fut);
-        self.services.push(http_fut);
-        self.services.push(ws_fut);
+        self.services = vec![
+            self.init_libp2p(shutdown_manager.subscribe()),
+            self.init_http(shutdown_manager.subscribe())?,
+            self.init_websocket(shutdown_manager.subscribe()),
+        ];
         Ok(())
     }
 
@@ -260,10 +255,14 @@ impl<A, P> EphemeraStarter<A, P>
             }
             info!("Websocket task finished");
             Ok(())
-        }.boxed()
+        }
+        .boxed()
     }
 
-    fn init_http(&mut self, mut shutdown: Shutdown) -> anyhow::Result<BoxFuture<'static, anyhow::Result<()>>> {
+    fn init_http(
+        &mut self,
+        mut shutdown: Shutdown,
+    ) -> anyhow::Result<BoxFuture<'static, anyhow::Result<()>>> {
         let http = http::init(&self.node_info, self.api.clone())?;
 
         let server_handle = http.handle();
@@ -283,7 +282,8 @@ impl<A, P> EphemeraStarter<A, P>
             }
             info!("Http task finished");
             Ok(())
-        }.boxed();
+        }
+        .boxed();
         Ok(fut)
     }
 
@@ -312,12 +312,12 @@ impl<A, P> EphemeraStarter<A, P>
             }
             info!("Network task finished");
             Ok(())
-        }.boxed()
+        }
+        .boxed()
     }
 
     fn ephemera(
-        self,
-        application: A,
+        mut self,
         shutdown_handle: Handle,
         shutdown_manager: ShutdownManager,
     ) -> Ephemera<A> {
@@ -326,6 +326,8 @@ impl<A, P> EphemeraStarter<A, P>
             shutdown: shutdown_handle,
         };
         //TODO: builder pattern should make (statically) sure that all unwraps are satisfied
+        //TODO make unwrap safe by Builder type system
+        let application = self.application.take().unwrap();
         Ephemera {
             node_info: self.node_info,
             block_manager: self.block_manager.unwrap(),

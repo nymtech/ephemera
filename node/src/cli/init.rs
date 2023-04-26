@@ -2,7 +2,8 @@ use clap::{Args, Parser};
 
 use crate::config::{
     BlockManagerConfiguration, Configuration, DatabaseConfiguration, HttpConfiguration,
-    Libp2pConfiguration, MembershipKind as ConfigMembershipKind, NodeConfiguration, WebsocketConfiguration,
+    Libp2pConfiguration, MembershipKind as ConfigMembershipKind, NodeConfiguration,
+    WebsocketConfiguration,
 };
 use crate::crypto::{EphemeraKeypair, Keypair};
 
@@ -29,10 +30,12 @@ impl From<MembershipKind> for ConfigMembershipKind {
     fn from(kind: MembershipKind) -> Self {
         match kind {
             //TODO
-            MembershipKind { threshold: Some(_), .. } => ConfigMembershipKind::Threshold,
+            MembershipKind {
+                threshold: Some(_), ..
+            } => ConfigMembershipKind::Threshold,
             MembershipKind { all: Some(_), .. } => ConfigMembershipKind::AllOnline,
             MembershipKind { any: Some(_), .. } => ConfigMembershipKind::AnyOnline,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -74,7 +77,7 @@ impl Cmd {
         let path = Configuration::ephemera_root_dir()
             .unwrap()
             .join(&self.node_name);
-        println!("Creating ephemera node configuration in: {path:?}", );
+        println!("Creating ephemera node configuration in: {path:?}",);
 
         let db_dir = path.join("db");
         let rocksdb_path = db_dir.join("rocksdb");
@@ -116,7 +119,7 @@ impl Cmd {
         };
 
         if let Err(err) = configuration.try_write_home_dir(&self.node_name) {
-            eprintln!("Error creating configuration file: {err:?}", );
+            eprintln!("Error creating configuration file: {err:?}",);
         }
     }
 }

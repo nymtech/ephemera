@@ -65,13 +65,11 @@ use crate::network::Peer;
 use crate::{
     membership,
     network::{
-        libp2p::{
-            behaviours::{
-                membership::connections::ConnectedPeers,
-                membership::{MembershipKind, Memberships},
-                membership::protocol::ProtocolMessage,
-                membership::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS}
-            }
+        libp2p::behaviours::{
+            membership::connections::ConnectedPeers,
+            membership::protocol::ProtocolMessage,
+            membership::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS},
+            membership::{MembershipKind, Memberships},
         },
         members::PeerInfo,
     },

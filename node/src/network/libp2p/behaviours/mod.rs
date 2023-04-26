@@ -14,6 +14,7 @@ use libp2p::{
 use log::info;
 
 use crate::membership::PeerInfo;
+use crate::network::libp2p::behaviours::membership::MembershipKind;
 use crate::{
     broadcast::RbMsg,
     crypto::Keypair,
@@ -23,7 +24,6 @@ use crate::{
     peer::{PeerId, ToPeerId},
     utilities::hash::{EphemeraHasher, Hasher},
 };
-use crate::network::libp2p::behaviours::membership::MembershipKind;
 
 pub(crate) mod membership;
 pub(crate) mod request_response;
@@ -88,8 +88,12 @@ where
     let local_peer_id = keypair.peer_id();
     let gossipsub = create_gossipsub(keypair, ephemera_msg_topic);
     let request_response = create_request_response();
-    let rendezvous_behaviour =
-        create_membership(members_provider, members_provider_delay, membership_kind, local_peer_id);
+    let rendezvous_behaviour = create_membership(
+        members_provider,
+        members_provider_delay,
+        membership_kind,
+        local_peer_id,
+    );
     let kademlia = create_kademlia(keypair);
 
     GroupNetworkBehaviour {
@@ -145,7 +149,7 @@ where
         members_provider,
         members_provider_delay,
         local_peer_id.into(),
-        membership_kind
+        membership_kind,
     )
 }
 

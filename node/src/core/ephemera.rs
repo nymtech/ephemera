@@ -2,14 +2,19 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use futures_util::{StreamExt};
 use futures_util::future::BoxFuture;
+use futures_util::StreamExt;
 use log::{debug, error, info, trace};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
+use crate::api::application::CheckBlockResult;
+use crate::broadcast::bracha::broadcast::BroadcastResponse;
+use crate::broadcast::group::BroadcastGroup;
+use crate::network::libp2p::network_sender::GroupChangeEvent;
+use crate::network::PeerId;
 use crate::{
-    api::{ApiListener, application::Application},
+    api::{application::Application, ApiListener},
     block::{manager::BlockManager, types::block::Block},
     broadcast::{bracha::broadcast::Broadcaster, RbMsg},
     core::{
@@ -25,11 +30,6 @@ use crate::{
     utilities::crypto::Certificate,
     websocket::ws_manager::WsMessageBroadcaster,
 };
-use crate::api::application::CheckBlockResult;
-use crate::broadcast::bracha::broadcast::BroadcastResponse;
-use crate::broadcast::group::BroadcastGroup;
-use crate::network::libp2p::network_sender::GroupChangeEvent;
-use crate::network::PeerId;
 
 //Just a placeholder now
 #[derive(Error, Debug)]

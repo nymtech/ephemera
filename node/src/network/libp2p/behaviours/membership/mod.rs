@@ -44,9 +44,9 @@ pub(crate) enum MembershipKind {
 
 impl MembershipKind {
     #[allow(
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::cast_possible_truncation
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation
     )]
     pub(crate) fn accept(&self, membership: &Membership) -> bool {
         let total_number_of_peers = membership.all_members.len();
@@ -176,7 +176,6 @@ impl Membership {
             .map(|peer| peer.address.inner())
     }
 }
-
 
 impl From<crate::config::MembershipKind> for MembershipKind {
     fn from(kind: crate::config::MembershipKind) -> Self {
