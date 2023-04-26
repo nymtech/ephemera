@@ -2,18 +2,14 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use futures_util::StreamExt;
+use futures_util::{StreamExt};
+use futures_util::future::BoxFuture;
 use log::{debug, error, info, trace};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-use crate::api::application::CheckBlockResult;
-use crate::broadcast::bracha::broadcast::BroadcastResponse;
-use crate::broadcast::group::BroadcastGroup;
-use crate::network::libp2p::network_sender::GroupChangeEvent;
-use crate::network::PeerId;
 use crate::{
-    api::{application::Application, ApiListener},
+    api::{ApiListener, application::Application},
     block::{manager::BlockManager, types::block::Block},
     broadcast::{bracha::broadcast::Broadcaster, RbMsg},
     core::{
@@ -29,6 +25,11 @@ use crate::{
     utilities::crypto::Certificate,
     websocket::ws_manager::WsMessageBroadcaster,
 };
+use crate::api::application::CheckBlockResult;
+use crate::broadcast::bracha::broadcast::BroadcastResponse;
+use crate::broadcast::group::BroadcastGroup;
+use crate::network::libp2p::network_sender::GroupChangeEvent;
+use crate::network::PeerId;
 
 //Just a placeholder now
 #[derive(Error, Debug)]
@@ -80,7 +81,9 @@ pub struct Ephemera<A: Application> {
     pub(crate) ephemera_handle: EphemeraHandle,
 
     /// A component which handles shutdown.
-    pub(crate) shutdown_manager: Option<ShutdownManager>,
+    pub(crate) shutdown_manager: ShutdownManager,
+
+    pub(crate) services: Vec<BoxFuture<'static, anyhow::Result<()>>>,
 }
 
 impl<A: Application> Ephemera<A> {
@@ -99,10 +102,11 @@ impl<A: Application> Ephemera<A> {
     /// 6. Publish(gossip) messages to network
     /// 7. Publish blocks to network
     pub async fn run(mut self) {
-        let mut shutdown_manager = self
-            .shutdown_manager
-            .take()
-            .expect("Shutdown manager not set");
+        info!("Starting ephemera services");
+        for service in self.services.drain(..) {
+            let handle = tokio::spawn(service);
+            self.shutdown_manager.add_handle(handle);
+        }
 
         info!("Starting ephemera main loop");
         loop {
@@ -137,9 +141,9 @@ impl<A: Application> Ephemera<A> {
                 }
 
                 //PROCESSING SHUTDOWN REQUEST
-                _ = shutdown_manager.external_shutdown.recv() => {
+                _ = self.shutdown_manager.external_shutdown.recv() => {
                     info!("Shutting down ephemera");
-                    shutdown_manager.stop().await;
+                    self.shutdown_manager.stop().await;
                     break;
                 }
             }

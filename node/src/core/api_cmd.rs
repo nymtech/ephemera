@@ -12,7 +12,7 @@ use crate::{
         self,
         application::Application,
         types::{ApiBlock, ApiCertificate, ApiError},
-        ApiCmd,
+        ToEphemeraApiCmd,
     },
     block::{manager::BlockManagerError, types::message},
     crypto::EphemeraKeypair,
@@ -21,9 +21,10 @@ use crate::{
     Ephemera,
 };
 
+type DhtPendingQueryReply = Sender<Result<Option<(Vec<u8>, Vec<u8>)>, ApiError>>;
+
 pub(crate) struct ApiCmdProcessor {
-    pub(crate) dht_query_cache:
-        LruCache<Vec<u8>, Sender<Result<Option<(Vec<u8>, Vec<u8>)>, ApiError>>>,
+    pub(crate) dht_query_cache: LruCache<Vec<u8>, DhtPendingQueryReply>,
 }
 
 impl ApiCmdProcessor {
@@ -35,44 +36,44 @@ impl ApiCmdProcessor {
 
     pub(crate) async fn process_api_requests<A: Application>(
         ephemera: &mut Ephemera<A>,
-        cmd: ApiCmd,
+        cmd: ToEphemeraApiCmd,
     ) -> api::Result<()> {
         debug!("Processing API request: {:?}", cmd);
         match cmd {
-            ApiCmd::SubmitEphemeraMessage(api_msg, reply) => {
+            ToEphemeraApiCmd::SubmitEphemeraMessage(api_msg, reply) => {
                 // Ask application to decide if we should accept this message.
                 Self::submit_message(ephemera, api_msg, reply).await?;
             }
 
-            ApiCmd::QueryBlockById(block_id, reply) => {
+            ToEphemeraApiCmd::QueryBlockById(block_id, reply) => {
                 Self::query_block_by_id(ephemera, &block_id, reply).await;
             }
 
-            ApiCmd::QueryBlockByHeight(height, reply) => {
+            ToEphemeraApiCmd::QueryBlockByHeight(height, reply) => {
                 Self::query_block_by_height(ephemera, height, reply).await;
             }
 
-            ApiCmd::QueryLastBlock(reply) => {
+            ToEphemeraApiCmd::QueryLastBlock(reply) => {
                 Self::query_last_block(ephemera, reply).await;
             }
 
-            ApiCmd::QueryBlockCertificates(block_id, reply) => {
+            ToEphemeraApiCmd::QueryBlockCertificates(block_id, reply) => {
                 Self::query_block_certificates(ephemera, &block_id, reply).await;
             }
 
-            ApiCmd::QueryDht(key, reply) => {
+            ToEphemeraApiCmd::QueryDht(key, reply) => {
                 Self::query_dht(ephemera, key, reply).await;
             }
 
-            ApiCmd::StoreInDht(key, value, reply) => {
+            ToEphemeraApiCmd::StoreInDht(key, value, reply) => {
                 Self::store_in_dht(ephemera, key, value, reply).await;
             }
 
-            ApiCmd::EphemeraConfig(reply) => {
+            ToEphemeraApiCmd::EphemeraConfig(reply) => {
                 Self::ephemera_config(ephemera, reply);
             }
 
-            ApiCmd::BroadcastGroup(reply) => {
+            ToEphemeraApiCmd::BroadcastGroup(reply) => {
                 Self::broadcast_group(ephemera, reply);
             }
         }

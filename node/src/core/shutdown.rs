@@ -6,7 +6,7 @@ pub(crate) struct ShutdownManager {
     pub(crate) shutdown_tx: broadcast::Sender<()>,
     pub(crate) _shutdown_rcv: broadcast::Receiver<()>,
     pub(crate) external_shutdown: mpsc::UnboundedReceiver<()>,
-    handles: Vec<JoinHandle<()>>,
+    handles: Vec<JoinHandle<anyhow::Result<()>>>,
 }
 
 pub(crate) struct Shutdown {
@@ -54,7 +54,10 @@ impl ShutdownManager {
         self.shutdown_tx.send(()).unwrap();
         info!("Waiting for tasks to finish");
         for handle in self.handles {
-            handle.await.unwrap();
+            match handle.await.unwrap(){
+                Ok(_) => info!("Task finished successfully"),
+                Err(e) => info!("Task finished with error: {}", e),
+            }
         }
     }
 
@@ -65,7 +68,7 @@ impl ShutdownManager {
         }
     }
 
-    pub(crate) fn add_handle(&mut self, handle: JoinHandle<()>) {
+    pub(crate) fn add_handle(&mut self, handle: JoinHandle<anyhow::Result<()>>) {
         self.handles.push(handle);
     }
 }
