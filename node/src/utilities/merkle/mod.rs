@@ -6,6 +6,7 @@ use log::info;
 
 pub(crate) struct Merkle;
 
+#[allow(dead_code)]
 impl Merkle {
     /// Calculate block merkle root hash
     pub(crate) fn calculate_merkle_root<H: EphemeraHasher>(

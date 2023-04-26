@@ -1,8 +1,8 @@
-use clap::Parser;
+use clap::{Args, Parser};
 
 use crate::config::{
     BlockManagerConfiguration, Configuration, DatabaseConfiguration, HttpConfiguration,
-    Libp2pConfiguration, NodeConfiguration, WebsocketConfiguration,
+    Libp2pConfiguration, MembershipKind as ConfigMembershipKind, NodeConfiguration, WebsocketConfiguration,
 };
 use crate::crypto::{EphemeraKeypair, Keypair};
 
@@ -14,7 +14,30 @@ const DEFAULT_LISTEN_PORT: &str = "3000";
 const DEFAULT_MESSAGES_TOPIC_NAME: &str = "nym-ephemera-proposed";
 const DEFAULT_HEARTBEAT_INTERVAL_SEC: u64 = 1;
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Args)]
+#[group(required = true, multiple = false)]
+pub struct MembershipKind {
+    #[clap(long)]
+    threshold: Option<f64>,
+    #[clap(long)]
+    all: Option<bool>,
+    #[clap(long)]
+    any: Option<bool>,
+}
+
+impl From<MembershipKind> for ConfigMembershipKind {
+    fn from(kind: MembershipKind) -> Self {
+        match kind {
+            //TODO
+            MembershipKind { threshold: Some(_), .. } => ConfigMembershipKind::Threshold,
+            MembershipKind { all: Some(_), .. } => ConfigMembershipKind::AllOnline,
+            MembershipKind { any: Some(_), .. } => ConfigMembershipKind::AnyOnline,
+            _ => unreachable!()
+        }
+    }
+}
+
+#[derive(Parser)]
 pub struct Cmd {
     #[arg(long, default_value = "default")]
     pub node_name: String,
@@ -34,6 +57,8 @@ pub struct Cmd {
     pub repeat_last_block: bool,
     #[clap(long, default_value_t = 60 * 60)]
     pub members_provider_delay_sec: u64,
+    #[command(flatten)]
+    pub membership_kind: MembershipKind,
 }
 
 impl Cmd {
@@ -49,8 +74,7 @@ impl Cmd {
         let path = Configuration::ephemera_root_dir()
             .unwrap()
             .join(&self.node_name);
-        println!("Creating ephemera node configuration in: {path:?}",);
-        println!("Configuration: {self:?}",);
+        println!("Creating ephemera node configuration in: {path:?}", );
 
         let db_dir = path.join("db");
         let rocksdb_path = db_dir.join("rocksdb");
@@ -71,6 +95,7 @@ impl Cmd {
                 ephemera_msg_topic_name: DEFAULT_MESSAGES_TOPIC_NAME.to_string(),
                 heartbeat_interval_sec: DEFAULT_HEARTBEAT_INTERVAL_SEC,
                 members_provider_delay_sec: self.members_provider_delay_sec,
+                membership_kind: self.membership_kind.into(),
             },
             storage: DatabaseConfiguration {
                 rocksdb_path: rocksdb_path.as_os_str().to_str().unwrap().to_string(),
@@ -89,8 +114,9 @@ impl Cmd {
                 repeat_last_block_messages: self.repeat_last_block,
             },
         };
+
         if let Err(err) = configuration.try_write_home_dir(&self.node_name) {
-            eprintln!("Error creating configuration file: {err:?}",);
+            eprintln!("Error creating configuration file: {err:?}", );
         }
     }
 }

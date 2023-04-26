@@ -23,6 +23,7 @@ use crate::{
     peer::{PeerId, ToPeerId},
     utilities::hash::{EphemeraHasher, Hasher},
 };
+use crate::network::libp2p::behaviours::membership::MembershipKind;
 
 pub(crate) mod membership;
 pub(crate) mod request_response;
@@ -79,6 +80,7 @@ pub(crate) fn create_behaviour<P>(
     ephemera_msg_topic: &Topic,
     members_provider: P,
     members_provider_delay: Duration,
+    membership_kind: MembershipKind,
 ) -> GroupNetworkBehaviour<P>
 where
     P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
@@ -87,7 +89,7 @@ where
     let gossipsub = create_gossipsub(keypair, ephemera_msg_topic);
     let request_response = create_request_response();
     let rendezvous_behaviour =
-        create_membership(members_provider, members_provider_delay, local_peer_id);
+        create_membership(members_provider, members_provider_delay, membership_kind, local_peer_id);
     let kademlia = create_kademlia(keypair);
 
     GroupNetworkBehaviour {
@@ -133,6 +135,7 @@ pub(crate) fn create_request_response() -> libp2p_request_response::Behaviour<Rb
 pub(crate) fn create_membership<P>(
     members_provider: P,
     members_provider_delay: Duration,
+    membership_kind: MembershipKind,
     local_peer_id: PeerId,
 ) -> membership::behaviour::Behaviour<P>
 where
@@ -142,6 +145,7 @@ where
         members_provider,
         members_provider_delay,
         local_peer_id.into(),
+        membership_kind
     )
 }
 

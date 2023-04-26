@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 
 use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, Keypair};
-use ephemera::ephemera_api::Commands;
+use ephemera::ephemera_api::CommandExecutor;
 use ephemera::membership::HttpMembersProvider;
 use ephemera::{Ephemera, EphemeraStarter, Handle};
 use metrics::MetricsCollector;
@@ -113,7 +113,7 @@ impl NymApi {
         args: Args,
         key_pair: Keypair,
         storage: Arc<Mutex<Storage<MetricsStorageType>>>,
-        ephemera_api: Commands,
+        ephemera_api: CommandExecutor,
     ) -> RewardManager<V2> {
         let epoch = Epoch::request_epoch(args.smart_contract_url.clone()).await;
         let rewards: RewardManager<V2> = RewardManager::new(

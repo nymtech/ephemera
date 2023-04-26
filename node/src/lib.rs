@@ -42,7 +42,7 @@ pub mod ephemera_api {
             ApiDhtStoreRequest, ApiEphemeraConfig, ApiEphemeraMessage, ApiError, ApiHealth,
             RawApiEphemeraMessage,
         },
-        Commands,
+        CommandExecutor,
     };
 }
 

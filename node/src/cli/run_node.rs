@@ -59,7 +59,6 @@ impl RunExternalNodeCmd {
             .with_application(Dummy)
             .with_members_provider(members_provider)
             .init_tasks()
-            .await
             .unwrap();
 
         let mut ephemera_shutdown = ephemera.ephemera_handle.shutdown.clone();

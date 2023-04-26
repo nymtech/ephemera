@@ -40,6 +40,19 @@ pub struct NodeConfiguration {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum MembershipKind {
+    /// Mandatory minimum membership size is defined by threshold of all peers returned by membership provider.
+    /// Threshold value is defined the ratio of peers that need to be available.
+    /// For example, if the threshold is 0.5, then at least 50% of the peers need to be available.
+    Threshold,
+    /// Mandatory minimum membership size is all peers who are online.
+    AnyOnline,
+    /// Mandatory minimum membership size is all peers returned by membership provider.
+    AllOnline,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Libp2pConfiguration {
     /// Port to listen on for libp2p internal connections
     pub port: u16,
@@ -56,6 +69,8 @@ pub struct Libp2pConfiguration {
     /// So it should be configured and implemented in a manner that nodes always have the most up to date and
     /// accurate information.
     pub members_provider_delay_sec: u64,
+    /// Defines how the actual membership is decided. See `[ephemera:]` for more details.
+    pub membership_kind: MembershipKind,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -136,10 +151,10 @@ impl From<ConfigError> for Error {
         match err {
             ConfigError::NotFound(err) => Error::NotFound(err),
             ConfigError::PathParse(err) => {
-                Error::InvalidPath(format!("Invalid path to configuration file: {err:?}",))
+                Error::InvalidPath(format!("Invalid path to configuration file: {err:?}", ))
             }
             ConfigError::FileParse { uri, cause } => {
-                Error::InvalidFormat(format!("Invalid configuration file: {uri:?}: {cause:?}",))
+                Error::InvalidFormat(format!("Invalid configuration file: {uri:?}: {cause:?}", ))
             }
             _ => Error::Other(err.to_string()),
         }
@@ -288,8 +303,9 @@ impl Configuration {
     }
 
     fn write(&self, file_path: &PathBuf) -> Result<()> {
+        //TODO: use toml or config crate, not both
         let config = toml::to_string(&self).map_err(|e| {
-            Error::InvalidFormat(format!("Failed to serialize configuration: {e}",))
+            Error::InvalidFormat(format!("Failed to serialize configuration: {e}", ))
         })?;
 
         let config = format!(

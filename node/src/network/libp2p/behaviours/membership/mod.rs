@@ -34,23 +34,19 @@ const _MEMBERSHIP_MAXIMUM_ALLOWED_CHANGE_RATIO: f64 = 0.2;
 /// This enum defines how the actual membership is decided.
 #[derive(Debug)]
 pub(crate) enum MembershipKind {
-    /// Specified threshold of peers(from total provided by [crate::membership::MembersProviderFut]) need to be available.
-    /// Threshold value is defined the ratio of peers that need to be available.
-    /// For example, if the threshold is 0.5, then at least 50% of the peers need to be available.
+    /// Mandatory minimum membership size is defined by threshold of all peers returned by membership provider.
     Threshold(f64),
-    /// Membership is defined by peers who are online.
-    /// Although it's possible to define it as threshold 0.0, this adds more readability and safety.
+    /// Mandatory minimum membership size is all peers who are online.
     AnyOnline,
-    /// It's required that all peers are online.
-    /// Although it's possible to define it as threshold 1.0, this adds more readability and safety.
+    /// Mandatory minimum membership size is all peers returned by membership provider.
     AllOnline,
 }
 
 impl MembershipKind {
     #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_sign_loss,
-        clippy::cast_possible_truncation
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation
     )]
     pub(crate) fn accept(&self, membership: &Membership) -> bool {
         let total_number_of_peers = membership.all_members.len();
@@ -178,5 +174,18 @@ impl Membership {
         self.all_members
             .get(peer_id)
             .map(|peer| peer.address.inner())
+    }
+}
+
+
+impl From<crate::config::MembershipKind> for MembershipKind {
+    fn from(kind: crate::config::MembershipKind) -> Self {
+        match kind {
+            crate::config::MembershipKind::Threshold => {
+                MembershipKind::Threshold(MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO)
+            }
+            crate::config::MembershipKind::AnyOnline => MembershipKind::AnyOnline,
+            crate::config::MembershipKind::AllOnline => MembershipKind::AllOnline,
+        }
     }
 }

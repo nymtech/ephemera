@@ -3,7 +3,7 @@ use log::{debug, error};
 
 use crate::api::{
     types::{ApiDhtStoreRequest, ApiEphemeraMessage},
-    ApiError, Commands,
+    ApiError, CommandExecutor,
 };
 
 #[utoipa::path(
@@ -17,7 +17,7 @@ params(("message", description = "Message to send"))
 pub(crate) async fn submit_message(
     _req: HttpRequest,
     message: web::Json<ApiEphemeraMessage>,
-    api: web::Data<Commands>,
+    api: web::Data<CommandExecutor>,
 ) -> HttpResponse {
     match api.send_ephemera_message(message.into_inner()).await {
         Ok(_) => HttpResponse::Ok().json("Message submitted"),
@@ -45,7 +45,7 @@ params(
 #[post("/ephemera/dht/store")]
 pub(crate) async fn store_in_dht(
     request: web::Json<ApiDhtStoreRequest>,
-    api: web::Data<Commands>,
+    api: web::Data<CommandExecutor>,
 ) -> HttpResponse {
     let request = request.into_inner();
 

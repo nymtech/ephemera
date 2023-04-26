@@ -7,7 +7,6 @@ use crate::{
         crypto::Certificate,
         hash::{EphemeraHash, EphemeraHasher},
         hash::{Hash, Hasher},
-        time::EphemeraTime,
     },
 };
 
@@ -24,6 +23,7 @@ pub(crate) struct EphemeraMessage {
 }
 
 impl EphemeraMessage {
+    #[cfg(test)]
     pub(crate) fn new(raw_message: RawEphemeraMessage, certificate: Certificate) -> Self {
         Self {
             timestamp: raw_message.timestamp,
@@ -71,7 +71,9 @@ pub(crate) struct RawEphemeraMessage {
 }
 
 impl RawEphemeraMessage {
+    #[cfg(test)]
     pub(crate) fn new(label: String, data: Vec<u8>) -> Self {
+        use crate::utilities::time::EphemeraTime;
         Self {
             timestamp: EphemeraTime::now(),
             label,

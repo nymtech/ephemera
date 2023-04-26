@@ -288,6 +288,7 @@ create_cluster() {
       --websocket-port "$WS_PORT" \
       --http-api-port "$HTTP_API_PORT" \
       --members-provider-delay-sec 60 \
+      --threshold "0.8" \
 
       NODE_DIR="$EPHEMERA_HOME_DIR"/node"$c"
       mkdir -p "$NODE_DIR"/logs

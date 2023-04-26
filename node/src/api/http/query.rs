@@ -2,7 +2,7 @@ use actix_web::{get, web, HttpResponse, Responder};
 use log::error;
 
 use crate::{
-    api::{types::ApiHealth, types::HealthStatus::Healthy, Commands},
+    api::{types::ApiHealth, types::HealthStatus::Healthy, CommandExecutor},
     ephemera_api::{ApiDhtQueryRequest, ApiDhtQueryResponse},
 };
 
@@ -22,7 +22,7 @@ responses(
 (status = 500, description = "Server failed to process request")),
 )]
 #[get("/ephemera/broadcast/group/info")]
-pub(crate) async fn broadcast_info(api: web::Data<Commands>) -> impl Responder {
+pub(crate) async fn broadcast_info(api: web::Data<CommandExecutor>) -> impl Responder {
     match api.get_broadcast_info().await {
         Ok(group) => HttpResponse::Ok().json(group),
         Err(err) => {
@@ -42,7 +42,7 @@ params(("hash", description = "Block hash")),
 #[get("/ephemera/broadcast/block/{hash}")]
 pub(crate) async fn block_by_hash(
     hash: web::Path<String>,
-    api: web::Data<Commands>,
+    api: web::Data<CommandExecutor>,
 ) -> impl Responder {
     match api.get_block_by_id(hash.into_inner()).await {
         Ok(Some(block)) => HttpResponse::Ok().json(block),
@@ -64,7 +64,7 @@ params(("hash", description = "Block hash")),
 #[get("/ephemera/broadcast/block/certificates/{hash}")]
 pub(crate) async fn block_certificates(
     hash: web::Path<String>,
-    api: web::Data<Commands>,
+    api: web::Data<CommandExecutor>,
 ) -> impl Responder {
     let id = hash.into_inner();
     match api.get_block_certificates(id.clone()).await {
@@ -87,7 +87,7 @@ params(("height", description = "Block height")),
 #[get("/ephemera/broadcast/block/height/{height}")]
 pub(crate) async fn block_by_height(
     height: web::Path<u64>,
-    api: web::Data<Commands>,
+    api: web::Data<CommandExecutor>,
 ) -> impl Responder {
     match api.get_block_by_height(height.into_inner()).await {
         Ok(Some(block)) => HttpResponse::Ok().json(block),
@@ -106,7 +106,7 @@ responses(
 )]
 //Need to use plural(blocks), otherwise overlaps with block_by_id route
 #[get("/ephemera/broadcast/blocks/last")]
-pub(crate) async fn last_block(api: web::Data<Commands>) -> impl Responder {
+pub(crate) async fn last_block(api: web::Data<CommandExecutor>) -> impl Responder {
     match api.get_last_block().await {
         Ok(block) => HttpResponse::Ok().json(block),
         Err(err) => {
@@ -122,7 +122,7 @@ responses(
 (status = 500, description = "Server failed to process request")),
 )]
 #[get("/ephemera/node/config")]
-pub(crate) async fn get_node_config(api: web::Data<Commands>) -> impl Responder {
+pub(crate) async fn get_node_config(api: web::Data<CommandExecutor>) -> impl Responder {
     match api.get_node_config().await {
         Ok(config) => HttpResponse::Ok().json(config),
         Err(err) => {
@@ -139,7 +139,7 @@ responses(
 params(("query", description = "Dht query")),
 )]
 #[get("/ephemera/dht/query/{key}")]
-pub(crate) async fn query_dht(api: web::Data<Commands>, key: web::Path<String>) -> impl Responder {
+pub(crate) async fn query_dht(api: web::Data<CommandExecutor>, key: web::Path<String>) -> impl Responder {
     let key = ApiDhtQueryRequest::parse_key(key.into_inner().as_str());
 
     match api.query_dht(key).await {

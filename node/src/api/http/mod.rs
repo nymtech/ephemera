@@ -3,7 +3,7 @@ use log::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::api::Commands;
+use crate::api::CommandExecutor;
 use crate::core::builder::NodeInfo;
 
 pub(crate) mod client;
@@ -11,7 +11,7 @@ pub(crate) mod query;
 pub(crate) mod submit;
 
 /// Starts the HTTP server.
-pub(crate) fn init(node_info: &NodeInfo, api: Commands) -> anyhow::Result<Server> {
+pub(crate) fn init(node_info: &NodeInfo, api: CommandExecutor) -> anyhow::Result<Server> {
     print_startup_messages(node_info);
 
     let server = HttpServer::new(move || {

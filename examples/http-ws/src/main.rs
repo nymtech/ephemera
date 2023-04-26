@@ -16,6 +16,9 @@ use crate::ws_listener::WsBlockListener;
 mod http_client;
 mod ws_listener;
 
+//FIXME: remove this after it's complete
+#[allow(dead_code)]
+
 #[derive(Parser, Clone)]
 #[command(name = "ephemera-http-ws-example")]
 #[command(about = "Ephemera http and ws external interfaces example", long_about = None)]

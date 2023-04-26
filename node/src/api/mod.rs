@@ -31,7 +31,7 @@ pub(crate) type DhtKV = (DhtKey, DhtValue);
 pub(crate) type Result<T> = std::result::Result<T, ApiError>;
 
 #[derive(Debug)]
-pub(crate) enum ApiCmd {
+pub(crate) enum ToEphemeraApiCmd {
     SubmitEphemeraMessage(Box<ApiEphemeraMessage>, oneshot::Sender<Result<()>>),
     QueryBlockByHeight(u64, oneshot::Sender<Result<Option<ApiBlock>>>),
     QueryBlockById(String, oneshot::Sender<Result<Option<ApiBlock>>>),
@@ -43,26 +43,26 @@ pub(crate) enum ApiCmd {
     BroadcastGroup(oneshot::Sender<Result<ApiBroadcastInfo>>),
 }
 
-impl Display for ApiCmd {
+impl Display for ToEphemeraApiCmd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ApiCmd::SubmitEphemeraMessage(message, _) => {
+            ToEphemeraApiCmd::SubmitEphemeraMessage(message, _) => {
                 write!(f, "SubmitEphemeraMessage({message})",)
             }
-            ApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})",),
-            ApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})",),
-            ApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
-            ApiCmd::QueryBlockCertificates(id, _) => write!(f, "QueryBlockSignatures{id}"),
-            ApiCmd::QueryDht(_, _) => {
+            ToEphemeraApiCmd::QueryBlockByHeight(height, _) => write!(f, "QueryBlockByHeight({height})",),
+            ToEphemeraApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})",),
+            ToEphemeraApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
+            ToEphemeraApiCmd::QueryBlockCertificates(id, _) => write!(f, "QueryBlockSignatures{id}"),
+            ToEphemeraApiCmd::QueryDht(_, _) => {
                 write!(f, "QueryDht")
             }
-            ApiCmd::StoreInDht(_, _, _) => {
+            ToEphemeraApiCmd::StoreInDht(_, _, _) => {
                 write!(f, "StoreInDht")
             }
-            ApiCmd::EphemeraConfig(_) => {
+            ToEphemeraApiCmd::EphemeraConfig(_) => {
                 write!(f, "EphemeraConfig")
             }
-            ApiCmd::BroadcastGroup(_) => {
+            ToEphemeraApiCmd::BroadcastGroup(_) => {
                 write!(f, "BroadcastGroup")
             }
         }
@@ -70,25 +70,25 @@ impl Display for ApiCmd {
 }
 
 pub(crate) struct ApiListener {
-    pub(crate) messages_rcv: Receiver<ApiCmd>,
+    pub(crate) messages_rcv: Receiver<ToEphemeraApiCmd>,
 }
 
 impl ApiListener {
-    pub(crate) fn new(messages_rcv: Receiver<ApiCmd>) -> Self {
+    pub(crate) fn new(messages_rcv: Receiver<ToEphemeraApiCmd>) -> Self {
         Self { messages_rcv }
     }
 }
 
 #[derive(Clone)]
-pub struct Commands {
-    pub(crate) commands_channel: Sender<ApiCmd>,
+pub struct CommandExecutor {
+    pub(crate) commands_channel: Sender<ToEphemeraApiCmd>,
 }
 
-impl Commands {
-    pub(crate) fn new() -> (Commands, ApiListener) {
+impl CommandExecutor {
+    pub(crate) fn new() -> (CommandExecutor, ApiListener) {
         let (commands_channel, signed_messages_rcv) = channel(100);
         let api_listener = ApiListener::new(signed_messages_rcv);
-        let api = Commands { commands_channel };
+        let api = CommandExecutor { commands_channel };
         (api, api_listener)
     }
 
@@ -103,7 +103,7 @@ impl Commands {
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_block_by_id(&self, block_id: String) -> Result<Option<ApiBlock>> {
         trace!("get_block_by_id({:?})", block_id);
-        self.send_and_wait_response(|tx| ApiCmd::QueryBlockById(block_id, tx))
+        self.send_and_wait_response(|tx| ToEphemeraApiCmd::QueryBlockById(block_id, tx))
             .await
     }
 
@@ -118,7 +118,7 @@ impl Commands {
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_block_by_height(&self, height: u64) -> Result<Option<ApiBlock>> {
         trace!("get_block_by_height({:?})", height);
-        self.send_and_wait_response(|tx| ApiCmd::QueryBlockByHeight(height, tx))
+        self.send_and_wait_response(|tx| ToEphemeraApiCmd::QueryBlockByHeight(height, tx))
             .await
     }
 
@@ -129,7 +129,7 @@ impl Commands {
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_last_block(&self) -> Result<ApiBlock> {
         trace!("get_last_block()");
-        self.send_and_wait_response(ApiCmd::QueryLastBlock).await
+        self.send_and_wait_response(ToEphemeraApiCmd::QueryLastBlock).await
     }
 
     /// Returns signatures for given block id
@@ -146,7 +146,7 @@ impl Commands {
         block_hash: String,
     ) -> Result<Option<Vec<ApiCertificate>>> {
         trace!("get_block_certificates({block_hash:?})",);
-        self.send_and_wait_response(|tx| ApiCmd::QueryBlockCertificates(block_hash, tx))
+        self.send_and_wait_response(|tx| ToEphemeraApiCmd::QueryBlockCertificates(block_hash, tx))
             .await
     }
 
@@ -167,7 +167,7 @@ impl Commands {
     pub async fn query_dht(&self, key: DhtKey) -> Result<Option<(DhtKey, DhtValue)>> {
         trace!("get_dht({key:?})");
         //TODO: this needs timeout(somewhere around dht query functionality)
-        self.send_and_wait_response(|tx| ApiCmd::QueryDht(key, tx))
+        self.send_and_wait_response(|tx| ToEphemeraApiCmd::QueryDht(key, tx))
             .await
     }
 
@@ -183,7 +183,7 @@ impl Commands {
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn store_in_dht(&self, key: DhtKey, value: DhtValue) -> Result<()> {
         trace!("store_in_dht({key:?}, {value:?})");
-        self.send_and_wait_response(|tx| ApiCmd::StoreInDht(key, value, tx))
+        self.send_and_wait_response(|tx| ToEphemeraApiCmd::StoreInDht(key, value, tx))
             .await
     }
 
@@ -198,7 +198,7 @@ impl Commands {
     /// * `ApiEphemeraConfig` - Node configuration
     pub async fn get_node_config(&self) -> Result<ApiEphemeraConfig> {
         trace!("get_node_config()");
-        self.send_and_wait_response(ApiCmd::EphemeraConfig).await
+        self.send_and_wait_response(ToEphemeraApiCmd::EphemeraConfig).await
     }
 
     /// Returns broadcast group
@@ -212,7 +212,7 @@ impl Commands {
     /// * `ApiBroadcastInfo` - Broadcast group
     pub async fn get_broadcast_info(&self) -> Result<ApiBroadcastInfo> {
         trace!("get_broadcast_group()");
-        self.send_and_wait_response(ApiCmd::BroadcastGroup).await
+        self.send_and_wait_response(ToEphemeraApiCmd::BroadcastGroup).await
     }
 
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers
@@ -226,13 +226,13 @@ impl Commands {
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn send_ephemera_message(&self, message: ApiEphemeraMessage) -> Result<()> {
         trace!("send_ephemera_message({message})",);
-        self.send_and_wait_response(|tx| ApiCmd::SubmitEphemeraMessage(message.into(), tx))
+        self.send_and_wait_response(|tx| ToEphemeraApiCmd::SubmitEphemeraMessage(message.into(), tx))
             .await
     }
 
     async fn send_and_wait_response<F, R>(&self, f: F) -> Result<R>
     where
-        F: FnOnce(oneshot::Sender<Result<R>>) -> ApiCmd,
+        F: FnOnce(oneshot::Sender<Result<R>>) -> ToEphemeraApiCmd,
         R: Send + 'static,
     {
         let (tx, rcv) = oneshot::channel();

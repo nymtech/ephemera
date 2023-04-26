@@ -63,21 +63,24 @@ where
         let (from_ephemera_tx, from_ephemera_rcv) = EphemeraToNetwork::init();
         let (to_ephemera_tx, to_ephemera_rcv) = EphemeraNetworkCommunication::init();
 
+        let libp2p_configuration = node_info.initial_config.libp2p.clone();
+
         let local_key = node_info.keypair.clone();
         let peer_id = node_info.peer_id;
         let ephemera_msg_topic =
-            Topic::new(&node_info.initial_config.libp2p.ephemera_msg_topic_name);
+            Topic::new(&libp2p_configuration.ephemera_msg_topic_name);
 
         let transport = create_transport(&local_key);
 
         let members_provider_delay = std::time::Duration::from_secs(
-            node_info.initial_config.libp2p.members_provider_delay_sec,
+            libp2p_configuration.members_provider_delay_sec,
         );
         let behaviour = create_behaviour(
             &local_key,
             &ephemera_msg_topic,
             members_provider,
             members_provider_delay,
+            libp2p_configuration.membership_kind.into()
         );
 
         let swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, peer_id.into()).build();
@@ -294,6 +297,8 @@ where
                     if peer_id == local_peer_id {
                         continue;
                     }
+                    //FIXME: deprecated
+                    #[allow(deprecated)]
                     let address = self
                         .swarm
                         .behaviour_mut()

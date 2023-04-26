@@ -65,12 +65,13 @@ use crate::network::Peer;
 use crate::{
     membership,
     network::{
-        libp2p::behaviours::membership::connections::ConnectedPeers,
-        libp2p::behaviours::membership::{MembershipKind, Memberships},
-        libp2p::behaviours::{
-            membership::protocol::ProtocolMessage,
-            membership::MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO,
-            membership::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS},
+        libp2p::{
+            behaviours::{
+                membership::connections::ConnectedPeers,
+                membership::{MembershipKind, Memberships},
+                membership::protocol::ProtocolMessage,
+                membership::{handler::Handler, MAX_DIAL_ATTEMPT_ROUNDS}
+            }
         },
         members::PeerInfo,
     },
@@ -160,6 +161,7 @@ where
         members_provider: P,
         members_provider_delay: Duration,
         local_peer_id: PeerId,
+        membership_kind: MembershipKind,
     ) -> Self {
         let delay = time::interval(members_provider_delay);
         Behaviour {
@@ -170,7 +172,7 @@ where
             members_provider_delay,
             state: State::WaitingPeers,
             all_connections: ConnectedPeers::default(),
-            membership_kind: MembershipKind::Threshold(MEMBERSHIP_MINIMUM_AVAILABLE_NODES_RATIO),
+            membership_kind,
             last_sync_time: Instant::now(),
             minimum_time_between_sync: Duration::from_secs(MEMBERSHIP_SYNC_INTERVAL_SEC),
         }
@@ -442,6 +444,8 @@ where
         _addresses: &[Multiaddr],
         _effective_role: Endpoint,
     ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+        //FIXME: deprecated
+        #[allow(deprecated)]
         match maybe_peer {
             Some(peer_id) => Ok(self.addresses_of_peer(&peer_id)),
             None => Ok(vec![]),
