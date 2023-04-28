@@ -98,7 +98,7 @@ impl NymApi {
         let ephemera_builder = EphemeraStarter::new(ephemera_config.clone())?;
         let ephemera_builder = ephemera_builder.with_application(rewards_ephemera_application);
         let ephemera_builder = ephemera_builder.with_members_provider(Box::pin(members_provider));
-        let ephemera = ephemera_builder.build().await?;
+        let ephemera = ephemera_builder.build()?;
         Ok(ephemera)
     }
 

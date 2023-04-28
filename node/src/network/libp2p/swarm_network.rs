@@ -144,7 +144,7 @@ where
                     .put_record(record, quorum)
                 {
                     Ok(ok) => {
-                        debug!("StoreDht: {:?}", ok);
+                        trace!("StoreDht: {:?}", ok);
                     }
                     Err(err) => {
                         error!("StoreDht: {:?}", err);
@@ -241,7 +241,7 @@ where
                     channel,
                 } => {
                     let rb_id = request.id.clone();
-                    debug!("Received request {:?}", request.short_fmt());
+                    trace!("Received request {:?}", request);
                     self.to_ephemera_tx
                         .send_network_event(NetworkEvent::BroadcastMessage(request.into()))
                         .await?;
@@ -371,10 +371,10 @@ where
                         trace!("RepublishProvider: {:?}", rp);
                     }
                     kad::QueryResult::PutRecord(pr) => {
-                        debug!("PutRecord: {:?}", pr);
+                        trace!("PutRecord: {:?}", pr);
                     }
                     kad::QueryResult::RepublishRecord(rr) => {
-                        debug!("RepublishRecord: {:?}", rr);
+                        trace!("RepublishRecord: {:?}", rr);
                     }
                 }
             }
@@ -390,16 +390,16 @@ where
                 bucket_range: _,
                 old_peer: _,
             } => {
-                debug!("Routing updated: peer:{peer_id}, addresses:{addresses:?}",);
+                trace!("Routing updated: peer:{peer_id}, addresses:{addresses:?}",);
             }
             kad::KademliaEvent::UnroutablePeer { peer } => {
-                debug!("Unroutable peer: {:?}", peer);
+                trace!("Unroutable peer: {:?}", peer);
             }
             kad::KademliaEvent::RoutablePeer { peer, address } => {
-                debug!("Routable peer: {:?}, address: {:?}", peer, address);
+                trace!("Routable peer: {:?}, address: {:?}", peer, address);
             }
             kad::KademliaEvent::PendingRoutablePeer { peer, address } => {
-                debug!("Pending routable peer: {:?}, address: {:?}", peer, address);
+                trace!("Pending routable peer: {:?}, address: {:?}", peer, address);
             }
         }
         Ok(())
@@ -412,7 +412,7 @@ where
                 trace!("GetRecordOk: {:?}", ok);
                 match ok {
                     kad::GetRecordOk::FoundRecord(fr) => {
-                        debug!("FoundRecord: {:?}", fr);
+                        trace!("FoundRecord: {:?}", fr);
                         let record = fr.record;
                         let event = NetworkEvent::QueryDhtResponse {
                             key: record.key.to_vec(),
@@ -469,10 +469,6 @@ where
     }
 
     fn send_broadcast_message(&mut self, msg: &RbMsg) {
-        debug!(
-            "Sending broadcast message: {:?} to all peers",
-            msg.short_fmt()
-        );
         trace!("Sending broadcast message: {:?}", msg);
         let local_peer_id = *self.swarm.local_peer_id();
         let behaviours = self.swarm.behaviour_mut();

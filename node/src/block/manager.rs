@@ -1,3 +1,6 @@
+use std::future::Future;
+use std::task::Poll;
+use std::time::Duration;
 use std::{
     num::NonZeroUsize,
     pin::Pin,
@@ -5,17 +8,10 @@ use std::{
     task::Poll::{Pending, Ready},
 };
 
-use std::future::Future;
-
-use std::task::Poll;
-use std::time::Duration;
-
 use anyhow::anyhow;
 use futures::Stream;
-
 use futures_util::FutureExt;
-
-use log::{debug, error, trace};
+use log::{debug, error, info, trace};
 use lru::LruCache;
 use thiserror::Error;
 use tokio::time;
@@ -42,8 +38,8 @@ pub(crate) enum BlockManagerError {
     #[error("Message is already in pool: {0}")]
     DuplicateMessage(String),
     //Just a placeholder for now
-    #[error("BlockManagerError::GeneralError: {0}")]
-    General(#[from] anyhow::Error),
+    #[error("BlockManagerError: {0}")]
+    BlockManager(#[from] anyhow::Error),
 }
 
 /// It helps to use atomic state management for new blocks.
@@ -173,7 +169,7 @@ pub(crate) struct BlockManager {
 
 impl BlockManager {
     pub(crate) fn on_new_message(&mut self, msg: EphemeraMessage) -> Result<()> {
-        debug!("Message received: {:?}", msg);
+        trace!("Message received: {:?}", msg);
 
         let message_hash = msg.hash_with_default_hasher()?;
         if self.message_pool.contains(&message_hash) {
@@ -194,7 +190,7 @@ impl BlockManager {
     ) -> Result<()> {
         let hash = block.hash_with_default_hasher()?;
 
-        debug!(
+        trace!(
             "Received block: {:?} from peer {sender:?}",
             block.get_hash()
         );
@@ -225,7 +221,7 @@ impl BlockManager {
     pub(crate) fn sign_block(&mut self, block: &Block) -> Result<Certificate> {
         let hash = block.hash_with_default_hasher()?;
 
-        debug!("Signing block: {hash:?}");
+        trace!("Signing block: {block}");
 
         let certificate = self.block_signer.sign_block(block, &hash)?;
 
@@ -263,7 +259,7 @@ impl BlockManager {
 
     /// After a block gets committed, clear up mempool from its messages
     pub(crate) fn on_block_committed(&mut self, block: &Block) -> Result<()> {
-        debug!("Block committed: {:?}", block);
+        info!("Block committed: {}", block);
 
         let hash = &block.header.hash;
 
@@ -273,9 +269,11 @@ impl BlockManager {
                 .last_produced_block
                 .as_ref()
                 .expect("Last produced block should be present");
-            return Err(anyhow!(
-                "Received committed block {hash} which isn't last produced block {}, this is a bug!",
-                last_produced_block.get_hash()).into());
+            log::error!(
+                "Received unexpected committed block: {hash}, was expecting: {}",
+                last_produced_block.get_hash()
+            );
+            panic!("Received committed block which isn't last produced block, this is a bug!");
         }
 
         match self.message_pool.remove_messages(&block.messages) {
@@ -308,8 +306,10 @@ impl BlockManager {
         if !self.config.producer {
             return;
         }
+        if let State::Running = self.state {
+            return;
+        }
         debug!("Starting block creation");
-        self.block_chain_state.last_produced_block = None;
         self.state = State::Running;
         self.block_creation_interval =
             tokio::time::interval(Duration::from_secs(self.config.creation_interval_sec));
@@ -379,7 +379,7 @@ impl Stream for BlockManager {
             .create_block(new_height, pending_messages);
 
         if let Ok(block) = created_block {
-            debug!("Created block: {:?}", block.get_hash());
+            info!("Created block: {}", block);
 
             let hash = block.get_hash();
             self.block_chain_state.last_produced_block = Some(block.clone());
@@ -579,6 +579,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn test_on_committed_with_invalid_pending_block() {
         let (mut manager, _) = block_manager_with_defaults();
 
@@ -591,9 +592,7 @@ mod test {
         let wrong_block = block();
 
         //This shouldn't remove messages from the pool
-        let result = manager.on_block_committed(&wrong_block);
-        assert!(result.is_err());
-        assert_eq!(manager.message_pool.get_messages().len(), 1);
+        let _ = manager.on_block_committed(&wrong_block);
     }
 
     #[tokio::test]

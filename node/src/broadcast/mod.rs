@@ -33,7 +33,7 @@
 //!   Also this can be a task for an upstream layer(gossip...) which handles networking and peers relationship.
 
 use std::collections::HashSet;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -98,7 +98,7 @@ impl ProtocolContext {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct RbMsg {
     ///Unique id of the message which stays the same throughout the protocol
     pub(crate) id: EphemeraId,
@@ -131,15 +131,6 @@ impl RbMsg {
             MessageType::Echo(block) | MessageType::Vote(block) => block,
         }
     }
-
-    pub(crate) fn short_fmt(&self) -> String {
-        format!(
-            "[id: {}, peer: {}, block: {}]",
-            self.id,
-            self.original_sender,
-            self.block().get_hash()
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -166,15 +157,6 @@ impl RawRbMsg {
         match &self.message_type {
             MessageType::Echo(block) | MessageType::Vote(block) => block.clone(),
         }
-    }
-
-    pub(crate) fn short_fmt(&self) -> String {
-        format!(
-            "[id: {}, peer: {}, block: {}]",
-            self.id,
-            self.original_sender,
-            self.block().get_hash()
-        )
     }
 
     pub(crate) fn reply(&self, local_id: PeerId, phase: MessageType) -> Self {
@@ -209,6 +191,19 @@ impl From<RbMsg> for RawRbMsg {
 }
 
 impl Display for RbMsg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[id: {}, peer: {}, block: {}, phase: {:?}]",
+            self.id,
+            self.original_sender,
+            self.block().get_hash(),
+            self.phase
+        )
+    }
+}
+
+impl Debug for RbMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use log::{debug, trace, warn};
+use log::{trace, warn};
 
 use crate::block::types::message::EphemeraMessage;
 use crate::utilities::hash::Hash;
@@ -28,7 +28,7 @@ impl MessagePool {
     }
 
     pub(super) fn add_message(&mut self, msg: EphemeraMessage) -> anyhow::Result<()> {
-        debug!("Adding message to pool: {:?}", msg);
+        trace!("Adding message to pool: {:?}", msg);
 
         let msg_hash = msg.hash_with_default_hasher()?;
 

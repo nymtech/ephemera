@@ -60,8 +60,8 @@ impl TryFrom<PeerInfo> for Peer {
 pub enum ProviderError {
     #[error("ResourceUnavailable: {0}")]
     ResourceUnavailable(String),
-    #[error("GeneralError: {0}")]
-    Other(#[from] anyhow::Error),
+    #[error("MembersProvider: {0}")]
+    MembersProvider(#[from] anyhow::Error),
 }
 
 /// Future type which allows user to implement their own peers membership source mechanism.

@@ -8,18 +8,13 @@ use log::{debug, error, info, trace};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
+use crate::broadcast::bracha::quorum::Quorum;
 use crate::{
-    api::{
-        ApiListener,
-        application::Application,
-        application::CheckBlockResult,
-    },
+    api::{application::Application, application::CheckBlockResult, ApiListener},
     block::{manager::BlockManager, types::block::Block},
     broadcast::{
-        bracha::broadcast::Broadcaster,
-        bracha::broadcast::BroadcastResponse,
-        group::BroadcastGroup,
-        RbMsg,
+        bracha::broadcast::BroadcastResponse, bracha::broadcast::Broadcaster,
+        group::BroadcastGroup, RbMsg,
     },
     core::{
         api_cmd::ApiCmdProcessor,
@@ -27,11 +22,11 @@ use crate::{
         shutdown::ShutdownManager,
     },
     network::{
+        libp2p::network_sender::GroupChangeEvent,
         libp2p::{
             ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender},
             network_sender::{NetCommunicationReceiver, NetworkEvent},
         },
-        libp2p::network_sender::GroupChangeEvent,
         PeerId,
     },
     storage::EphemeraDatabase,
@@ -42,8 +37,8 @@ use crate::{
 //Just a placeholder now
 #[derive(Error, Debug)]
 enum EphemeraCoreError {
-    #[error("EphemeraCoreError::GeneralError: {0}")]
-    GeneralError(#[from] anyhow::Error),
+    #[error("EphemeraCore: {0}")]
+    EphemeraCore(#[from] anyhow::Error),
 }
 
 type Result<T> = std::result::Result<T, EphemeraCoreError>;
@@ -166,7 +161,7 @@ impl<A: Application> Ephemera<A> {
         match net_event {
             NetworkEvent::EphemeraMessage(em) => {
                 let api_msg = (*em.clone()).into();
-                debug!("New ephemera message from network: {:?}", api_msg);
+                trace!("New ephemera message from network: {:?}", api_msg);
 
                 //Only Application checks if messages are valid(possibly message origin).
                 //For messages we don't check if sender belongs to group.
@@ -174,7 +169,7 @@ impl<A: Application> Ephemera<A> {
                 // Ask application to decide if we should accept this message.
                 match self.application.check_tx(api_msg) {
                     Ok(true) => {
-                        debug!("Application accepted message: {:?}", em);
+                        trace!("Application accepted message: {:?}", em);
 
                         // Send to BlockManager to store in mempool.
                         if let Err(err) = self.block_manager.on_new_message(*em) {
@@ -182,7 +177,7 @@ impl<A: Application> Ephemera<A> {
                         }
                     }
                     Ok(false) => {
-                        debug!("Application rejected message: {:?}", em);
+                        trace!("Application rejected message: {:?}", em);
                     }
                     Err(err) => {
                         error!("Application check_tx failed: {:?}", err);
@@ -221,12 +216,14 @@ impl<A: Application> Ephemera<A> {
     fn process_group_update(&mut self, event: GroupChangeEvent) {
         match event {
             GroupChangeEvent::PeersUpdated(peers) => {
-                debug!("New peers: {:?}", peers);
+                info!("New group: {:?}", peers);
+                info!("{}", Quorum::cluster_size_info(peers.len()));
                 self.broadcaster.group_updated(peers.len());
                 self.broadcast_group.add_snapshot(peers);
                 self.block_manager.start();
             }
             GroupChangeEvent::LocalPeerRemoved(peers) | GroupChangeEvent::NotEnoughPeers(peers) => {
+                info!("New group: {:?}", peers);
                 info!("Group update: Local peer removed or not enough peers");
                 self.broadcaster.group_updated(0);
                 self.broadcast_group.add_snapshot(peers);
@@ -259,7 +256,7 @@ impl<A: Application> Ephemera<A> {
         match self.application.check_block(&new_block.clone().into()) {
             Ok(response) => match response {
                 CheckBlockResult::Accept => {
-                    debug!("Application accepted block: {hash:?}",);
+                    debug!("Application accepted new block: {hash:?}",);
                 }
                 CheckBlockResult::Reject => {
                     debug!("Application rejected block: {hash:?}",);
@@ -308,10 +305,6 @@ impl<A: Application> Ephemera<A> {
         let hash = block.header.hash;
         let certificate = msg.certificate.clone();
 
-        debug!(
-            "New broadcast message from network: {:?} for block: {hash:?} from peer: {sender:?}",
-            msg.id
-        );
         trace!("New broadcast message from network: {:?}", msg);
 
         if !self
@@ -346,12 +339,12 @@ impl<A: Application> Ephemera<A> {
                         }
                     }
                     BroadcastResponse::Deliver(hash) => {
-                        debug!("Block broadcast complete: {hash:?}",);
+                        trace!("Block broadcast complete: {hash:?}",);
                         let block = self.block_manager.get_block_by_hash(&hash);
                         match block {
                             Some(block) => {
                                 if block.header.creator == self.node_info.peer_id {
-                                    debug!("It's local block: {hash:?}",);
+                                    info!("Block committed, ready to deliver...: {hash:?}",);
 
                                     //DB
                                     let certificates = self
@@ -361,11 +354,6 @@ impl<A: Application> Ephemera<A> {
                                             "Error: Block signatures not found in block manager"
                                         ))?;
 
-                                    self.storage
-                                        .lock()
-                                        .await
-                                        .store_block(&block, &certificates)?;
-
                                     //BlockManager
                                     self.block_manager.on_block_committed(&block).map_err(|e| {
                                         anyhow!(
@@ -374,6 +362,14 @@ impl<A: Application> Ephemera<A> {
                                         )
                                     })?;
 
+                                    //Save to database
+                                    self.storage
+                                        .lock()
+                                        .await
+                                        .store_block(&block, &certificates)?;
+
+                                    // It is open question how much Application `deliver_block` failure should affect
+                                    // continuing with next block.
                                     //Application(ABCI)
                                     self.application
                                         .deliver_block(Into::into(block.clone()))
@@ -385,6 +381,7 @@ impl<A: Application> Ephemera<A> {
 
                                     //WS
                                     self.ws_message_broadcast.send_block(&block)?;
+                                    info!("Block broadcast complete: {hash:?}",);
                                 }
                             }
                             None => {

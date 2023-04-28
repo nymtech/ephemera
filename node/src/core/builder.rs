@@ -7,8 +7,12 @@ use futures_util::FutureExt;
 use log::{error, info};
 use tokio::sync::Mutex;
 
+#[cfg(feature = "rocksdb_storage")]
+use crate::storage::rocksdb::RocksDbStorage;
+#[cfg(feature = "sqlite_storage")]
+use crate::storage::sqlite::SqliteStorage;
 use crate::{
-    api::{ApiListener, application::Application, CommandExecutor, http},
+    api::{application::Application, http, ApiListener, CommandExecutor},
     block::{builder::BlockManagerBuilder, manager::BlockManager},
     broadcast::bracha::broadcast::Broadcaster,
     broadcast::group::BroadcastGroup,
@@ -18,7 +22,6 @@ use crate::{
         shutdown::{Handle, Shutdown, ShutdownManager},
     },
     crypto::Keypair,
-    Ephemera,
     membership,
     membership::PeerInfo,
     network::libp2p::{
@@ -29,11 +32,8 @@ use crate::{
     storage::EphemeraDatabase,
     utilities::crypto::key_manager::KeyManager,
     websocket::ws_manager::{WsManager, WsMessageBroadcaster},
+    Ephemera,
 };
-#[cfg(feature = "rocksdb_storage")]
-use crate::storage::rocksdb::RocksDbStorage;
-#[cfg(feature = "sqlite_storage")]
-use crate::storage::sqlite::SqliteStorage;
 
 #[derive(Clone)]
 pub(crate) struct NodeInfo {
@@ -102,9 +102,9 @@ pub struct EphemeraHandle {
 }
 
 pub struct EphemeraStarter<A, P>
-    where
-        A: Application + 'static,
-        P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + 'static,
+where
+    A: Application + 'static,
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
 {
     config: Configuration,
     node_info: NodeInfo,
@@ -123,9 +123,9 @@ pub struct EphemeraStarter<A, P>
 }
 
 impl<A, P> EphemeraStarter<A, P>
-    where
-        A: Application + 'static,
-        P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
+where
+    A: Application + 'static,
+    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
     /// Creates a new Ephemera node builder.
     ///
@@ -168,8 +168,8 @@ impl<A, P> EphemeraStarter<A, P>
 
     #[must_use]
     pub fn with_members_provider(self, members_provider: P) -> Self
-        where
-            P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    where
+        P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
     {
         Self {
             members_provider: Some(members_provider),
@@ -179,8 +179,8 @@ impl<A, P> EphemeraStarter<A, P>
 
     #[must_use]
     pub fn with_application(self, application: A) -> Self
-        where
-            A: Application + 'static,
+    where
+        A: Application + 'static,
     {
         Self {
             application: Some(application),
@@ -251,7 +251,7 @@ impl<A, P> EphemeraStarter<A, P>
             info!("Websocket task finished");
             Ok(())
         }
-            .boxed()
+        .boxed()
     }
 
     fn init_http(
@@ -277,7 +277,7 @@ impl<A, P> EphemeraStarter<A, P>
             info!("Http task finished");
             Ok(())
         }
-            .boxed();
+        .boxed();
         Ok(fut)
     }
 
@@ -309,7 +309,7 @@ impl<A, P> EphemeraStarter<A, P>
             info!("Network task finished");
             Ok(())
         }
-            .boxed()
+        .boxed()
     }
 
     fn ephemera(

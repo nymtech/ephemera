@@ -22,6 +22,7 @@ pub(crate) struct Node {
 impl Node {
     pub(crate) async fn init(id: usize, url: String) -> Self {
         //Use separate client instances elsewhere so they don't block each other
+        info!("Node {} init with url {}", id, url);
         let client = HealthyClient::new(url.clone());
         let last_block = client.get_last_block().await.unwrap();
         let ephemera_config = client.get_ephemera_config().await.unwrap();

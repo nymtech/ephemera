@@ -43,13 +43,8 @@ pub(crate) struct Quorum {
 }
 
 impl Quorum {
-    #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_sign_loss,
-        clippy::cast_possible_truncation
-    )]
     pub fn new(cluster_size: usize) -> Self {
-        let max_faulty_nodes = (cluster_size as f64 * MAX_FAULTY_RATIO).floor() as usize;
+        let max_faulty_nodes = Quorum::max_faulty_nodes(cluster_size);
         Self {
             cluster_size,
             max_faulty_nodes,
@@ -121,6 +116,20 @@ impl Quorum {
                 BrachaAction::Ignore
             }
         }
+    }
+
+    pub(crate) fn cluster_size_info(cluster_size: usize) -> String {
+        let max_faulty_nodes = Quorum::max_faulty_nodes(cluster_size);
+        format!("Cluster size: {cluster_size} / Max faulty nodes: {max_faulty_nodes}",)
+    }
+
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation
+    )]
+    fn max_faulty_nodes(cluster_size: usize) -> usize {
+        (cluster_size as f64 * MAX_FAULTY_RATIO).floor() as usize
     }
 }
 

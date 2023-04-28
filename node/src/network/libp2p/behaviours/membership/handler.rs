@@ -35,7 +35,7 @@ use crate::network::libp2p::behaviours::membership::protocol::{
 #[derive(Error, Debug)]
 pub(crate) enum Error {
     #[error("HandlerError: {0}")]
-    GeneralError(#[from] anyhow::Error),
+    Handler(#[from] anyhow::Error),
 }
 
 //Because we keep long lived connections, we need to restrict number of substream attempts.

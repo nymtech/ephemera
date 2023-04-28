@@ -7,7 +7,7 @@ It expects that local Ephemera cluster is running.
 
 ## How it works
 
-`members-provider-delay` should be configured with short interval so that the cluster can react quickly to the changes.
+Nodes' `members-provider-delay` should be configured with short interval so that the cluster can react quickly to the changes.
 
 Full Ephemera cluster is running and is configured to use HTTP members provider implementation which connects to this
 example.

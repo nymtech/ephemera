@@ -30,8 +30,8 @@ pub struct CheckBlockResponse {
 #[derive(Error, Debug)]
 pub enum Error {
     //Just a placeholder for now
-    #[error("ApplicationError::GeneralError: {0}")]
-    General(#[from] anyhow::Error),
+    #[error("ApplicationError: {0}")]
+    Application(#[from] anyhow::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

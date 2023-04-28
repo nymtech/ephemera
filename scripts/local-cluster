@@ -177,7 +177,7 @@ shift
     esac
   done
 }
-echo $#
+
 [[ $SUBCMD == "update_config" ]] && [[ $# != 6 ]] && echo "$UPDATE_CONFIG_HELP" && exit 1
 
 [[ $SUBCMD == "update_config" ]] && {
@@ -268,8 +268,8 @@ export RUST_LOG_JSON="true"
 
 build() {
   echo "Building ephemera..."
-  cargo build --release --features "rocksdb_storage"
-  #  cargo build --release --features "sqlite_storage" --no-default-features
+#  cargo build --release --features "rocksdb_storage"
+    cargo build --release --features "sqlite_storage"
 }
 
 create_cluster() {

@@ -38,7 +38,7 @@ impl ApiCmdProcessor {
         ephemera: &mut Ephemera<A>,
         cmd: ToEphemeraApiCmd,
     ) -> api::Result<()> {
-        debug!("Processing API request: {:?}", cmd);
+        trace!("Processing API request: {:?}", cmd);
         match cmd {
             ToEphemeraApiCmd::SubmitEphemeraMessage(api_msg, reply) => {
                 // Ask application to decide if we should accept this message.
@@ -261,7 +261,7 @@ impl ApiCmdProcessor {
                     }
                     Err(err) => match err {
                         BlockManagerError::DuplicateMessage(_) => Err(ApiError::DuplicateMessage),
-                        BlockManagerError::General(err) => {
+                        BlockManagerError::BlockManager(err) => {
                             Err(ApiError::Internal(anyhow::Error::msg(err.to_string())))
                         }
                     },

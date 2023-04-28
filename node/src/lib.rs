@@ -39,13 +39,13 @@ pub mod ephemera_api {
             Application, CheckBlockResult, Dummy, Error as ApplicationError, RemoveMessages,
             Result as ApplicationResult,
         },
-        CommandExecutor,
         http::client::{Client, Error as HttpClientError, Result as HttpClientResult},
         types::{
             ApiBlock, ApiBroadcastInfo, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse,
             ApiDhtStoreRequest, ApiEphemeraConfig, ApiEphemeraMessage, ApiError, ApiHealth,
             RawApiEphemeraMessage,
         },
+        CommandExecutor,
     };
 }
 
@@ -66,7 +66,7 @@ pub mod membership {
 /// Ephemera keypair and public key
 pub mod crypto {
     pub use super::utilities::crypto::{
-        EphemeraKeypair, EphemeraPublicKey, Keypair, KeyPairError, PublicKey,
+        EphemeraKeypair, EphemeraPublicKey, KeyPairError, Keypair, PublicKey,
     };
 }
 
@@ -85,7 +85,6 @@ pub mod cli;
 
 /// Utilities to set up logging.
 pub mod logging;
-
 
 // PRIVATE MODULES
 

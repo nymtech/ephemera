@@ -8,7 +8,7 @@ use futures::{AsyncRead, AsyncWrite};
 use futures_util::future;
 use libp2p::core::UpgradeInfo;
 use libp2p::{InboundUpgrade, OutboundUpgrade};
-use log::{debug, info};
+use log::trace;
 use serde::{Deserialize, Serialize};
 
 use crate::utilities::codec::varint_bytes::{read_length_prefixed, write_length_prefixed};
@@ -22,10 +22,6 @@ impl UpgradeInfo for Protocol {
     type InfoIter = iter::Once<Self::Info>;
 
     fn protocol_info(&self) -> Self::InfoIter {
-        info!(
-            "Listening for protocol: {}",
-            String::from_utf8_lossy(PROTOCOL_NAME)
-        );
         iter::once(PROTOCOL_NAME)
     }
 }
@@ -39,7 +35,7 @@ where
     type Future = Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send>>;
 
     fn upgrade_inbound(self, socket: C, _: Self::Info) -> Self::Future {
-        debug!(
+        trace!(
             "Inbound upgrade for protocol: {}",
             String::from_utf8_lossy(PROTOCOL_NAME)
         );
@@ -56,7 +52,7 @@ where
     type Future = Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send>>;
 
     fn upgrade_outbound(self, socket: C, _: Self::Info) -> Self::Future {
-        debug!(
+        trace!(
             "Outbound upgrade for protocol: {}",
             String::from_utf8_lossy(PROTOCOL_NAME)
         );

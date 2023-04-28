@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use log::{debug, trace};
+use log::trace;
 use lru::LruCache;
 
 use crate::{
@@ -33,7 +33,7 @@ impl BlockSigner {
     }
 
     pub(crate) fn sign_block(&mut self, block: &Block, hash: &Hash) -> anyhow::Result<Certificate> {
-        debug!("Signing block: {:?}", block.get_hash());
+        trace!("Signing block: {:?}", block);
 
         let certificate = block.sign(self.signing_keypair.as_ref())?;
         self.add_certificate(hash, certificate.clone());

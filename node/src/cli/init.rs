@@ -16,16 +16,16 @@ const DEFAULT_MESSAGES_TOPIC_NAME: &str = "nym-ephemera-proposed";
 const DEFAULT_HEARTBEAT_INTERVAL_SEC: u64 = 1;
 
 #[derive(Args)]
-#[group(required = true, multiple = false,)]
+#[group(required = true, multiple = false)]
 pub struct MembershipKind {
     /// Requires the threshold of peers returned by membership provider to be online
     #[clap(long)]
     threshold: Option<f64>,
     /// Requires that all peers returned by membership provider peers to be online
-    #[clap(long, )]
+    #[clap(long)]
     all: bool,
     /// Membership is just all online peers from the set returned by membership provider
-    #[clap(long,)]
+    #[clap(long)]
     any: bool,
 }
 

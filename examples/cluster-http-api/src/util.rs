@@ -1,8 +1,7 @@
 use ephemera::crypto::Keypair;
 use ephemera::ephemera_api::{
-    self,
-    ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest, ApiEphemeraMessage, ApiHealth,
-    Client, HttpClientResult, RawApiEphemeraMessage,
+    self, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest, ApiEphemeraMessage,
+    ApiHealth, Client, HttpClientResult, RawApiEphemeraMessage,
 };
 
 pub(crate) fn create_ephemera_message(

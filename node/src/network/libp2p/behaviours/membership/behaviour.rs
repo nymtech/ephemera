@@ -310,14 +310,13 @@ where
                     .peer_address(&peer_id)
                     .expect("Peer should exist");
 
-                debug!("Dialing peer: {:?} {:?}", peer_id, address);
+                trace!("Dialing peer: {:?} {:?}", peer_id, address);
 
                 let opts = DialOpts::peer_id(peer_id)
                     .condition(PeerCondition::NotDialing)
                     .addresses(vec![address.clone()])
                     .build();
 
-                debug!("Dialing peer: {:?}", peer_id);
                 Poll::Ready(ToSwarm::Dial { opts })
             } else {
                 let all_peers = pending_membership.all_peer_ids();

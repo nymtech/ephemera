@@ -48,7 +48,7 @@ impl Broadcaster {
     }
 
     pub(crate) fn handle(&mut self, rb_msg: &RawRbMsg) -> anyhow::Result<BroadcastResponse> {
-        debug!("Processing new broadcast message: {:?}", rb_msg.short_fmt());
+        trace!("Processing new broadcast message: {:?}", rb_msg);
 
         let block = &rb_msg.block();
         let hash = block.hash_with_default_hasher()?;
@@ -58,7 +58,7 @@ impl Broadcaster {
         });
 
         if ctx.delivered {
-            debug!("Block {hash:?} already delivered");
+            trace!("Block {hash:?} already delivered");
             return Ok(BroadcastResponse::Drop(hash));
         }
 
