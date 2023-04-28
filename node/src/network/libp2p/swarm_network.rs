@@ -136,6 +136,7 @@ where
             EphemeraEvent::StoreInDht { key, value } => {
                 let record = kad::Record::new(key, value);
                 //TODO: review quorum size
+                //Review  Kadedmlia config in general(default ttl etc)
                 let quorum = kad::Quorum::One;
                 match self
                     .swarm
@@ -406,25 +407,21 @@ where
     }
 
     async fn process_get_record(&mut self, get_res: GetRecordResult) -> anyhow::Result<()> {
-        debug!("GetRecord: {:?}", get_res);
+        trace!("GetRecord: {:?}", get_res);
         match get_res {
-            Ok(ok) => {
-                debug!("GetRecordOk: {:?}", ok);
-                match ok {
-                    kad::GetRecordOk::FoundRecord(fr) => {
-                        trace!("FoundRecord: {:?}", fr);
-                        let record = fr.record;
-                        let event = NetworkEvent::QueryDhtResponse {
-                            key: record.key.to_vec(),
-                            value: record.value,
-                        };
-                        self.to_ephemera_tx.send_network_event(event).await?;
-                    }
-                    kad::GetRecordOk::FinishedWithNoAdditionalRecord { .. } => {
-                        trace!("FinishedWithNoAdditionalRecord");
-                    }
+            Ok(ok) => match ok {
+                kad::GetRecordOk::FoundRecord(fr) => {
+                    let record = fr.record;
+                    let event = NetworkEvent::QueryDhtResponse {
+                        key: record.key.to_vec(),
+                        value: record.value,
+                    };
+                    self.to_ephemera_tx.send_network_event(event).await?;
                 }
-            }
+                kad::GetRecordOk::FinishedWithNoAdditionalRecord { .. } => {
+                    trace!("FinishedWithNoAdditionalRecord");
+                }
+            },
             Err(err) => {
                 trace!("Not getting record: {:?}", err);
             }

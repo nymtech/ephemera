@@ -209,7 +209,7 @@ where
             Ok(peers) => {
                 if peers.is_empty() {
                     //Not sure what to do here. Tempted to think that if this happens
-                    //we should ignore it and assume that this is a bug in the membership service.
+                    //we should ignore it and assume that this is probably a bug in the membership service.
 
                     warn!("Received empty peers from provider. To try again before preconfigured interval, please restart the node.");
                     return Poll::Ready(ToSwarm::GenerateEvent(Event::NotEnoughPeers(
@@ -520,12 +520,13 @@ where
         _connection_id: ConnectionId,
         event: THandlerOutEvent<Self>,
     ) {
-        debug!(
+        trace!(
             "Received event from connection handler: {:?} from peer: {:?}",
-            event, peer_id
+            event,
+            peer_id
         );
 
-        //TODO: we may need to check who sent the update: probably we should accept only updates from members who we know
+        //TODO: we may need to check who sent the update: probably we should accept only updates from members who we already know
         if let State::WaitingPeers = self.state {
             if self.last_sync_time + self.minimum_time_between_sync < Instant::now() {
                 self.members_provider_interval = None;

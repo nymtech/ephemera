@@ -41,7 +41,7 @@ impl EpochOperations for RewardManager<V2> {
                     if self.try_submit_rewards_to_contract(nr_of_rewards, block.clone()).await.is_ok(){
                         info!("Submitted rewards to smart contract");
                         let epoch_id = self.epoch.current_epoch_numer();
-                        self.store_in_dht(epoch_id).await?;
+                        self.store_in_dht(epoch_id, &block).await?;
                         info!("Stored rewards in DHT");
                         winning_block = Some(block);
                     }
@@ -64,8 +64,8 @@ impl EpochOperations for RewardManager<V2> {
                     break;
                 }
                 tokio::select! {
-                   Ok(Some(peer_id)) = self.query_dht(epoch_id) => {
-                       info!("DHT: Received block with height {next_height} from peer {peer_id}");
+                   Ok(Some(block)) = self.query_dht(epoch_id) => {
+                       info!("DHT: Received block {block}");
                        break;
                    }
                    _= tokio::time::sleep(Duration::from_secs(self.args.block_polling_interval_seconds)) => {

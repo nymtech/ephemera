@@ -165,8 +165,8 @@ where
         Ok(block)
     }
 
-    pub(crate) async fn store_in_dht(&self, epoch_id: u64) -> anyhow::Result<()> {
-        info!("Storing ourselves as winner in DHT for epoch id: {epoch_id:?}");
+    pub(crate) async fn store_in_dht(&self, epoch_id: u64, block: &ApiBlock) -> anyhow::Result<()> {
+        info!("Storing ourselves as 'winner' in DHT for epoch id: {epoch_id:?}");
 
         let access = self
             .ephemera_access
@@ -176,14 +176,14 @@ where
         let key = format!("epoch_id_{epoch_id}").into_bytes();
 
         let keypair = &access.key_pair;
-        let value = keypair.public_key().to_base58();
+        let value = serde_json::to_vec(&block).expect("Failed to serialize block");
 
-        access.api.store_in_dht(key, value.into_bytes()).await?;
+        access.api.store_in_dht(key, value).await?;
         info!("Sent store request to DHT");
         Ok(())
     }
 
-    pub(crate) async fn query_dht(&self, epoch_id: u64) -> anyhow::Result<Option<String>> {
+    pub(crate) async fn query_dht(&self, epoch_id: u64) -> anyhow::Result<Option<ApiBlock>> {
         let access = self
             .ephemera_access
             .as_ref()
@@ -193,13 +193,13 @@ where
 
         match access.api.query_dht(key).await? {
             None => {
-                info!("No winner found for epoch id from DHT: {epoch_id:?}");
+                info!("No 'winner' found for epoch id from DHT: {epoch_id:?}");
                 Ok(None)
             }
-            Some((_, peer_id)) => {
-                let peer_id = PeerId::from_utf8(peer_id).expect("Invalid peer id");
-                info!("Winner found for epoch id from DHT: {epoch_id:?} - {peer_id:?}");
-                Ok(Some(peer_id))
+            Some((_, block)) => {
+                let block = serde_json::from_slice(block.as_slice())?;
+                info!("'Winner' found for epoch id from DHT: {epoch_id:?} - {block:?}");
+                Ok(Some(block))
             }
         }
     }
