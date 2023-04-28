@@ -28,9 +28,11 @@
 
 // PUBLIC MODULES
 
-pub use crate::core::builder::EphemeraStarter;
+pub use crate::core::builder::{
+    EphemeraStarterInit, EphemeraStarterWithApplication, EphemeraStarterWithProvider,
+};
 pub use crate::core::ephemera::Ephemera;
-pub use crate::core::shutdown::Handle;
+pub use crate::core::shutdown::Handle as ShutdownHandle;
 
 /// Ephemera API. Public interface and types.
 pub mod ephemera_api {

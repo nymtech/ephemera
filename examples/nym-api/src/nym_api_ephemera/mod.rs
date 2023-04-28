@@ -11,7 +11,7 @@ use ephemera::configuration::Configuration;
 use ephemera::crypto::{EphemeraKeypair, Keypair};
 use ephemera::ephemera_api::CommandExecutor;
 use ephemera::membership::HttpMembersProvider;
-use ephemera::{Ephemera, EphemeraStarter, Handle};
+use ephemera::{Ephemera, EphemeraStarterInit, ShutdownHandle};
 use metrics::MetricsCollector;
 
 use crate::epoch::Epoch;
@@ -95,10 +95,10 @@ impl NymApi {
         let members_provider = HttpMembersProvider::new(url);
 
         //EPHEMERA
-        let ephemera_builder = EphemeraStarter::new(ephemera_config)?;
+        let ephemera_builder = EphemeraStarterInit::new(ephemera_config)?;
         let ephemera_builder = ephemera_builder.with_application(rewards_ephemera_application);
-        let ephemera_builder = ephemera_builder.with_members_provider(Box::pin(members_provider));
-        let ephemera = ephemera_builder.build()?;
+        let ephemera_builder = ephemera_builder.with_members_provider(members_provider)?;
+        let ephemera = ephemera_builder.build();
         Ok(ephemera)
     }
 
@@ -128,7 +128,7 @@ impl NymApi {
 
     async fn shutdown_nym_api(
         shutdown: Receiver<()>,
-        ephemera_shutdown: &mut Handle,
+        ephemera_shutdown: &mut ShutdownHandle,
         shutdown_signal_tx: Sender<()>,
         ephemera: JoinHandle<()>,
         rewards: JoinHandle<()>,

@@ -12,12 +12,12 @@ use crate::{
     api::application::CheckBlockResult,
     cli::PEERS_CONFIG_FILE,
     config::Configuration,
-    core::builder::EphemeraStarter,
     crypto::EphemeraKeypair,
     crypto::Keypair,
     ephemera_api::{ApiBlock, ApiEphemeraMessage, Application, Dummy, RawApiEphemeraMessage},
     membership::HttpMembersProvider,
     network::members::ConfigMembersProvider,
+    EphemeraStarterInit,
 };
 
 #[derive(Clone, Debug)]
@@ -28,7 +28,7 @@ pub struct HttpMembersProviderArg {
 impl FromStr for HttpMembersProviderArg {
     type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(HttpMembersProviderArg { url: s.parse()? })
     }
 }
@@ -54,12 +54,11 @@ impl RunExternalNodeCmd {
         };
 
         let members_provider = Self::http_members_provider(self.http_provider_url.to_string());
-        let ephemera = EphemeraStarter::new(ephemera_conf.clone())
+        let ephemera = EphemeraStarterInit::new(ephemera_conf.clone())
             .unwrap()
             .with_application(Dummy)
-            .with_members_provider(members_provider)
-            .build()
-            .unwrap();
+            .with_members_provider(members_provider)?
+            .build();
 
         let mut ephemera_shutdown = ephemera.ephemera_handle.shutdown.clone();
 

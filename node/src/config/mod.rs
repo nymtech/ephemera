@@ -11,6 +11,7 @@ use log::{error, info};
 use serde_derive::{Deserialize, Serialize};
 use thiserror::Error;
 
+//TODO - validate configuration at load time
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Configuration {
     /// Configuration related to node instance identity

@@ -135,8 +135,6 @@ where
             }
             EphemeraEvent::StoreInDht { key, value } => {
                 let record = kad::Record::new(key, value);
-                //TODO: review quorum size
-                //Review  Kadedmlia config in general(default ttl etc)
                 let quorum = kad::Quorum::One;
                 match self
                     .swarm

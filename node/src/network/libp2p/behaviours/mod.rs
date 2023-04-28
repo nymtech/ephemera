@@ -75,6 +75,7 @@ impl From<kad::KademliaEvent> for GroupBehaviourEvent {
 //Create combined behaviour.
 //Gossipsub takes care of message delivery semantics
 //Membership takes care of providing peers who are part of the reliable broadcast group
+//Kademlia takes provides closest neighbours and general DHT functionality
 pub(crate) fn create_behaviour<P>(
     keypair: &Arc<Keypair>,
     ephemera_msg_topic: &Topic,
@@ -85,6 +86,7 @@ pub(crate) fn create_behaviour<P>(
 where
     P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
+    //TODO: review behaviours config(eg. gossipsub minimum peers, kademlia ttl, request-response timeouts etc.)
     let local_peer_id = keypair.peer_id();
     let gossipsub = create_gossipsub(keypair, ephemera_msg_topic);
     let request_response = create_request_response();
@@ -107,6 +109,7 @@ where
 // Configure networking messaging stack(Gossipsub)
 pub(crate) fn create_gossipsub(local_key: &Arc<Keypair>, topic: &Topic) -> gossipsub::Behaviour {
     let gossipsub_config = gossipsub::ConfigBuilder::default()
+        //TODO: settings from config
         .heartbeat_interval(Duration::from_secs(5))
         .message_id_fn(|msg: &gossipsub::Message| Hasher::digest(&msg.data).into())
         .validation_mode(ValidationMode::Strict)
