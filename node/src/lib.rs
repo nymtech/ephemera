@@ -26,31 +26,36 @@
 
 #![deny(clippy::pedantic)]
 
+// PUBLIC MODULES
+
 pub use crate::core::builder::EphemeraStarter;
 pub use crate::core::ephemera::Ephemera;
 pub use crate::core::shutdown::Handle;
 
+/// Ephemera API. Public interface and types.
 pub mod ephemera_api {
     pub use crate::api::{
         application::{
             Application, CheckBlockResult, Dummy, Error as ApplicationError, RemoveMessages,
             Result as ApplicationResult,
         },
+        CommandExecutor,
         http::client::{Client, Error as HttpClientError, Result as HttpClientResult},
         types::{
             ApiBlock, ApiBroadcastInfo, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse,
             ApiDhtStoreRequest, ApiEphemeraConfig, ApiEphemeraMessage, ApiError, ApiHealth,
             RawApiEphemeraMessage,
         },
-        CommandExecutor,
     };
 }
 
+/// Peer identification
 #[allow(clippy::module_name_repetitions)]
 pub mod peer {
     pub use super::network::{PeerId, PeerIdError, ToPeerId};
 }
 
+/// Ephemera membership. How to find other nodes in the cluster.
 pub mod membership {
     pub use super::network::members::{
         ConfigMembersProvider, DummyMembersProvider, HttpMembersProvider, JsonPeerInfo, PeerInfo,
@@ -58,29 +63,55 @@ pub mod membership {
     };
 }
 
+/// Ephemera keypair and public key
 pub mod crypto {
     pub use super::utilities::crypto::{
-        EphemeraKeypair, EphemeraPublicKey, KeyPairError, Keypair, PublicKey,
+        EphemeraKeypair, EphemeraPublicKey, Keypair, KeyPairError, PublicKey,
     };
 }
 
+/// Ephemera codec to encode and decode messages
 pub mod codec {
     pub use super::utilities::codec::{Decode, Encode};
 }
 
+/// Ephemera node configuration
 pub mod configuration {
     pub use super::config::Configuration;
 }
 
+/// Ephemera CLI. Helpers for creating configuration, running node, etc.
 pub mod cli;
+
+/// Utilities to set up logging.
 pub mod logging;
 
+
+// PRIVATE MODULES
+
+/// External interface for Ephemera
 mod api;
+
+/// Block creation code
 mod block;
+
+/// Ephemera reliable broadcast
 mod broadcast;
+
+/// Ephemera configuration
 mod config;
+
+/// Ephemera core. Ephemera builder and instance.
 mod core;
+
+/// Ephemera networking with peers
 mod network;
+
+/// Ephemera storage. Block storage and certificate storage.
 mod storage;
+
+/// Ephemera utilities. Crypto, codec, etc.
 mod utilities;
+
+/// Ephemera websocket. Websocket server where external clients can subscribe.
 mod websocket;

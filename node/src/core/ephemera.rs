@@ -8,23 +8,31 @@ use log::{debug, error, info, trace};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-use crate::api::application::CheckBlockResult;
-use crate::broadcast::bracha::broadcast::BroadcastResponse;
-use crate::broadcast::group::BroadcastGroup;
-use crate::network::libp2p::network_sender::GroupChangeEvent;
-use crate::network::PeerId;
 use crate::{
-    api::{application::Application, ApiListener},
+    api::{
+        ApiListener,
+        application::Application,
+        application::CheckBlockResult,
+    },
     block::{manager::BlockManager, types::block::Block},
-    broadcast::{bracha::broadcast::Broadcaster, RbMsg},
+    broadcast::{
+        bracha::broadcast::Broadcaster,
+        bracha::broadcast::BroadcastResponse,
+        group::BroadcastGroup,
+        RbMsg,
+    },
     core::{
         api_cmd::ApiCmdProcessor,
         builder::{EphemeraHandle, NodeInfo},
         shutdown::ShutdownManager,
     },
-    network::libp2p::{
-        ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender},
-        network_sender::{NetCommunicationReceiver, NetworkEvent},
+    network::{
+        libp2p::{
+            ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender},
+            network_sender::{NetCommunicationReceiver, NetworkEvent},
+        },
+        libp2p::network_sender::GroupChangeEvent,
+        PeerId,
     },
     storage::EphemeraDatabase,
     utilities::crypto::Certificate,
@@ -83,6 +91,7 @@ pub struct Ephemera<A: Application> {
     /// A component which handles shutdown.
     pub(crate) shutdown_manager: ShutdownManager,
 
+    /// A list of services which are running in background.
     pub(crate) services: Vec<BoxFuture<'static, anyhow::Result<()>>>,
 }
 
@@ -109,6 +118,7 @@ impl<A: Application> Ephemera<A> {
         }
 
         info!("Starting ephemera main loop");
+
         loop {
             tokio::select! {
                 // GENERATING NEW BLOCKS
@@ -289,7 +299,7 @@ impl<A: Application> Ephemera<A> {
         Ok(())
     }
 
-    //TODO: should we accept more blocks from peers after its committed?
+    //TODO: should we accept more blocks(certificates) from peers after its committed?
     async fn process_block_from_network(&mut self, msg: RbMsg) -> Result<()> {
         let msg_id = msg.id.clone();
         let block = msg.block();

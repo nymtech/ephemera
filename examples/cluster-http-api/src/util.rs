@@ -1,6 +1,6 @@
 use ephemera::crypto::Keypair;
-use ephemera::ephemera_api;
 use ephemera::ephemera_api::{
+    self,
     ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest, ApiEphemeraMessage, ApiHealth,
     Client, HttpClientResult, RawApiEphemeraMessage,
 };

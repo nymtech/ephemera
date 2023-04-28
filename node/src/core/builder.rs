@@ -7,13 +7,8 @@ use futures_util::FutureExt;
 use log::{error, info};
 use tokio::sync::Mutex;
 
-use crate::membership::PeerInfo;
-#[cfg(feature = "rocksdb_storage")]
-use crate::storage::rocksdb::RocksDbStorage;
-#[cfg(feature = "sqlite_storage")]
-use crate::storage::sqlite::SqliteStorage;
 use crate::{
-    api::{application::Application, http, ApiListener, CommandExecutor},
+    api::{ApiListener, application::Application, CommandExecutor, http},
     block::{builder::BlockManagerBuilder, manager::BlockManager},
     broadcast::bracha::broadcast::Broadcaster,
     broadcast::group::BroadcastGroup,
@@ -23,7 +18,9 @@ use crate::{
         shutdown::{Handle, Shutdown, ShutdownManager},
     },
     crypto::Keypair,
+    Ephemera,
     membership,
+    membership::PeerInfo,
     network::libp2p::{
         ephemera_sender::EphemeraToNetworkSender, network_sender::NetCommunicationReceiver,
         swarm_network::SwarmNetwork,
@@ -32,8 +29,11 @@ use crate::{
     storage::EphemeraDatabase,
     utilities::crypto::key_manager::KeyManager,
     websocket::ws_manager::{WsManager, WsMessageBroadcaster},
-    Ephemera,
 };
+#[cfg(feature = "rocksdb_storage")]
+use crate::storage::rocksdb::RocksDbStorage;
+#[cfg(feature = "sqlite_storage")]
+use crate::storage::sqlite::SqliteStorage;
 
 #[derive(Clone)]
 pub(crate) struct NodeInfo {
@@ -102,9 +102,9 @@ pub struct EphemeraHandle {
 }
 
 pub struct EphemeraStarter<A, P>
-where
-    A: Application + 'static,
-    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
+    where
+        A: Application + 'static,
+        P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + 'static,
 {
     config: Configuration,
     node_info: NodeInfo,
@@ -123,22 +123,19 @@ where
 }
 
 impl<A, P> EphemeraStarter<A, P>
-where
-    A: Application + 'static,
-    P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
+    where
+        A: Application + 'static,
+        P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
     /// Creates a new Ephemera node builder.
     ///
     /// # Arguments
-    ///
     /// * `config` - Configuration of the node
     ///
     /// # Returns
-    ///
     /// * `EphemeraStarter` - Builder of the node
     ///
     /// # Errors
-    ///
     /// * `anyhow::Error` - If the node info cannot be created
     pub fn new(config: Configuration) -> anyhow::Result<Self> {
         let instance_info = NodeInfo::new(config.clone())?;
@@ -171,8 +168,8 @@ where
 
     #[must_use]
     pub fn with_members_provider(self, members_provider: P) -> Self
-    where
-        P: Future<Output = membership::Result<Vec<PeerInfo>>> + Send + 'static,
+        where
+            P: Future<Output=membership::Result<Vec<PeerInfo>>> + Send + 'static,
     {
         Self {
             members_provider: Some(members_provider),
@@ -182,8 +179,8 @@ where
 
     #[must_use]
     pub fn with_application(self, application: A) -> Self
-    where
-        A: Application + 'static,
+        where
+            A: Application + 'static,
     {
         Self {
             application: Some(application),
@@ -194,15 +191,12 @@ where
     /// Starts all Ephemera internal services except the Ephemera itself.
     ///
     /// # Returns
-    ///
     /// * `Ephemera` - Ephemera instance
     ///
     /// # Errors
-    ///
     /// * `anyhow::Error` - If some of the services cannot be started
     ///
     /// # Panics
-    ///
     /// * If builder is not initialized properly
     pub fn build(self) -> anyhow::Result<Ephemera<A>> {
         cfg_if::cfg_if! {
@@ -237,6 +231,7 @@ where
     fn init_websocket(&mut self, mut shutdown: Shutdown) -> BoxFuture<'static, anyhow::Result<()>> {
         let (mut websocket, ws_message_broadcast) =
             WsManager::new(self.node_info.ws_address_ip_port());
+
         self.ws_message_broadcast = Some(ws_message_broadcast);
 
         async move {
@@ -256,7 +251,7 @@ where
             info!("Websocket task finished");
             Ok(())
         }
-        .boxed()
+            .boxed()
     }
 
     fn init_http(
@@ -265,9 +260,8 @@ where
     ) -> anyhow::Result<BoxFuture<'static, anyhow::Result<()>>> {
         let http = http::init(&self.node_info, self.api.clone())?;
 
-        let server_handle = http.handle();
-
         let fut = async move {
+            let server_handle = http.handle();
             tokio::select! {
                 _ = shutdown.shutdown_signal_rcv.recv() => {
                     info!("Shutting down http server");
@@ -283,12 +277,13 @@ where
             info!("Http task finished");
             Ok(())
         }
-        .boxed();
+            .boxed();
         Ok(fut)
     }
 
     fn init_libp2p(&mut self, mut shutdown: Shutdown) -> BoxFuture<'static, anyhow::Result<()>> {
-        info!("Starting network...{:?}", self.members_provider.is_some());
+        info!("Starting network...",);
+
         let (mut network, from_network, to_network) = SwarmNetwork::new(
             self.node_info.clone(),
             self.members_provider.take().unwrap(),
@@ -299,6 +294,7 @@ where
 
         async move {
             network.listen()?;
+
             tokio::select! {
                 _ = shutdown.shutdown_signal_rcv.recv() => {
                     info!("Shutting down network");
@@ -313,7 +309,7 @@ where
             info!("Network task finished");
             Ok(())
         }
-        .boxed()
+            .boxed()
     }
 
     fn ephemera(

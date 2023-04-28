@@ -16,50 +16,61 @@ const DEFAULT_MESSAGES_TOPIC_NAME: &str = "nym-ephemera-proposed";
 const DEFAULT_HEARTBEAT_INTERVAL_SEC: u64 = 1;
 
 #[derive(Args)]
-#[group(required = true, multiple = false)]
+#[group(required = true, multiple = false,)]
 pub struct MembershipKind {
+    /// Requires the threshold of peers returned by membership provider to be online
     #[clap(long)]
     threshold: Option<f64>,
-    #[clap(long)]
-    all: Option<bool>,
-    #[clap(long)]
-    any: Option<bool>,
+    /// Requires that all peers returned by membership provider peers to be online
+    #[clap(long, )]
+    all: bool,
+    /// Membership is just all online peers from the set returned by membership provider
+    #[clap(long,)]
+    any: bool,
 }
 
 impl From<MembershipKind> for ConfigMembershipKind {
     fn from(kind: MembershipKind) -> Self {
-        match kind {
-            //TODO
-            MembershipKind {
-                threshold: Some(_), ..
-            } => ConfigMembershipKind::Threshold,
-            MembershipKind { all: Some(_), .. } => ConfigMembershipKind::AllOnline,
-            MembershipKind { any: Some(_), .. } => ConfigMembershipKind::AnyOnline,
-            _ => unreachable!(),
+        match (kind.threshold, kind.all, kind.any) {
+            //FIXME: use threshold value
+            (Some(_), false, false) => ConfigMembershipKind::Threshold,
+            (None, true, false) => ConfigMembershipKind::AllOnline,
+            (None, false, true) => ConfigMembershipKind::AnyOnline,
+            _ => panic!("Invalid membership kind"),
         }
     }
 }
 
 #[derive(Parser)]
 pub struct Cmd {
+    /// Name of the node
     #[arg(long, default_value = "default")]
     pub node_name: String,
     #[clap(long, default_value = DEFAULT_LISTEN_ADDRESS)]
+    /// The IP address to listen on
     pub ip: String,
+    /// The port which Ephemera uses for peer to peer communication
     #[clap(long, default_value = DEFAULT_LISTEN_PORT)]
     pub protocol_port: u16,
+    /// The port which Ephemera listens on for websocket subscriptions
     #[clap(long)]
     pub websocket_port: u16,
+    /// The port which Ephemera listens on for http api
     #[clap(long)]
     pub http_api_port: u16,
+    /// Either this node produces blocks or not
     #[clap(long, default_value_t = true)]
     pub block_producer: bool,
+    /// At which interval to produce blocks
     #[clap(long, default_value_t = 30)]
     pub block_creation_interval_sec: u64,
-    #[clap(long)]
-    pub repeat_last_block: bool,
+    /// When next block is created before preious one is finished, should we repeat it with the same messages
+    #[clap(long, default_value_t = false)]
+    pub repeat_last_block_messages: bool,
+    /// The interval at which Ephemera requests the list of members
     #[clap(long, default_value_t = 60 * 60)]
     pub members_provider_delay_sec: u64,
+    /// A rule how to choose members based on their online status
     #[command(flatten)]
     pub membership_kind: MembershipKind,
 }
@@ -114,7 +125,7 @@ impl Cmd {
             block: BlockManagerConfiguration {
                 producer: self.block_producer,
                 creation_interval_sec: self.block_creation_interval_sec,
-                repeat_last_block_messages: self.repeat_last_block,
+                repeat_last_block_messages: self.repeat_last_block_messages,
             },
         };
 

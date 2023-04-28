@@ -1,4 +1,4 @@
-# Ephemera - _lightweight_ reliable broadcast protocol
+# Ephemera - reliable broadcast protocol
 
 Ephemera does reliable broadcast for blocks.
 
@@ -55,7 +55,7 @@ See [Rust](src/api/application.rs)
 
 ### Ephemera HTTP and WS external interfaces example
 
-See [README.md](../examples/http-ws/README.md)
+See [README.md](../examples/http-ws-sync/README.md)
 
 ### Nym Api simulation
 

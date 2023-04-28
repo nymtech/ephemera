@@ -1,4 +1,8 @@
-# Ephemera - _lightweight_ reliable broadcast protocol
+# Ephemera - reliable broadcast protocol
+
+## Ephemera overview
+
+[README](node/README.md)
 
 ## How to run
 

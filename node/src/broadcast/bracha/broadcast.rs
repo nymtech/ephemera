@@ -44,8 +44,7 @@ impl Broadcaster {
 
     pub(crate) fn new_broadcast(&mut self, block: Block) -> anyhow::Result<BroadcastResponse> {
         debug!("Starting broadcast for new block {:?}", block.get_hash());
-        let rb_msg = RawRbMsg::new(block, self.local_peer_id);
-        self.handle(&rb_msg)
+        self.handle(&RawRbMsg::new(block, self.local_peer_id))
     }
 
     pub(crate) fn handle(&mut self, rb_msg: &RawRbMsg) -> anyhow::Result<BroadcastResponse> {
@@ -80,7 +79,7 @@ impl Broadcaster {
     }
 
     fn process_echo(&mut self, rb_msg: &RawRbMsg, hash: Hash) -> BroadcastResponse {
-        let ctx = self.contexts.get_mut(&hash).unwrap();
+        let ctx = self.contexts.get_mut(&hash).expect("Context not found");
 
         if self.local_peer_id != rb_msg.original_sender {
             trace!("Adding echo from {:?}", rb_msg.original_sender);
@@ -115,7 +114,7 @@ impl Broadcaster {
 
     fn process_vote(&mut self, rb_msg: &RawRbMsg, hash: Hash) -> BroadcastResponse {
         let block = &rb_msg.block();
-        let ctx = self.contexts.get_mut(&hash).unwrap();
+        let ctx = self.contexts.get_mut(&hash).expect("Context not found");
 
         if self.local_peer_id != rb_msg.original_sender {
             trace!("Adding vote from {:?}", rb_msg.original_sender);

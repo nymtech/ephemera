@@ -3,7 +3,7 @@
 members = [
     "node",
     "tools/rocksdb-repl",
-    "examples/http-ws",
+    "examples/http-ws-sync",
     "examples/nym-api",
     "examples/cluster-http-api",
     "examples/members_provider_http",
@@ -11,7 +11,4 @@ members = [
 
 default-members = [
     "node",
-    "examples/http-ws",
-    "examples/cluster-http-api",
-    "examples/members_provider_http"
 ]

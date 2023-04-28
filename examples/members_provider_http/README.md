@@ -1,6 +1,7 @@
 # Ephemera members provider example using HTTP API
 
-This example provides peers over http. It allows to change Ephemera group membership dynamically and to see how it affects the network behavior.
+This example implements an API which provides Ephemera membership info over http. It allows to change Ephemera group 
+membership dynamically and to see how it affects the network behavior.
 
 It expects that local Ephemera cluster is running.
 
