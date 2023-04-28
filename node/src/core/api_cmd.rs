@@ -24,7 +24,7 @@ use crate::{
 type DhtPendingQueryReply = Sender<Result<Option<(Vec<u8>, Vec<u8>)>, ApiError>>;
 
 pub(crate) struct ApiCmdProcessor {
-    pub(crate) dht_query_cache: LruCache<Vec<u8>, DhtPendingQueryReply>,
+    pub(crate) dht_query_cache: LruCache<Vec<u8>, Vec<DhtPendingQueryReply>>,
 }
 
 impl ApiCmdProcessor {
@@ -134,7 +134,6 @@ impl ApiCmdProcessor {
         key: DhtKey,
         reply: Sender<api::Result<Option<DhtKV>>>,
     ) {
-        //FIXME: This is very loose, we could have multiple pending queries for the same key
         match ephemera
             .to_network
             .send_ephemera_event(EphemeraEvent::QueryDht { key: key.clone() })
@@ -145,7 +144,8 @@ impl ApiCmdProcessor {
                 ephemera
                     .api_cmd_processor
                     .dht_query_cache
-                    .put(key.clone(), reply);
+                    .get_or_insert_mut(key, Vec::new)
+                    .push(reply);
             }
             Err(err) => {
                 error!("Error sending QueryDht to network: {:?}", err);

@@ -195,15 +195,17 @@ impl<A: Application> Ephemera<A> {
             NetworkEvent::QueryDhtResponse { key, value } => {
                 debug!("New dht query response: {:?}", key);
                 match self.api_cmd_processor.dht_query_cache.pop(&key) {
-                    Some(reply) => {
-                        let response = Ok(Some((key, value)));
-                        if let Err(err) = reply.send(response) {
-                            error!("Error sending dht query response: {:?}", err);
+                    Some(replies) => {
+                        for reply in replies {
+                            let response = Ok(Some((key.clone(), value.clone())));
+                            if let Err(err) = reply.send(response) {
+                                error!("Error sending dht query response: {:?}", err);
+                            }
                         }
                     }
                     None => {
-                        error!(
-                            "Error: No dht query cache found for key: {:?}",
+                        debug!(
+                            "No dht query cache found for key: {:?}",
                             String::from_utf8(key)
                         );
                     }

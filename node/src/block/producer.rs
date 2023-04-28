@@ -3,7 +3,7 @@ use crate::block::{
     types::message::EphemeraMessage,
 };
 use crate::peer::PeerId;
-use log::{debug, info, trace};
+use log::{info, trace};
 
 pub(crate) struct BlockProducer {
     pub(crate) peer_id: PeerId,
@@ -20,8 +20,6 @@ impl BlockProducer {
         pending_messages: Vec<EphemeraMessage>,
     ) -> anyhow::Result<Block> {
         trace!("Pending messages for new block: {:?}", pending_messages);
-        debug!("Adding {:?} messages to new block", pending_messages.len());
-
         let block = self.new_block(height, pending_messages)?;
 
         info!("Created new block: {}", block);

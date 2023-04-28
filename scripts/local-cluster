@@ -17,7 +17,10 @@ RUN_HELP=$(
   cat <<-EOH
 Runs Ephemera cluster.
 
-  usage:      $0 run
+  usage:      $0 run -a <application>
+
+  options:
+    -a        Which application to run [ephemera|nym-api]
 EOH
 )
 
@@ -214,6 +217,15 @@ shift
     case $opt in
     a)
       APPLICATION="${2}"
+      if [[ $APPLICATION == "nym-api" ]]; then
+          echo "Starting nym-api"
+      elif [[ $APPLICATION == "ephemera" ]]; then
+          echo "Starting ephemera"
+      else
+        echo "Invalid application name"
+        echo "$RUN_HELP"
+        exit 1
+      fi
       shift
       ;;
     h)
@@ -267,9 +279,15 @@ export RUST_LOG_JSON="true"
 #export RUST_BACKTRACE=1
 
 build() {
-  echo "Building ephemera..."
-#  cargo build --release --features "rocksdb_storage"
-    cargo build --release --features "sqlite_storage"
+  if [[ $APPLICATION == "nym-api" ]]; then
+      echo "Building nym-api..."
+      cargo build --manifest-path $PROJECT_ROOT/examples/nym-api/Cargo.toml --release
+  else
+      echo "Building ephemera..."
+      cargo build --release
+  fi
+  #  cargo build --release --features "rocksdb_storage"
+#  cargo build --release --features "sqlite_storage"
 }
 
 create_cluster() {
@@ -278,8 +296,8 @@ create_cluster() {
   echo "Creating configuration for ${NR_OF_NODES} nodes..."
 
   COUNTER=1
-  WS_PORT=6000
   EPHEMERA_PORT=3000
+  WS_PORT=6000
   HTTP_API_PORT=7000
   for ((c = 1; c <= NR_OF_NODES; c++)); do
     $EPHEMERA init-config \
@@ -353,8 +371,11 @@ run_node() {
   echo "Starting node $NODE_NR"
   if [[ $APPLICATION == "nym-api" ]]; then
     run_nym_api_ephemera "$EPHEMERA_HOME_DIR"/"$APPLICATION"/node"$NODE_NR"/ephemera.toml "$NODE_NR" &
-  else
+  elif [[ $APPLICATION == "ephemera" ]]; then
     run_ephemera "$EPHEMERA_HOME_DIR"/"$APPLICATION"/node"$NODE_NR"/ephemera.toml "$NODE_NR" &
+  else
+    echo "Invalid application name"
+    exit 1
   fi
 
 }
@@ -393,7 +414,6 @@ run_nym_api_ephemera() {
   echo "Starting $d"
   $NYM_API_EPHEMERA \
     --ephemera-config "$EPHEMERA_CONFIG_FILE" \
-    --config-members-provider \
     --metrics-db-path "$METRICS_DB_PATH" \
     --smart-contract-url 127.0.0.1:6789 \
     --nym-api-id "$NR" \

@@ -406,10 +406,10 @@ where
     }
 
     async fn process_get_record(&mut self, get_res: GetRecordResult) -> anyhow::Result<()> {
-        trace!("GetRecord: {:?}", get_res);
+        debug!("GetRecord: {:?}", get_res);
         match get_res {
             Ok(ok) => {
-                trace!("GetRecordOk: {:?}", ok);
+                debug!("GetRecordOk: {:?}", ok);
                 match ok {
                     kad::GetRecordOk::FoundRecord(fr) => {
                         trace!("FoundRecord: {:?}", fr);
