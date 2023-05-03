@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
-use crate::block::types::block::Block;
-use crate::storage::rocksdb::{block_hash_key, block_height_key, certificates_key, last_block_key};
 use log::trace;
 use rocksdb::TransactionDB;
 
+use crate::block::types::block::Block;
+use crate::network::PeerId;
+use crate::storage::rocksdb::{
+    block_hash_key, block_height_key, certificates_key, last_block_key, members_key,
+};
 use crate::utilities::crypto::Certificate;
 
 pub struct Database {
@@ -71,6 +74,24 @@ impl Database {
             Ok(Some(certificates))
         } else {
             trace!("Didn't find signatures");
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn get_block_broadcast_group(
+        &self,
+        block_hash: &str,
+    ) -> anyhow::Result<Option<Vec<PeerId>>> {
+        trace!("Getting block broadcast group: {}", block_hash);
+
+        let members_key = members_key(block_hash);
+
+        if let Some(members) = self.database.get(members_key)? {
+            let members: Vec<PeerId> = serde_json::from_slice(&members)?;
+            trace!("Found members: {:?}", members);
+            Ok(Some(members))
+        } else {
+            trace!("Didn't find members");
             Ok(None)
         }
     }

@@ -4,20 +4,22 @@
 //!
 //! This API is also available over HTTP.
 
-pub(crate) mod application;
-pub(crate) mod http;
-pub(crate) mod types;
+use std::fmt::Display;
 
 use log::trace;
-use std::fmt::Display;
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot,
 };
 
 use crate::api::types::{
-    ApiBlock, ApiBroadcastInfo, ApiCertificate, ApiEphemeraConfig, ApiEphemeraMessage, ApiError,
+    ApiBlock, ApiBlockBroadcastInfo, ApiBroadcastInfo, ApiCertificate, ApiEphemeraConfig,
+    ApiEphemeraMessage, ApiError,
 };
+
+pub(crate) mod application;
+pub(crate) mod http;
+pub(crate) mod types;
 
 /// Kademlia DHT key
 pub(crate) type DhtKey = Vec<u8>;
@@ -39,8 +41,12 @@ pub(crate) enum ToEphemeraApiCmd {
     QueryBlockCertificates(String, oneshot::Sender<Result<Option<Vec<ApiCertificate>>>>),
     QueryDht(DhtKey, oneshot::Sender<Result<Option<DhtKV>>>),
     StoreInDht(DhtKey, DhtValue, oneshot::Sender<Result<()>>),
-    EphemeraConfig(oneshot::Sender<Result<ApiEphemeraConfig>>),
-    BroadcastGroup(oneshot::Sender<Result<ApiBroadcastInfo>>),
+    QueryEphemeraConfig(oneshot::Sender<Result<ApiEphemeraConfig>>),
+    QueryBroadcastGroup(oneshot::Sender<Result<ApiBroadcastInfo>>),
+    QueryBlockBroadcastInfo(
+        String,
+        oneshot::Sender<Result<Option<ApiBlockBroadcastInfo>>>,
+    ),
 }
 
 impl Display for ToEphemeraApiCmd {
@@ -63,11 +69,14 @@ impl Display for ToEphemeraApiCmd {
             ToEphemeraApiCmd::StoreInDht(_, _, _) => {
                 write!(f, "StoreInDht")
             }
-            ToEphemeraApiCmd::EphemeraConfig(_) => {
+            ToEphemeraApiCmd::QueryEphemeraConfig(_) => {
                 write!(f, "EphemeraConfig")
             }
-            ToEphemeraApiCmd::BroadcastGroup(_) => {
+            ToEphemeraApiCmd::QueryBroadcastGroup(_) => {
                 write!(f, "BroadcastGroup")
+            }
+            ToEphemeraApiCmd::QueryBlockBroadcastInfo(hash, ..) => {
+                write!(f, "BlockBroadcastInfo({hash})")
             }
         }
     }
@@ -99,11 +108,12 @@ impl CommandExecutor {
     /// Returns block with given id if it exists
     ///
     /// # Arguments
-    ///
     /// * `block_id` - Block id
     ///
-    /// # Errors
+    /// # Returns
+    /// * `ApiBlock` - Block
     ///
+    /// # Errors
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_block_by_id(&self, block_id: String) -> Result<Option<ApiBlock>> {
         trace!("get_block_by_id({:?})", block_id);
@@ -114,11 +124,12 @@ impl CommandExecutor {
     /// Returns block with given height if it exists
     ///
     /// # Arguments
-    ///
     /// * `height` - Block height
     ///
-    /// # Errors
+    /// # Returns
+    /// * `ApiBlock` - Block
     ///
+    /// # Errors
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_block_by_height(&self, height: u64) -> Result<Option<ApiBlock>> {
         trace!("get_block_by_height({:?})", height);
@@ -128,8 +139,10 @@ impl CommandExecutor {
 
     /// Returns last block. Which has maximum height and is stored in database
     ///
-    /// # Errors
+    /// # Returns
+    /// * `ApiBlock` - Last block
     ///
+    /// # Errors
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_last_block(&self) -> Result<ApiBlock> {
         trace!("get_last_block()");
@@ -140,11 +153,12 @@ impl CommandExecutor {
     /// Returns signatures for given block id
     ///
     /// # Arguments
-    ///
     /// * `block_hash` - Block id
     ///
-    /// # Errors
+    /// # Returns
+    /// * `Vec<ApiCertificate>` - Certificates
     ///
+    /// # Errors
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_block_certificates(
         &self,
@@ -158,15 +172,12 @@ impl CommandExecutor {
     /// Queries DHT for given key
     ///
     /// # Arguments
-    ///
     /// * `key` - DHT key
     ///
     /// # Errors
-    ///
     /// * `ApiError::InternalError` - If there is an internal error
     ///
     /// # Returns
-    ///
     /// * `Some((key, value))` - If key is found
     /// * `None` - If key is not found
     pub async fn query_dht(&self, key: DhtKey) -> Result<Option<(DhtKey, DhtValue)>> {
@@ -179,12 +190,10 @@ impl CommandExecutor {
     /// Stores given key-value pair in DHT
     ///
     /// # Arguments
-    ///
     /// * `key` - DHT key
     /// * `value` - DHT value
     ///
     /// # Errors
-    ///
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn store_in_dht(&self, key: DhtKey, value: DhtValue) -> Result<()> {
         trace!("store_in_dht({key:?}, {value:?})");
@@ -194,42 +203,55 @@ impl CommandExecutor {
 
     /// Returns node configuration
     ///
-    /// # Errors
-    ///
-    /// * `ApiError::InternalError` - If there is an internal error
-    ///
     /// # Returns
-    ///
     /// * `ApiEphemeraConfig` - Node configuration
+    ///
+    /// # Errors
+    /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_node_config(&self) -> Result<ApiEphemeraConfig> {
         trace!("get_node_config()");
-        self.send_and_wait_response(ToEphemeraApiCmd::EphemeraConfig)
+        self.send_and_wait_response(ToEphemeraApiCmd::QueryEphemeraConfig)
             .await
     }
 
     /// Returns broadcast group
     ///
     /// # Errors
-    ///
     /// * `ApiError::InternalError` - If there is an internal error
     ///
-    /// # Returns
-    ///
+    /// # Return
     /// * `ApiBroadcastInfo` - Broadcast group
     pub async fn get_broadcast_info(&self) -> Result<ApiBroadcastInfo> {
         trace!("get_broadcast_group()");
-        self.send_and_wait_response(ToEphemeraApiCmd::BroadcastGroup)
+        self.send_and_wait_response(ToEphemeraApiCmd::QueryBroadcastGroup)
+            .await
+    }
+
+    /// Returns block broadcast info.
+    ///
+    /// # Arguments
+    /// * `block_hash` - Block hash
+    ///
+    /// # Return
+    /// * `ApiBlockBroadcastInfo` - Block broadcast info
+    ///
+    /// # Errors
+    /// * `ApiError::InternalError` - If there is an internal error
+    pub async fn get_block_broadcast_info(
+        &self,
+        block_hash: String,
+    ) -> Result<Option<ApiBlockBroadcastInfo>> {
+        trace!("get_broadcast_group()");
+        self.send_and_wait_response(|tx| ToEphemeraApiCmd::QueryBlockBroadcastInfo(block_hash, tx))
             .await
     }
 
     /// Send a message to Ephemera which should then be included in mempool  and broadcast to all peers
     ///
     /// # Arguments
-    ///
     /// * `message` - Message to be sent
     ///
     /// # Errors
-    ///
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn send_ephemera_message(&self, message: ApiEphemeraMessage) -> Result<()> {
         trace!("send_ephemera_message({message})",);

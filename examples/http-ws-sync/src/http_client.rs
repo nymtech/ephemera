@@ -33,10 +33,23 @@ impl SignedMessageClient {
 
     pub(crate) async fn block_certificates(
         &self,
-        hash: String,
+        hash: &str,
     ) -> Option<Vec<ephemera_api::ApiCertificate>> {
-        match self.client.get_block_certificates(&hash).await {
+        match self.client.get_block_certificates(hash).await {
             Ok(certificates) => certificates,
+            Err(err) => {
+                println!("Error sending message: {err:?}",);
+                None
+            }
+        }
+    }
+
+    pub(crate) async fn block_broadcast_info(
+        &self,
+        hash: &str,
+    ) -> Option<ephemera_api::ApiBlockBroadcastInfo> {
+        match self.client.get_block_broadcast_info(hash).await {
+            Ok(info) => info,
             Err(err) => {
                 println!("Error sending message: {err:?}",);
                 None

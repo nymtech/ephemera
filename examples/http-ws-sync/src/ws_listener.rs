@@ -25,8 +25,8 @@ impl WsBlockListener {
         let (mut ws_stream, _) = tokio_tungstenite::connect_async(&self.url).await.unwrap();
         loop {
             if let Ok(Some(item)) = ws_stream.try_next().await {
-                println!("Received new block");
                 let block = serde_json::from_str::<ApiBlock>(&item.to_string()).unwrap();
+                println!("Received new block: {}", block.header.hash);
                 self.data.lock().unwrap().received_blocks.push(block);
             } else {
                 thread::sleep(std::time::Duration::from_secs(10));

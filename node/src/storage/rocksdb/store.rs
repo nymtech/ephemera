@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use crate::block::types::block::Block;
-use crate::storage::rocksdb::{block_hash_key, block_height_key, certificates_key, last_block_key};
+use crate::network::PeerId;
+use crate::storage::rocksdb::{
+    block_hash_key, block_height_key, certificates_key, last_block_key, members_key,
+};
 use log::{debug, trace};
 use rocksdb::{TransactionDB, WriteBatchWithTransaction};
 
@@ -20,6 +23,7 @@ impl DbStore {
         &self,
         block: &Block,
         certificates: &[Certificate],
+        members: &[PeerId],
     ) -> anyhow::Result<()> {
         debug!("Storing block: {}", block.header);
         trace!("Storing block certificates: {}", certificates.len());
@@ -29,6 +33,7 @@ impl DbStore {
         let block_id_key = block_hash_key(&hash_str);
         let certificates_key = certificates_key(&hash_str);
         let height_key = block_height_key(&block.header.height);
+        let members_key = members_key(&hash_str);
 
         // Check UNIQUE constraints
         let existing_id = self.connection.get(&block_id_key)?;
@@ -49,9 +54,13 @@ impl DbStore {
         let block_bytes = serde_json::to_vec::<Block>(block)?;
         batch.put(block_id_key.as_bytes(), block_bytes);
 
-        // Store block signatures
+        // Store block certificates
         let certificate_bytes = serde_json::to_vec(&certificates)?;
         batch.put(certificates_key.as_bytes(), certificate_bytes);
+
+        // Store block members
+        let members_bytes = serde_json::to_vec(&members)?;
+        batch.put(members_key.as_bytes(), members_bytes);
 
         self.connection.write(batch)?;
         Ok(())

@@ -7,6 +7,12 @@ CREATE TABLE IF NOT EXISTS blocks (
 
 CREATE TABLE IF NOT EXISTS block_certificates (
     id              INTEGER      NOT NULL PRIMARY KEY AUTOINCREMENT,
-    block_hash        TEXT         NOT NULL UNIQUE,
-    certificates    BLOB         NOT NULL UNIQUE
+    block_hash      TEXT         NOT NULL UNIQUE,
+    certificates    BLOB         NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS block_broadcast_group (
+    id              INTEGER      NOT NULL PRIMARY KEY AUTOINCREMENT,
+    block_hash      TEXT         NOT NULL UNIQUE,
+    members         BLOB         NOT NULL
 );

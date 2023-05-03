@@ -13,7 +13,7 @@ pub(crate) struct BroadcastGroup {
     /// A cache of the group snapshots.
     pub(crate) snapshots: LruCache<u64, HashSet<PeerId>>,
     /// A cache of the groups for each block.
-    pub(crate) block_groups: LruCache<Hash, u64>,
+    pub(crate) broadcast_group: LruCache<Hash, u64>,
 }
 
 impl BroadcastGroup {
@@ -23,7 +23,7 @@ impl BroadcastGroup {
         BroadcastGroup {
             current_id: 0,
             snapshots,
-            block_groups: LruCache::new(NonZeroUsize::new(100).unwrap()),
+            broadcast_group: LruCache::new(NonZeroUsize::new(100).unwrap()),
         }
     }
 
@@ -55,10 +55,10 @@ impl BroadcastGroup {
         &mut self,
         hash: Hash,
         block_creator: &PeerId,
-        message_ender: &PeerId,
+        message_sender: &PeerId,
     ) -> bool {
         //We see this block first time
-        if !self.block_groups.contains(&hash) {
+        if !self.broadcast_group.contains(&hash) {
             //This can happen at startup for example when node is not ready yet(caught up with the network)
             if self.is_empty() {
                 warn!(
@@ -77,13 +77,13 @@ impl BroadcastGroup {
         //1. The peer is authenticated(part of the network)
         //2. Block processing is consistent regarding the group across rounds
 
-        let membership_id = *self.block_groups.get(&hash).unwrap_or(&self.current_id);
+        let membership_id = *self.broadcast_group.get(&hash).unwrap_or(&self.current_id);
 
         //Node is excluded from group for some reason(for example health checks failed)
-        if !self.is_member(self.current_id, message_ender) {
+        if !self.is_member(self.current_id, message_sender) {
             warn!(
                 "Received new block {} but sender {} is not part of the current group",
-                hash, message_ender
+                hash, message_sender
             );
             return false;
         }
@@ -92,12 +92,12 @@ impl BroadcastGroup {
         if !self.is_member(self.current_id, block_creator) {
             warn!(
                 "Received new block {} but sender {} is not part of the current group",
-                hash, message_ender
+                hash, message_sender
             );
             return false;
         }
 
-        self.block_groups.put(hash, membership_id);
+        self.broadcast_group.put(hash, membership_id);
 
         true
     }

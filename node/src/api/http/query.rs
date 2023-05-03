@@ -118,11 +118,34 @@ pub(crate) async fn last_block(api: web::Data<CommandExecutor>) -> impl Responde
 
 #[utoipa::path(
 responses(
+(status = 200, description = "Get block broadcast group"),
+(status = 404, description = "Block not found"),
+(status = 500, description = "Server failed to process request")),
+params(("hash", description = "Block hash")),
+)]
+#[get("/ephemera/broadcast/block/broadcast_info/{hash}")]
+pub(crate) async fn block_broadcast_group(
+    hash: web::Path<String>,
+    api: web::Data<CommandExecutor>,
+) -> impl Responder {
+    let hash = hash.into_inner();
+    match api.get_block_broadcast_info(hash).await {
+        Ok(Some(group)) => HttpResponse::Ok().json(group),
+        Ok(_) => HttpResponse::NotFound().json("Block not found"),
+        Err(err) => {
+            error!("Failed to get block broadcast group {err}",);
+            HttpResponse::InternalServerError().json("Server failed to process request")
+        }
+    }
+}
+
+#[utoipa::path(
+responses(
 (status = 200, description = "Get node config"),
 (status = 500, description = "Server failed to process request")),
 )]
 #[get("/ephemera/node/config")]
-pub(crate) async fn get_node_config(api: web::Data<CommandExecutor>) -> impl Responder {
+pub(crate) async fn node_config(api: web::Data<CommandExecutor>) -> impl Responder {
     match api.get_node_config().await {
         Ok(config) => HttpResponse::Ok().json(config),
         Err(err) => {

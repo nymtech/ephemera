@@ -122,7 +122,7 @@ impl Cmd {
             http: HttpConfiguration {
                 port: self.http_api_port,
             },
-            block: BlockManagerConfiguration {
+            block_manager: BlockManagerConfiguration {
                 producer: self.block_producer,
                 creation_interval_sec: self.block_creation_interval_sec,
                 repeat_last_block_messages: self.repeat_last_block_messages,

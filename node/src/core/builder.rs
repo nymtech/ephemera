@@ -222,7 +222,7 @@ impl<A: Application> EphemeraStarterWithApplication<A> {
         &mut self,
         db: &mut D,
     ) -> anyhow::Result<BlockManager> {
-        let block_manager_configuration = self.init.config.block.clone();
+        let block_manager_configuration = self.init.config.block_manager.clone();
         let keypair = self.init.node_info.keypair.clone();
         let builder = BlockManagerBuilder::new(block_manager_configuration, keypair);
         builder.build(db)

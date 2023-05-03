@@ -4,6 +4,7 @@ use log::debug;
 use rusqlite::{params, Connection, OpenFlags};
 
 use crate::config::DatabaseConfiguration;
+use crate::network::PeerId;
 use crate::utilities::crypto::Certificate;
 
 pub struct Database {
@@ -20,6 +21,7 @@ impl Database {
         &mut self,
         block: &Block,
         certificates: &[Certificate],
+        members: &[PeerId],
     ) -> Result<()> {
         debug!("Storing block: {}", block.header);
 
@@ -28,6 +30,7 @@ impl Database {
         let block_bytes = serde_json::to_vec::<Block>(block).map_err(|e| anyhow::anyhow!(e))?;
         let certificates_bytes =
             serde_json::to_vec(certificates).map_err(|e| anyhow::anyhow!(e))?;
+        let members_bytes = serde_json::to_vec(members).map_err(|e| anyhow::anyhow!(e))?;
 
         let tx = self.connection.transaction()?;
         {
@@ -39,7 +42,14 @@ impl Database {
             let mut statement = tx.prepare_cached(
                 "INSERT INTO block_certificates (block_hash, certificates) VALUES (?1, ?2)",
             )?;
+
             statement.execute(params![&hash, &certificates_bytes,])?;
+
+            let mut statement = tx.prepare_cached(
+                "INSERT INTO block_broadcast_group (block_hash, members) VALUES (?1, ?2)",
+            )?;
+
+            statement.execute(params![&hash, &members_bytes])?;
         }
 
         tx.commit()?;

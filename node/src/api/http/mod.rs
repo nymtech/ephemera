@@ -21,8 +21,9 @@ pub(crate) fn init(node_info: &NodeInfo, api: CommandExecutor) -> anyhow::Result
             .service(query::block_by_hash)
             .service(query::block_certificates)
             .service(query::block_by_height)
+            .service(query::block_broadcast_group)
             .service(query::last_block)
-            .service(query::get_node_config)
+            .service(query::node_config)
             .service(query::query_dht)
             .service(query::broadcast_info)
             .service(submit::submit_message)
@@ -48,7 +49,8 @@ fn swagger_ui() -> SwaggerUi {
             query::block_certificates,
             query::block_by_height,
             query::last_block,
-            query::get_node_config,
+            query::block_broadcast_group,
+            query::node_config,
             query::query_dht,
             query::broadcast_info,
             submit::submit_message,

@@ -25,7 +25,7 @@ pub struct Configuration {
     /// Configuration for embedded http API server
     pub http: HttpConfiguration,
     /// Configuration related to block creation
-    pub block: BlockManagerConfiguration,
+    pub block_manager: BlockManagerConfiguration,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

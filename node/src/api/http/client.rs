@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-use crate::api::types::{ApiBroadcastInfo, ApiHealth};
+use crate::api::types::{ApiBlockBroadcastInfo, ApiBroadcastInfo, ApiHealth};
 use crate::ephemera_api::{
     ApiBlock, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest,
     ApiEphemeraConfig, ApiEphemeraMessage,
@@ -372,6 +372,37 @@ impl Client {
     /// If the request fails.
     pub async fn broadcast_info(&self) -> Result<ApiBroadcastInfo> {
         self.query("ephemera/broadcast/group/info").await
+    }
+
+    /// Get block broadcast info
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ephemera::ephemera_api::Client;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///  let client = Client::new("http://localhost:7000/".to_string());
+    ///  let info = client.get_block_broadcast_info("hash").await?;
+    ///  Ok(())
+    /// }
+    ///```
+    ///
+    /// # Arguments
+    /// * `hash` - Hash of the block to query.
+    ///
+    /// # Returns
+    /// * Some([`ApiBlockBroadcastInfo`]) - The block broadcast info.
+    /// * None - If the block is not found.
+    ///
+    /// # Errors
+    /// If the request fails.
+    pub async fn get_block_broadcast_info(
+        &self,
+        hash: &str,
+    ) -> Result<Option<ApiBlockBroadcastInfo>> {
+        let url = format!("ephemera/broadcast/block/broadcast_info/{hash}",);
+        self.query_optional(&url).await
     }
 
     async fn query_optional<T: for<'de> serde::Deserialize<'de>>(

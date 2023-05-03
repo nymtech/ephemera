@@ -5,6 +5,7 @@ use rocksdb::{TransactionDB, TransactionDBOptions};
 
 use crate::block::types::block::Block;
 use crate::config::DatabaseConfiguration;
+use crate::peer::PeerId;
 use crate::storage::rocksdb::query::Database;
 use crate::storage::rocksdb::store::DbStore;
 use crate::storage::EphemeraDatabase;
@@ -22,6 +23,7 @@ const PREFIX_LAST_BLOCK_KEY: &str = "last_block";
 const PREFIX_BLOCK_HASH: &str = "block_hash";
 const PREFIX_BLOCK_HEIGHT: &str = "block_height";
 const PREFIX_CERTIFICATES: &str = "block_certificates";
+const PREFIX_MEMBERS: &str = "block_members";
 
 impl RocksDbStorage {
     pub fn open(db_conf: DatabaseConfiguration) -> anyhow::Result<Self> {
@@ -62,8 +64,17 @@ impl EphemeraDatabase for RocksDbStorage {
         self.db_query.get_block_certificates(block_id)
     }
 
-    fn store_block(&mut self, block: &Block, certificates: &[Certificate]) -> anyhow::Result<()> {
-        self.db_store.store_block(block, certificates)
+    fn get_block_broadcast_group(&self, block_id: &str) -> anyhow::Result<Option<Vec<PeerId>>> {
+        self.db_query.get_block_broadcast_group(block_id)
+    }
+
+    fn store_block(
+        &mut self,
+        block: &Block,
+        certificates: &[Certificate],
+        members: &[PeerId],
+    ) -> anyhow::Result<()> {
+        self.db_store.store_block(block, certificates, members)
     }
 }
 
@@ -81,4 +92,8 @@ fn last_block_key() -> String {
 
 fn certificates_key(block_hash: &str) -> String {
     format!("{PREFIX_CERTIFICATES}:{block_hash}",)
+}
+
+fn members_key(block_hash: &str) -> String {
+    format!("{PREFIX_MEMBERS}:{block_hash}",)
 }

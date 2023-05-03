@@ -15,11 +15,11 @@ mod provider;
 #[group(required = true, multiple = false)]
 struct ProviderArgs {
     #[clap(long)]
-    all: Option<bool>,
+    all: bool,
     #[clap(long)]
     reduced: Option<f64>,
     #[clap(long)]
-    healthy: Option<bool>,
+    healthy: bool,
 }
 
 #[derive(Parser)]
@@ -67,14 +67,12 @@ async fn main() -> anyhow::Result<()> {
 
 async fn get_provider(args: &ProviderArgs) -> Box<dyn Provider> {
     match args {
-        ProviderArgs { all: Some(_), .. } => Box::new(PeersProvider),
+        ProviderArgs { all: true, .. } => Box::new(PeersProvider),
         ProviderArgs {
-            reduced: Some(ratio),
+            reduced: Some(reduced),
             ..
-        } => Box::new(ReducingPeerProvider::new(*ratio)),
-        ProviderArgs {
-            healthy: Some(_), ..
-        } => Box::new(HealthCheckPeersProvider),
-        _ => panic!("No provider selected"),
+        } => Box::new(ReducingPeerProvider::new(*reduced)),
+        ProviderArgs { healthy: true, .. } => Box::new(HealthCheckPeersProvider),
+        _ => panic!("Invalid provider args"),
     }
 }

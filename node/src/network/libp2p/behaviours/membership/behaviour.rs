@@ -486,7 +486,7 @@ where
                 if let Some(pending) = self.memberships.pending_mut() {
                     pending.peer_connected(peer_id);
                 }
-                debug!("{:?}", self.all_connections);
+                trace!("{:?}", self.all_connections);
             }
 
             FromSwarm::ConnectionClosed(ConnectionClosed {

@@ -43,9 +43,9 @@ pub mod ephemera_api {
         },
         http::client::{Client, Error as HttpClientError, Result as HttpClientResult},
         types::{
-            ApiBlock, ApiBroadcastInfo, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse,
-            ApiDhtStoreRequest, ApiEphemeraConfig, ApiEphemeraMessage, ApiError, ApiHealth,
-            RawApiEphemeraMessage,
+            ApiBlock, ApiBlockBroadcastInfo, ApiBroadcastInfo, ApiCertificate, ApiDhtQueryRequest,
+            ApiDhtQueryResponse, ApiDhtStoreRequest, ApiEphemeraConfig, ApiEphemeraMessage,
+            ApiError, ApiHealth, RawApiEphemeraMessage,
         },
         CommandExecutor,
     };

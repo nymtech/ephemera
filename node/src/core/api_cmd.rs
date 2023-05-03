@@ -4,9 +4,10 @@ use log::{debug, error, trace};
 use lru::LruCache;
 use tokio::sync::oneshot::Sender;
 
-use crate::api::types::ApiBroadcastInfo;
+use crate::api::types::{ApiBlockBroadcastInfo, ApiBroadcastInfo};
 use crate::api::{DhtKV, DhtKey, DhtValue};
 use crate::ephemera_api::ApiEphemeraMessage;
+use crate::peer::ToPeerId;
 use crate::{
     api::{
         self,
@@ -69,12 +70,15 @@ impl ApiCmdProcessor {
                 Self::store_in_dht(ephemera, key, value, reply).await;
             }
 
-            ToEphemeraApiCmd::EphemeraConfig(reply) => {
+            ToEphemeraApiCmd::QueryEphemeraConfig(reply) => {
                 Self::ephemera_config(ephemera, reply);
             }
 
-            ToEphemeraApiCmd::BroadcastGroup(reply) => {
+            ToEphemeraApiCmd::QueryBroadcastGroup(reply) => {
                 Self::broadcast_group(ephemera, reply);
+            }
+            ToEphemeraApiCmd::QueryBlockBroadcastInfo(hash, reply) => {
+                Self::query_block_broadcast_info(ephemera, &hash, reply).await;
             }
         }
         Ok(())
@@ -102,8 +106,11 @@ impl ApiCmdProcessor {
             api_address: node_info.api_address_http(),
             websocket_address: node_info.ws_address_ws(),
             public_key: node_info.keypair.public_key().to_string(),
-            block_producer: node_info.initial_config.block.producer,
-            block_creation_interval_sec: node_info.initial_config.block.creation_interval_sec,
+            block_producer: node_info.initial_config.block_manager.producer,
+            block_creation_interval_sec: node_info
+                .initial_config
+                .block_manager
+                .creation_interval_sec,
         };
         reply
             .send(Ok(api_config))
@@ -280,5 +287,28 @@ impl ApiCmdProcessor {
             .send(response)
             .expect("Error sending SubmitEphemeraMessage response to api");
         Ok(())
+    }
+
+    async fn query_block_broadcast_info<A: Application>(
+        ephemera: &mut Ephemera<A>,
+        block_id: &str,
+        reply: Sender<api::Result<Option<ApiBlockBroadcastInfo>>>,
+    ) {
+        let response = match ephemera
+            .storage
+            .lock()
+            .await
+            .get_block_broadcast_group(block_id)
+        {
+            Ok(Some(peers)) => {
+                let local_peer = ephemera.node_info.keypair.peer_id();
+                Ok(Some(ApiBlockBroadcastInfo::new(local_peer, peers)))
+            }
+            Ok(None) => Ok(None),
+            Err(err) => Err(ApiError::Internal(err)),
+        };
+        reply
+            .send(response)
+            .expect("Error sending QueryBlockBroadcastGroup response to api");
     }
 }

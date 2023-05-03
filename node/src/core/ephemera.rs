@@ -365,10 +365,13 @@ impl<A: Application> Ephemera<A> {
                                     })?;
 
                                     //Save to database
-                                    self.storage
-                                        .lock()
-                                        .await
-                                        .store_block(&block, &certificates)?;
+                                    let mut group_members = vec![];
+                                    group_members.extend(self.broadcast_group.current());
+                                    self.storage.lock().await.store_block(
+                                        &block,
+                                        &certificates,
+                                        &group_members,
+                                    )?;
 
                                     // It is open question how much Application `deliver_block` failure should affect
                                     // continuing with next block.

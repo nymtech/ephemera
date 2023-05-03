@@ -17,6 +17,7 @@ pub(crate) mod rocksdb;
 pub(crate) mod sqlite;
 
 use crate::block::types::block::Block;
+use crate::peer::PeerId;
 use crate::utilities::crypto::Certificate;
 
 pub(crate) trait EphemeraDatabase: Send {
@@ -34,6 +35,14 @@ pub(crate) trait EphemeraDatabase: Send {
     /// Certificates were created as part of broadcast protocol and signed by peers who participated.
     fn get_block_certificates(&self, block_id: &str) -> anyhow::Result<Option<Vec<Certificate>>>;
 
+    /// Returns peers who participated in block broadcast.
+    fn get_block_broadcast_group(&self, block_id: &str) -> anyhow::Result<Option<Vec<PeerId>>>;
+
     /// Stores block and its signatures
-    fn store_block(&mut self, block: &Block, certificates: &[Certificate]) -> anyhow::Result<()>;
+    fn store_block(
+        &mut self,
+        block: &Block,
+        certificates: &[Certificate],
+        members: &[PeerId],
+    ) -> anyhow::Result<()>;
 }

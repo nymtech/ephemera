@@ -129,7 +129,8 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
                     continue;
                 }
                 Some(http_block) => {
-                    println!("Block found by hash: {:?}\n", block.hash());
+                    let hash = block.hash();
+                    println!("Block found by hash: {:?}\n", hash);
                     compare_blocks(&block, &http_block);
 
                     if verify_messages_signatures(block.clone()).is_ok() {
@@ -138,17 +139,28 @@ async fn compare_ws_http_blocks(shared_data: Arc<Mutex<Data>>, args: Args) -> ! 
                         println!("Some messages signatures are invalid");
                     }
 
-                    match client.block_certificates(block.hash()).await {
+                    match client.block_certificates(&hash).await {
                         None => {
-                            println!("Block certificates not found by hash: {:?}\n", block.hash());
+                            println!("Block certificates not found by hash: {:?}\n", hash);
                         }
                         Some(certificates) => {
                             println!(
                                 "Block certificates found by hash: {:?}, len {:?}\n",
-                                block.hash(),
+                                hash,
                                 certificates.len()
                             );
-                            verify_block_certificates(&block, certificates).unwrap();
+                            verify_block_certificates(&block, &certificates).unwrap();
+
+                            println!("Checking if all group members signed block");
+                            let broadcast_info = client.block_broadcast_info(&hash).await.unwrap();
+                            if broadcast_info.broadcast_group.len() == certificates.len() {
+                                println!("All group members signed block");
+                            } else {
+                                println!(
+                                    "Only {} group members didn't sign block",
+                                    broadcast_info.broadcast_group.len()
+                                );
+                            }
                         }
                     }
                 }
@@ -181,7 +193,7 @@ fn verify_messages_signatures(block: ApiBlock) -> anyhow::Result<()> {
 
 fn verify_block_certificates(
     block: &ApiBlock,
-    certificates: Vec<ApiCertificate>,
+    certificates: &[ApiCertificate],
 ) -> anyhow::Result<()> {
     println!("Verifying block certificates: {:?}\n", certificates.len());
     for certificate in certificates {

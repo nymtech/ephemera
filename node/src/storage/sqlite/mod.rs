@@ -3,6 +3,7 @@ use rusqlite::Connection;
 
 use crate::block::types::block::Block;
 use crate::config::DatabaseConfiguration;
+use crate::peer::PeerId;
 use crate::storage::sqlite::query::DbQuery;
 use crate::storage::sqlite::store::Database;
 use crate::storage::EphemeraDatabase;
@@ -23,7 +24,7 @@ pub(crate) struct SqliteStorage {
 }
 
 impl SqliteStorage {
-    pub fn open(db_conf: DatabaseConfiguration) -> anyhow::Result<Self> {
+    pub(crate) fn open(db_conf: DatabaseConfiguration) -> anyhow::Result<Self> {
         let mut flags = rusqlite::OpenFlags::default();
         if !db_conf.create_if_not_exists {
             flags.remove(rusqlite::OpenFlags::SQLITE_OPEN_CREATE);
@@ -39,7 +40,7 @@ impl SqliteStorage {
         Ok(storage)
     }
 
-    pub fn run_migrations(connection: &mut Connection) -> anyhow::Result<()> {
+    pub(crate) fn run_migrations(connection: &mut Connection) -> anyhow::Result<()> {
         info!("Running database migrations");
         match migrations::migrations::runner().run(connection) {
             Ok(ok) => {
@@ -71,7 +72,16 @@ impl EphemeraDatabase for SqliteStorage {
         self.db_query.get_block_certificates(block_id)
     }
 
-    fn store_block(&mut self, block: &Block, certificates: &[Certificate]) -> anyhow::Result<()> {
-        self.db_store.store_block(block, certificates)
+    fn get_block_broadcast_group(&self, block_id: &str) -> anyhow::Result<Option<Vec<PeerId>>> {
+        self.db_query.get_block_broadcast_group(block_id)
+    }
+
+    fn store_block(
+        &mut self,
+        block: &Block,
+        certificates: &[Certificate],
+        members: &[PeerId],
+    ) -> anyhow::Result<()> {
+        self.db_store.store_block(block, certificates, members)
     }
 }

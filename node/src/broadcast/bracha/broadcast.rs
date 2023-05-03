@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 use log::{debug, trace};
 use lru::LruCache;
 
+use crate::broadcast::bracha::quorum::BrachaMessageType;
 use crate::peer::PeerId;
 use crate::{
     block::types::block::Block,
@@ -50,7 +51,7 @@ impl Broadcaster {
     pub(crate) fn handle(&mut self, rb_msg: &RawRbMsg) -> anyhow::Result<BroadcastResponse> {
         trace!("Processing new broadcast message: {:?}", rb_msg);
 
-        let block = &rb_msg.block();
+        let block = rb_msg.block();
         let hash = block.hash_with_default_hasher()?;
 
         let ctx = self.contexts.get_or_insert(hash, || {
@@ -62,7 +63,7 @@ impl Broadcaster {
             return Ok(BroadcastResponse::Drop(hash));
         }
 
-        match rb_msg.message_type.clone() {
+        match rb_msg.message_type {
             Echo(_) => {
                 trace!("Processing ECHO {:?}", rb_msg.id);
                 Ok(self.process_echo(rb_msg, hash))
@@ -72,10 +73,6 @@ impl Broadcaster {
                 Ok(self.process_vote(rb_msg, hash))
             }
         }
-    }
-
-    pub(crate) fn group_updated(&mut self, size: usize) {
-        self.cluster_size = size;
     }
 
     fn process_echo(&mut self, rb_msg: &RawRbMsg, hash: Hash) -> BroadcastResponse {
@@ -98,7 +95,7 @@ impl Broadcaster {
         if !ctx.voted()
             && ctx
                 .quorum
-                .check_threshold(ctx, rb_msg.message_type.clone().into())
+                .check_threshold(ctx, BrachaMessageType::Echo)
                 .is_vote()
         {
             ctx.add_vote(self.local_peer_id);
@@ -113,7 +110,7 @@ impl Broadcaster {
     }
 
     fn process_vote(&mut self, rb_msg: &RawRbMsg, hash: Hash) -> BroadcastResponse {
-        let block = &rb_msg.block();
+        let block = rb_msg.block();
         let ctx = self.contexts.get_mut(&hash).expect("Context not found");
 
         if self.local_peer_id != rb_msg.original_sender {
@@ -123,20 +120,18 @@ impl Broadcaster {
 
         if ctx
             .quorum
-            .check_threshold(ctx, rb_msg.message_type.clone().into())
+            .check_threshold(ctx, BrachaMessageType::Vote)
             .is_vote()
         {
             ctx.add_vote(self.local_peer_id);
 
             trace!("Sending vote reply for {hash:?}",);
-            return BroadcastResponse::Broadcast(
-                rb_msg.vote_reply(self.local_peer_id, block.clone()),
-            );
+            return BroadcastResponse::Broadcast(rb_msg.vote_reply(self.local_peer_id, block));
         }
 
         if ctx
             .quorum
-            .check_threshold(ctx, rb_msg.message_type.clone().into())
+            .check_threshold(ctx, BrachaMessageType::Vote)
             .is_deliver()
         {
             trace!("Commit complete for {:?}", rb_msg.id);
@@ -147,6 +142,10 @@ impl Broadcaster {
         }
 
         BroadcastResponse::Drop(hash)
+    }
+
+    pub(crate) fn group_updated(&mut self, size: usize) {
+        self.cluster_size = size;
     }
 }
 

@@ -3,6 +3,7 @@ use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Row};
 
 use crate::block::types::block::Block;
 use crate::config::DatabaseConfiguration;
+use crate::peer::PeerId;
 use crate::utilities::crypto::Certificate;
 
 pub(crate) struct DbQuery {
@@ -93,6 +94,34 @@ impl DbQuery {
         };
 
         Ok(signatures)
+    }
+
+    pub(crate) fn get_block_broadcast_group(
+        &self,
+        block_hash: &str,
+    ) -> anyhow::Result<Option<Vec<PeerId>>> {
+        let mut stmt = self
+            .connection
+            .prepare_cached("SELECT members FROM block_broadcast_group where block_hash = ?1")?;
+
+        let members = stmt
+            .query_row(params![block_hash], |row| {
+                let members: Vec<u8> = row.get(0)?;
+                let members = serde_json::from_slice::<Vec<PeerId>>(&members).map_err(|e| {
+                    error!("Error deserializing members: {}", e);
+                    rusqlite::Error::InvalidQuery {}
+                })?;
+                Ok(members)
+            })
+            .optional()?;
+
+        if members.is_some() {
+            trace!("Found block {} members", block_hash);
+        } else {
+            trace!("Members not found");
+        };
+
+        Ok(members)
     }
 
     fn map_block() -> impl FnOnce(&Row) -> Result<Block, rusqlite::Error> {

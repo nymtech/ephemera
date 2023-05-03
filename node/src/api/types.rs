@@ -239,6 +239,21 @@ pub struct ApiBroadcastInfo {
     pub current_members: HashSet<PeerId>,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiBlockBroadcastInfo {
+    pub local_peer_id: PeerId,
+    pub broadcast_group: Vec<PeerId>,
+}
+
+impl ApiBlockBroadcastInfo {
+    pub(crate) fn new(local_peer_id: PeerId, broadcast_group: Vec<PeerId>) -> Self {
+        Self {
+            local_peer_id,
+            broadcast_group,
+        }
+    }
+}
+
 impl ApiBroadcastInfo {
     pub(crate) fn new(current_members: HashSet<PeerId>, local_peer_id: PeerId) -> Self {
         Self {

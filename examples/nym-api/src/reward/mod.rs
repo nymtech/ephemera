@@ -6,13 +6,12 @@ use log::{debug, error, info, trace};
 use tokio::{sync::broadcast::Receiver, sync::Mutex};
 
 use ephemera::{
-    crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair},
+    crypto::Keypair,
     ephemera_api::{self, ApiBlock, ApiEphemeraMessage, ApiError, CommandExecutor},
 };
 
 use crate::contract::MixnodeToReward;
 use crate::epoch::Epoch;
-use crate::peers::PeerId;
 use crate::reward::new::aggregator::RewardsAggregator;
 use crate::storage::db::{MetricsStorageType, Storage};
 use crate::{Args, HTTP_NYM_API_HEADER, NR_OF_MIX_NODES};
@@ -174,8 +173,6 @@ where
             .expect("Ephemera access not set");
 
         let key = format!("epoch_id_{epoch_id}").into_bytes();
-
-        let keypair = &access.key_pair;
         let value = serde_json::to_vec(&block).expect("Failed to serialize block");
 
         access.api.store_in_dht(key, value).await?;

@@ -46,7 +46,7 @@ impl BlockManagerBuilder {
             info!("No last block found in database. Creating genesis block.");
 
             let genesis_block = Block::new_genesis_block(self.block_producer.peer_id);
-            storage.store_block(&genesis_block, &[])?;
+            storage.store_block(&genesis_block, &[], &[])?;
             most_recent_block = Some(genesis_block);
         }
 

@@ -14,7 +14,7 @@ use ephemera::peer::PeerId;
 
 use crate::{PeerSettings, EPHEMERA_IP, HTTP_API_PORT_BASE};
 
-/// Returns peers from all peers based on some criteria.
+/// Returns subset of peers from all peers based on some criteria.
 ///
 /// For example, peers which respond to health check
 #[async_trait]
@@ -28,7 +28,7 @@ pub(crate) struct ProviderRunner {
     peers_status: PeersStatus,
     /// Chooses peers from all peers
     provider: Box<dyn Provider>,
-    /// Channel to send peers to http server when it requests them
+    /// Channel to receive request to send peers to http server
     http_peers_ch: Receiver<Sender<Vec<JsonPeerInfo>>>,
 }
 
