@@ -8,8 +8,7 @@ use libp2p::{
     kad, noise, request_response as libp2p_request_response,
     swarm::NetworkBehaviour,
     tcp::{tokio::Transport as TokioTransport, Config as TokioConfig},
-    yamux::YamuxConfig,
-    PeerId as Libp2pPeerId, Transport,
+    yamux, PeerId as Libp2pPeerId, Transport,
 };
 use log::info;
 
@@ -168,16 +167,15 @@ pub(super) fn create_kademlia(local_key: &Arc<Keypair>) -> kad::Kademlia<kad::st
 //Tcp protocol for networking
 //Noise protocol for encryption
 //Yamux protocol for multiplexing
-pub(crate) fn create_transport(local_key: &Arc<Keypair>) -> Boxed<(Libp2pPeerId, StreamMuxerBox)> {
+pub(crate) fn create_transport(
+    local_key: &Arc<Keypair>,
+) -> anyhow::Result<Boxed<(Libp2pPeerId, StreamMuxerBox)>> {
     let transport = TokioTransport::new(TokioConfig::default().nodelay(true));
-    let noise_keypair = noise::Keypair::<noise::X25519Spec>::new()
-        .into_authentic(local_key.inner())
-        .unwrap();
-    let xx_config = noise::NoiseConfig::xx(noise_keypair);
-    transport
+    let noise_config = noise::Config::new(local_key.inner())?;
+    Ok(transport
         .upgrade(libp2p::core::upgrade::Version::V1)
-        .authenticate(xx_config.into_authenticated())
-        .multiplex(YamuxConfig::default())
+        .authenticate(noise_config)
+        .multiplex(yamux::Config::default())
         .timeout(Duration::from_secs(20))
-        .boxed()
+        .boxed())
 }

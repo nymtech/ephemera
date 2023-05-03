@@ -20,7 +20,7 @@ impl PublicKey {
     }
 
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_protobuf_encoding()
+        self.0.encode_protobuf()
     }
 }
 
@@ -99,11 +99,11 @@ impl EphemeraKeypair for Keypair {
         self.inner().to_protobuf_encoding().unwrap()
     }
 
-    fn from_bytes(raw: Vec<u8>) -> Result<Self, KeyPairError>
+    fn from_bytes(raw: &[u8]) -> Result<Self, KeyPairError>
     where
         Self: Sized,
     {
-        let keypair = libp2p::identity::Keypair::from_protobuf_encoding(&raw)
+        let keypair = libp2p::identity::Keypair::from_protobuf_encoding(raw)
             .map_err(|err| KeyPairError::Decoding(err.to_string()))?;
         Ok(Keypair(keypair))
     }
@@ -117,14 +117,14 @@ impl EphemeraPublicKey for PublicKey {
     type Signature = Signature;
 
     fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_protobuf_encoding()
+        self.0.encode_protobuf()
     }
 
-    fn from_bytes(raw: Vec<u8>) -> Result<Self, KeyPairError>
+    fn from_bytes(raw: &[u8]) -> Result<Self, KeyPairError>
     where
         Self: Sized,
     {
-        let public_key = libp2p::identity::PublicKey::from_protobuf_encoding(&raw)
+        let public_key = libp2p::identity::PublicKey::try_decode_protobuf(raw)
             .map_err(|err| KeyPairError::Decoding(err.to_string()))?;
         Ok(PublicKey(public_key))
     }

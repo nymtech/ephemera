@@ -50,7 +50,7 @@ impl CreateLocalPeersConfiguration {
                 let node_info = conf.node;
 
                 let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
-                let keypair = Keypair::from_bytes(keypair).unwrap();
+                let keypair = Keypair::from_bytes(&keypair).unwrap();
 
                 let peer = PeerSetting {
                     name: node_name.to_string(),

@@ -34,6 +34,12 @@ use crate::{
     },
 };
 
+pub(crate) type InitSwarm<P> = (
+    SwarmNetwork<P>,
+    NetCommunicationReceiver,
+    EphemeraToNetworkSender,
+);
+
 pub struct SwarmNetwork<P>
 where
     P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
@@ -49,14 +55,7 @@ impl<P> SwarmNetwork<P>
 where
     P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + Unpin + 'static,
 {
-    pub(crate) fn new(
-        node_info: NodeInfo,
-        members_provider: P,
-    ) -> (
-        SwarmNetwork<P>,
-        NetCommunicationReceiver,
-        EphemeraToNetworkSender,
-    )
+    pub(crate) fn new(node_info: NodeInfo, members_provider: P) -> anyhow::Result<InitSwarm<P>>
     where
         P: Future<Output = crate::membership::Result<Vec<PeerInfo>>> + Send + 'static,
     {
@@ -69,7 +68,7 @@ where
         let peer_id = node_info.peer_id;
         let ephemera_msg_topic = Topic::new(&libp2p_configuration.ephemera_msg_topic_name);
 
-        let transport = create_transport(&local_key);
+        let transport = create_transport(&local_key)?;
 
         let members_provider_delay =
             std::time::Duration::from_secs(libp2p_configuration.members_provider_delay_sec);
@@ -91,7 +90,7 @@ where
             ephemera_msg_topic,
         };
 
-        (network, to_ephemera_rcv, from_ephemera_tx)
+        Ok((network, to_ephemera_rcv, from_ephemera_tx))
     }
 
     pub(crate) fn listen(&mut self) -> anyhow::Result<()> {

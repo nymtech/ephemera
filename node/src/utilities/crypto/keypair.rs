@@ -35,7 +35,7 @@ pub trait EphemeraPublicKey {
     /// # Errors
     ///
     /// * `KeyPairError::Decoding` - if bytes are not valid
-    fn from_bytes(bytes: Vec<u8>) -> Result<Self, KeyPairError>
+    fn from_bytes(bytes: &[u8]) -> Result<Self, KeyPairError>
     where
         Self: Sized;
 
@@ -80,7 +80,7 @@ pub trait EphemeraPublicKey {
         let raw = bs58::decode(base58)
             .into_vec()
             .map_err(|err| KeyPairError::Decoding(err.to_string()))?;
-        Self::from_bytes(raw)
+        Self::from_bytes(&raw)
     }
 }
 
@@ -140,7 +140,7 @@ pub trait EphemeraKeypair {
     /// # Errors
     ///
     /// * `KeyPairError::Decoding` - if bytes are not valid
-    fn from_bytes(raw: Vec<u8>) -> Result<Self, KeyPairError>
+    fn from_bytes(raw: &[u8]) -> Result<Self, KeyPairError>
     where
         Self: Sized;
 
@@ -176,6 +176,6 @@ pub trait EphemeraKeypair {
         let raw = bs58::decode(base58)
             .into_vec()
             .map_err(|err| KeyPairError::Decoding(err.to_string()))?;
-        Self::from_bytes(raw)
+        Self::from_bytes(&raw)
     }
 }

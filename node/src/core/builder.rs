@@ -237,7 +237,7 @@ impl<A: Application> EphemeraStarterWithApplication<A> {
         provider: P,
     ) -> anyhow::Result<Vec<BoxFuture<'static, anyhow::Result<()>>>> {
         let services = vec![
-            self.init_libp2p(service_data, shutdown_manager.subscribe(), provider),
+            self.init_libp2p(service_data, shutdown_manager.subscribe(), provider)?,
             self.init_http(shutdown_manager.subscribe())?,
             self.init_websocket(service_data, shutdown_manager.subscribe()),
         ];
@@ -308,16 +308,16 @@ impl<A: Application> EphemeraStarterWithApplication<A> {
         service_data: &mut ServiceInfo,
         mut shutdown: Shutdown,
         provider: P,
-    ) -> BoxFuture<'static, anyhow::Result<()>> {
+    ) -> anyhow::Result<BoxFuture<'static, anyhow::Result<()>>> {
         info!("Starting network...",);
 
         let (mut network, from_network, to_network) =
-            SwarmNetwork::new(self.init.node_info.clone(), provider);
+            SwarmNetwork::new(self.init.node_info.clone(), provider)?;
 
         service_data.from_network = Some(from_network);
         service_data.to_network = Some(to_network);
 
-        async move {
+        let libp2p = async move {
             network.listen()?;
 
             tokio::select! {
@@ -334,7 +334,8 @@ impl<A: Application> EphemeraStarterWithApplication<A> {
             info!("Network task finished");
             Ok(())
         }
-        .boxed()
+        .boxed();
+        Ok(libp2p)
     }
 }
 
