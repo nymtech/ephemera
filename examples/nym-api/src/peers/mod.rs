@@ -55,7 +55,7 @@ impl NymApiEphemeraPeerInfo {
         let node_info = conf.node.clone();
 
         let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
-        let keypair = Keypair::from_bytes(keypair).unwrap();
+        let keypair = Keypair::from_bytes(&keypair).unwrap();
         let local_peer_id = keypair.public_key().to_base58();
 
         let home_path = dirs::home_dir()
@@ -86,7 +86,7 @@ impl NymApiEphemeraPeerInfo {
                 let libp2p_info = conf.libp2p;
 
                 let keypair = bs58::decode(&node_info.private_key).into_vec().unwrap();
-                let keypair = Keypair::from_bytes(keypair).unwrap();
+                let keypair = Keypair::from_bytes(&keypair).unwrap();
 
                 let peer_id = keypair.public_key().to_base58();
 

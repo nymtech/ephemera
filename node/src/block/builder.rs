@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::{sync::Arc, time::Duration};
 
 use log::{debug, info};
@@ -46,7 +47,7 @@ impl BlockManagerBuilder {
             info!("No last block found in database. Creating genesis block.");
 
             let genesis_block = Block::new_genesis_block(self.block_producer.peer_id);
-            storage.store_block(&genesis_block, &[], &[])?;
+            storage.store_block(&genesis_block, HashSet::new(), HashSet::new())?;
             most_recent_block = Some(genesis_block);
         }
 

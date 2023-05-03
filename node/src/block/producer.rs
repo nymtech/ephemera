@@ -3,7 +3,7 @@ use crate::block::{
     types::message::EphemeraMessage,
 };
 use crate::peer::PeerId;
-use log::{info, trace};
+use log::trace;
 
 pub(crate) struct BlockProducer {
     pub(crate) peer_id: PeerId,
@@ -21,17 +21,17 @@ impl BlockProducer {
     ) -> anyhow::Result<Block> {
         trace!("Pending messages for new block: {:?}", pending_messages);
         let block = self.new_block(height, pending_messages)?;
-
-        info!("Created new block: {}", block);
         Ok(block)
     }
 
     fn new_block(&self, height: u64, mut messages: Vec<EphemeraMessage>) -> anyhow::Result<Block> {
+        //Ordering is fundamental for block hash. Simple sort is fine for now.
         messages.sort();
 
         let raw_header = RawBlockHeader::new(self.peer_id, height);
         let raw_block = RawBlock::new(raw_header, messages);
 
+        //Better idea is probably combine header hash with Merkle tree root hash
         let block_hash = raw_block.hash_with_default_hasher()?;
 
         let block = Block::new(raw_block, block_hash);

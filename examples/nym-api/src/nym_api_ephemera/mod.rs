@@ -166,7 +166,7 @@ impl NymApi {
 
     fn read_nym_api_keypair(ephemera_config: &Configuration) -> anyhow::Result<Keypair> {
         let key_pair = bs58::decode(&ephemera_config.node.private_key).into_vec()?;
-        let key_pair = Keypair::from_bytes(key_pair)?;
+        let key_pair = Keypair::from_bytes(&key_pair)?;
         Ok(key_pair)
     }
 }

@@ -14,6 +14,8 @@
 //! - `ApiDhtQueryRequest`
 //! - `ApiDhtQueryResponse`
 //! - `ApiDhtStoreRequest`
+//! - `ApiBroadcastInfo`
+//! - `ApiBlockBroadcastInfo`
 
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -93,7 +95,7 @@ pub struct RawApiEphemeraMessage {
     /// The timestamp of the message. It's initialized when the message is created.
     /// It uses UTC time.
     pub timestamp: u64,
-    /// The label of the message. It can be used to identify the type of a message for example.
+    /// The label of the message. It can be used to identify the type of a message without decoding full data.
     pub label: String,
     /// The data of the message. It is application specific.
     pub data: Vec<u8>,

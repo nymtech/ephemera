@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::block::types::block::Block;
@@ -22,8 +23,8 @@ impl DbStore {
     pub(crate) fn store_block(
         &self,
         block: &Block,
-        certificates: &[Certificate],
-        members: &[PeerId],
+        certificates: HashSet<Certificate>,
+        members: HashSet<PeerId>,
     ) -> anyhow::Result<()> {
         debug!("Storing block: {}", block.header);
         trace!("Storing block certificates: {}", certificates.len());
@@ -55,11 +56,14 @@ impl DbStore {
         batch.put(block_id_key.as_bytes(), block_bytes);
 
         // Store block certificates
-        let certificate_bytes = serde_json::to_vec(&certificates)?;
-        batch.put(certificates_key.as_bytes(), certificate_bytes);
+        let certificates_bytes =
+            serde_json::to_vec(&certificates.into_iter().collect::<Vec<Certificate>>())
+                .map_err(|e| anyhow::anyhow!(e))?;
+        batch.put(certificates_key.as_bytes(), certificates_bytes);
 
         // Store block members
-        let members_bytes = serde_json::to_vec(&members)?;
+        let members_bytes = serde_json::to_vec(&members.into_iter().collect::<Vec<PeerId>>())
+            .map_err(|e| anyhow::anyhow!(e))?;
         batch.put(members_key.as_bytes(), members_bytes);
 
         self.connection.write(batch)?;

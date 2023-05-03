@@ -283,13 +283,15 @@ export RUST_LIB_BACKTRACE=1
 build() {
   if [[ $APPLICATION == "nym-api" ]]; then
       echo "Building nym-api..."
-      cargo build --manifest-path $PROJECT_ROOT/examples/nym-api/Cargo.toml --release
+      cargo build --manifest-path "$PROJECT_ROOT"/examples/nym-api/Cargo.toml --release
+      #cargo build --manifest-path "$PROJECT_ROOT"/examples/nym-api/Cargo.toml --release --features "rocksdb_storage" --no-default-features
+      #cargo build --manifest-path "$PROJECT_ROOT"/examples/nym-api/Cargo.toml --release --features "sqlite_storage" --no-default-features
   else
       echo "Building ephemera..."
-      cargo build --release
+#      cargo build --release
+      cargo build --release --features "rocksdb_storage" --no-default-features
+      #cargo build --release --features "sqlite_storage" --no-default-features
   fi
-  #  cargo build --release --features "rocksdb_storage"
-#  cargo build --release --features "sqlite_storage"
 }
 
 create_cluster() {

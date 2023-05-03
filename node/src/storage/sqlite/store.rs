@@ -2,6 +2,7 @@ use crate::block::types::block::Block;
 use anyhow::Result;
 use log::debug;
 use rusqlite::{params, Connection, OpenFlags};
+use std::collections::HashSet;
 
 use crate::config::DatabaseConfiguration;
 use crate::network::PeerId;
@@ -20,8 +21,8 @@ impl Database {
     pub(crate) fn store_block(
         &mut self,
         block: &Block,
-        certificates: &[Certificate],
-        members: &[PeerId],
+        certificates: HashSet<Certificate>,
+        members: HashSet<PeerId>,
     ) -> Result<()> {
         debug!("Storing block: {}", block.header);
 
@@ -29,8 +30,10 @@ impl Database {
         let height = block.header.height;
         let block_bytes = serde_json::to_vec::<Block>(block).map_err(|e| anyhow::anyhow!(e))?;
         let certificates_bytes =
-            serde_json::to_vec(certificates).map_err(|e| anyhow::anyhow!(e))?;
-        let members_bytes = serde_json::to_vec(members).map_err(|e| anyhow::anyhow!(e))?;
+            serde_json::to_vec(&certificates.into_iter().collect::<Vec<Certificate>>())
+                .map_err(|e| anyhow::anyhow!(e))?;
+        let members_bytes = serde_json::to_vec(&members.into_iter().collect::<Vec<PeerId>>())
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         let tx = self.connection.transaction()?;
         {

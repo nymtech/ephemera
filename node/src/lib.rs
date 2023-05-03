@@ -24,6 +24,7 @@
 //!
 //! Note that it *requires* a blockchain to be present.
 
+//'Denying' everything and allowing exceptions seems better than other way around.
 #![deny(clippy::pedantic)]
 
 // PUBLIC MODULES

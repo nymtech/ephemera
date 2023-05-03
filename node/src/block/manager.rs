@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::future::Future;
 use std::task::Poll;
 use std::time::Duration;
@@ -292,7 +293,7 @@ impl BlockManager {
         self.block_chain_state.last_blocks.get(block_id).cloned()
     }
 
-    pub(crate) fn get_block_certificates(&mut self, hash: &Hash) -> Option<Vec<Certificate>> {
+    pub(crate) fn get_block_certificates(&mut self, hash: &Hash) -> Option<&HashSet<Certificate>> {
         self.block_signer.get_block_certificates(hash)
     }
 

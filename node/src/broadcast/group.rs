@@ -101,4 +101,9 @@ impl BroadcastGroup {
 
         true
     }
+
+    pub(crate) fn get_group(&mut self, hash: Hash) -> Option<&HashSet<PeerId>> {
+        let membership_id = *self.broadcast_group.get(&hash)?;
+        self.snapshots.get(&membership_id)
+    }
 }

@@ -1,12 +1,12 @@
 [workspace]
 
 members = [
+    "examples/cluster-http-api",
+    "examples/http-ws-sync",
+    "examples/members_provider_http",
+    "examples/nym-api",
     "node",
     "tools/rocksdb-repl",
-    "examples/http-ws-sync",
-    "examples/nym-api",
-    "examples/cluster-http-api",
-    "examples/members_provider_http",
 ]
 
 default-members = [

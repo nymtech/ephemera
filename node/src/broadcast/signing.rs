@@ -26,10 +26,11 @@ impl BlockSigner {
         }
     }
 
-    pub(crate) fn get_block_certificates(&mut self, block_id: &Hash) -> Option<Vec<Certificate>> {
-        self.verified_signatures
-            .get(block_id)
-            .map(|signatures| signatures.iter().cloned().collect())
+    pub(crate) fn get_block_certificates(
+        &mut self,
+        block_id: &Hash,
+    ) -> Option<&HashSet<Certificate>> {
+        self.verified_signatures.get(block_id)
     }
 
     pub(crate) fn sign_block(&mut self, block: &Block, hash: &Hash) -> anyhow::Result<Certificate> {

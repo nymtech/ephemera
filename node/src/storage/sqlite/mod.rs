@@ -1,5 +1,6 @@
 use log::{error, info};
 use rusqlite::Connection;
+use std::collections::HashSet;
 
 use crate::block::types::block::Block;
 use crate::config::DatabaseConfiguration;
@@ -79,8 +80,8 @@ impl EphemeraDatabase for SqliteStorage {
     fn store_block(
         &mut self,
         block: &Block,
-        certificates: &[Certificate],
-        members: &[PeerId],
+        certificates: HashSet<Certificate>,
+        members: HashSet<PeerId>,
     ) -> anyhow::Result<()> {
         self.db_store.store_block(block, certificates, members)
     }

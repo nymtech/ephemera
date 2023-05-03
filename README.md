@@ -11,7 +11,3 @@
 ## Examples
 
 [README](examples)
-
-
-
-

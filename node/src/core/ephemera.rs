@@ -348,29 +348,29 @@ impl<A: Application> Ephemera<A> {
                                 if block.header.creator == self.node_info.peer_id {
                                     info!("Block committed, ready to deliver...: {hash:?}",);
 
-                                    //DB
-                                    let certificates = self
-                                        .block_manager
-                                        .get_block_certificates(&block.header.hash)
-                                        .ok_or(anyhow!(
-                                            "Error: Block signatures not found in block manager"
-                                        ))?;
-
                                     //BlockManager
                                     self.block_manager.on_block_committed(&block).map_err(|e| {
                                         anyhow!(
-                                            "Error: BlockManager failed to process block: {:?}",
-                                            e
+                                            "Error: BlockManager failed to process block: {e:?}",
                                         )
                                     })?;
 
                                     //Save to database
-                                    let mut group_members = vec![];
-                                    group_members.extend(self.broadcast_group.current());
+                                    let certificates = self
+                                        .block_manager
+                                        .get_block_certificates(&block.header.hash)
+                                        .ok_or(anyhow!(
+                                            "Error: Block certificates not found for block: {hash:?}"
+                                        ))?;
+                                    let members =
+                                        self.broadcast_group.get_group(block.get_hash()).ok_or(
+                                            anyhow!("Error: Group not found for block: {hash:?}"),
+                                        )?;
+
                                     self.storage.lock().await.store_block(
                                         &block,
-                                        &certificates,
-                                        &group_members,
+                                        certificates.clone(),
+                                        members.clone(),
                                     )?;
 
                                     // It is open question how much Application `deliver_block` failure should affect

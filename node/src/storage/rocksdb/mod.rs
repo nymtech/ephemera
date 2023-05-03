@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use log::info;
@@ -71,8 +72,8 @@ impl EphemeraDatabase for RocksDbStorage {
     fn store_block(
         &mut self,
         block: &Block,
-        certificates: &[Certificate],
-        members: &[PeerId],
+        certificates: HashSet<Certificate>,
+        members: HashSet<PeerId>,
     ) -> anyhow::Result<()> {
         self.db_store.store_block(block, certificates, members)
     }

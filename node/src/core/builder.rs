@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use futures_util::future::BoxFuture;
 use futures_util::FutureExt;
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::sync::Mutex;
 
 use crate::core::shutdown::Shutdown;
@@ -180,8 +180,10 @@ impl<A: Application> EphemeraStarterWithApplication<A> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "sqlite_storage")] {
                 let mut storage = self.connect_sqlite()?;
+                debug!("Connected to sqlite database")
             } else if #[cfg(feature = "rocksdb_storage")] {
-                let mut storage = self.connect_rocksdb().await?;
+                let mut storage = self.connect_rocksdb()?;
+                debug!("Connected to rocksdb database")
             } else {
                 compile_error!("Must enable either sqlite or rocksdb feature");
             }
@@ -207,7 +209,7 @@ impl<A: Application> EphemeraStarterWithApplication<A> {
 
     //allocate database connection
     #[cfg(feature = "rocksdb_storage")]
-    fn connect_rocksdb(mut self) -> anyhow::Result<RocksDbStorage> {
+    fn connect_rocksdb(&self) -> anyhow::Result<RocksDbStorage> {
         info!("Opening database...");
         RocksDbStorage::open(self.init.config.storage.clone())
     }
