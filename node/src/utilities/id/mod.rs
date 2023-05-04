@@ -80,3 +80,15 @@ impl EphemeraIdentifier for UuidEphemeraIdentifier {
         self.identifier.as_bytes()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_generate_parse() {
+        let id = UuidEphemeraIdentifier::generate();
+        let id2 = UuidEphemeraIdentifier::from_str(&id.to_string()).unwrap();
+        assert_eq!(id, id2);
+    }
+}

@@ -134,7 +134,11 @@ mod test {
         //Including initial default snapshot
         assert_eq!(group.snapshots.len(), 11);
 
-        for (i, sn) in snapshots.iter().enumerate().map(|(i, sn)| ((i + 1) as u64, sn)) {
+        for (i, sn) in snapshots
+            .iter()
+            .enumerate()
+            .map(|(i, sn)| ((i + 1) as u64, sn))
+        {
             let gsn = group.snapshots.get(&i).unwrap();
             assert_eq!(sn, gsn);
         }

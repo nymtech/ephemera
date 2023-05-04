@@ -87,3 +87,16 @@ pub trait Decode {
     /// * `DecodingError` - if decoding fails
     fn decode(bytes: &[u8]) -> Result<Self::Output, DecodingError>;
 }
+
+#[cfg(test)]
+mod test {
+    use crate::utilities::codec::EphemeraCodec;
+
+    #[test]
+    fn test_encode_decode() {
+        let data = vec![1, 2, 3, 4, 5];
+        let encoded = super::SerdeCodec::encode(&data).unwrap();
+        let decoded = super::SerdeCodec::decode::<Vec<u8>>(&encoded).unwrap();
+        assert_eq!(data, decoded);
+    }
+}

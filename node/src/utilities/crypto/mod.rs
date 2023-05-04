@@ -119,3 +119,19 @@ impl Display for Certificate {
         )
     }
 }
+
+#[cfg(test)]
+mod test {
+
+    use crate::crypto::{EphemeraKeypair, EphemeraPublicKey};
+
+    #[test]
+    fn test_sign_and_verify() {
+        let keypair = super::Keypair::generate(None);
+        let data = "Secret data";
+        let signature = keypair.sign(&data.as_bytes()).unwrap();
+        let public_key = keypair.public_key();
+        let valid = public_key.verify(&data.as_bytes(), &signature);
+        assert!(valid);
+    }
+}

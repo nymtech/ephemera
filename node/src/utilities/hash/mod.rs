@@ -1,8 +1,9 @@
+use std::fmt::{Debug, Display};
+use std::str::FromStr;
+
 use blake2::{Blake2b, Digest};
 use digest::consts::U32;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Display};
-use std::str::FromStr;
 
 pub type Hasher = Blake2bHasher;
 
@@ -84,4 +85,20 @@ impl EphemeraHasher for Blake2bHasher {
 
 pub(crate) trait EphemeraHash {
     fn hash<H: EphemeraHasher>(&self, state: &mut H) -> anyhow::Result<()>;
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rand::RngCore;
+
+    #[test]
+    fn to_base58_parse() {
+        let mut bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        let hash: Hash = bytes.into();
+        let base58 = hash.base58();
+        let hash2 = base58.parse::<Hash>().unwrap();
+        assert_eq!(hash, hash2);
+    }
 }

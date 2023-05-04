@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum KeyPairError {
     #[error("Failed to encode: {0}")]
     Encoding(String),
@@ -18,22 +18,18 @@ pub trait EphemeraPublicKey {
     /// Returns raw bytes of the public key
     ///
     /// # Returns
-    ///
     /// * `Vec<u8>` - raw bytes of the public key
     fn to_bytes(&self) -> Vec<u8>;
 
     /// Parses public key from raw bytes
     ///
     /// # Arguments
-    ///
     /// * `raw` - raw bytes of the public key
     ///
     /// # Returns
-    ///
     /// * `Result<Self, KeyPairError>` - public key or error
     ///
     /// # Errors
-    ///
     /// * `KeyPairError::Decoding` - if bytes are not valid
     fn from_bytes(bytes: &[u8]) -> Result<Self, KeyPairError>
     where
@@ -42,19 +38,16 @@ pub trait EphemeraPublicKey {
     /// Verifies the signature of the message using the public key
     ///
     /// # Arguments
-    ///
     /// * `msg` - message to verify
     /// * `signature` - signature of the message
     ///
     /// # Returns
-    ///
     /// * `bool` - true if the signature is valid, false otherwise
     fn verify<M: AsRef<[u8]>>(&self, msg: &M, signature: &Self::Signature) -> bool;
 
     /// Returns base58 encoded public key
     ///
     /// # Returns
-    ///
     /// * `String` - base58 encoded public key
     fn to_base58(&self) -> String {
         bs58::encode(self.to_bytes()).into_string()
@@ -63,15 +56,12 @@ pub trait EphemeraPublicKey {
     /// Parses public key from base58 encoded string
     ///
     /// # Arguments
-    ///
     /// * `base58` - base58 encoded public key
     ///
     /// # Returns
-    ///
     /// * `Result<Self, KeyPairError>` - public key or error
     ///
     /// # Errors
-    ///
     /// * `KeyPairError::Decoding` - if bytes are not valid
     fn from_base58(base58: &str) -> Result<Self, KeyPairError>
     where
@@ -96,49 +86,40 @@ pub trait EphemeraKeypair {
     /// Signs a message with the private key
     ///
     /// # Arguments
-    ///
     /// * `msg` - message to sign
     ///
     /// # Returns
-    ///
     /// * `Result<Self::Signature, KeyPairError>` - signature or error
     ///
     /// # Errors
-    ///
     /// * `KeyPairError::Signing` - if the message cannot be encoded
     fn sign<M: AsRef<[u8]>>(&self, msg: &M) -> Result<Self::Signature, KeyPairError>;
 
     /// Verifies the signature of the message using the related public key
     ///
     /// # Arguments
-    ///
     /// * `msg` - message to verify
     /// * `signature` - signature of the message
     ///
     /// # Returns
-    ///
     /// * `bool` - true if the signature is valid, false otherwise
     fn verify<M: AsRef<[u8]>>(&self, msg: &M, signature: &Self::Signature) -> bool;
 
     /// Returns raw bytes of the keypair
     ///
     /// # Returns
-    ///
     /// * `Vec<u8>` - raw bytes of the keypair
     fn to_bytes(&self) -> Vec<u8>;
 
     /// Parses keypair from bytes
     ///
     /// # Arguments
-    ///
     /// * `raw` - raw bytes of the keypair
     ///
     /// # Returns
-    ///
     /// * `Result<Self, KeyPairError>` - keypair or error
     ///
     /// # Errors
-    ///
     /// * `KeyPairError::Decoding` - if bytes are not valid
     fn from_bytes(raw: &[u8]) -> Result<Self, KeyPairError>
     where
@@ -150,7 +131,6 @@ pub trait EphemeraKeypair {
     /// Returns base58 encoded keypair
     ///
     /// # Returns
-    ///
     /// * `String` - base58 encoded keypair
     fn to_base58(&self) -> String {
         bs58::encode(self.to_bytes()).into_string()
@@ -159,15 +139,12 @@ pub trait EphemeraKeypair {
     /// Parses keypair from base58 encoded string
     ///
     /// # Arguments
-    ///
     /// * `base58` - base58 encoded keypair
     ///
     /// # Returns
-    ///
     /// * `Result<Self, KeyPairError>` - keypair or error
     ///
     /// # Errors
-    ///
     /// * `KeyPairError::Decoding` - if bytes are not valid base58 encoded string
     fn from_base58(base58: &str) -> Result<Self, KeyPairError>
     where

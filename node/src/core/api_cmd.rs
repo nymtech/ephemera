@@ -88,7 +88,7 @@ impl ApiCmdProcessor {
         ephemera: &mut Ephemera<A>,
         reply: Sender<api::Result<ApiBroadcastInfo>>,
     ) {
-        let group_peers = ephemera.broadcast_group();
+        let group_peers = ephemera.broadcast_group.current();
 
         let bc = ApiBroadcastInfo::new(group_peers.clone(), ephemera.node_info.peer_id);
         reply

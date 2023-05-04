@@ -8,7 +8,7 @@ use crate::peer::{PeerId, ToPeerId};
 use crate::utilities::crypto::keypair::KeyPairError;
 use crate::utilities::crypto::{EphemeraPublicKey, Signature};
 
-// Internally uses libp2p for now
+// Internally uses libp2p Keypair for now
 pub struct Keypair(pub(crate) libp2p::identity::Keypair);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -143,5 +143,44 @@ impl ToPeerId for Keypair {
 impl ToPeerId for PublicKey {
     fn peer_id(&self) -> PeerId {
         PeerId(self.0.to_peer_id())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::crypto::EphemeraKeypair;
+    use crate::peer::ToPeerId;
+    use crate::utilities::crypto::keypair::KeyPairError;
+    use crate::utilities::crypto::EphemeraPublicKey;
+    use assert_matches::assert_matches;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_keypair() {
+        let keypair = Keypair::generate(None);
+        let public_key = keypair.public_key();
+        let peer_id = keypair.peer_id();
+        let peer_id_from_public_key = public_key.peer_id();
+        assert_eq!(peer_id, peer_id_from_public_key);
+
+        let msg = "Message to sign";
+        let signature = keypair.sign(&msg).unwrap();
+        assert!(public_key.verify(&msg, &signature));
+        assert!(keypair.verify(&msg, &signature));
+
+        let initial = keypair.to_bytes();
+        let parsed = Keypair::from_bytes(&initial).unwrap();
+        assert_eq!(initial, parsed.to_bytes());
+
+        let initial = public_key.to_bytes();
+        let parsed = PublicKey::from_bytes(&initial).unwrap();
+        assert_eq!(initial, parsed.to_bytes());
+
+        let public_key_from_str = PublicKey::from_str(&public_key.to_base58()).unwrap();
+        assert_eq!(public_key, public_key_from_str);
+
+        let public_key_from_str = PublicKey::from_str(&keypair.to_base58());
+        assert_matches!(public_key_from_str, Err(KeyPairError::Decoding(_)));
     }
 }

@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -27,7 +26,6 @@ use crate::{
             ephemera_sender::{EphemeraEvent, EphemeraToNetworkSender},
             network_sender::{NetCommunicationReceiver, NetworkEvent},
         },
-        PeerId,
     },
     storage::EphemeraDatabase,
     utilities::crypto::Certificate,
@@ -409,9 +407,5 @@ impl<A: Application> Ephemera<A> {
             }
         }
         Ok(())
-    }
-
-    pub(crate) fn broadcast_group(&mut self) -> &HashSet<PeerId> {
-        self.broadcast_group.current()
     }
 }
