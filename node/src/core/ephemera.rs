@@ -362,10 +362,12 @@ impl<A: Application> Ephemera<A> {
                                         .ok_or(anyhow!(
                                             "Error: Block certificates not found for block: {hash:?}"
                                         ))?;
-                                    let members =
-                                        self.broadcast_group.get_group(block.get_hash()).ok_or(
-                                            anyhow!("Error: Group not found for block: {hash:?}"),
-                                        )?;
+                                    let members = self
+                                        .broadcast_group
+                                        .get_group_by_block_hash(block.get_hash())
+                                        .ok_or(anyhow!(
+                                            "Error: Group not found for block: {hash:?}"
+                                        ))?;
 
                                     self.storage.lock().await.store_block(
                                         &block,

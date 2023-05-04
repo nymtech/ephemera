@@ -1868,17 +1868,13 @@ dependencies = [
  "digest 0.10.6",
  "dirs 5.0.1",
  "futures",
- "futures-timer",
  "futures-util",
  "lazy_static",
  "libp2p",
  "libp2p-identity",
  "log",
  "lru",
- "parking_lot 0.12.1",
  "pretty_env_logger",
- "rand 0.8.5",
- "rand_chacha 0.3.1",
  "refinery",
  "reqwest",
  "rocksdb",
@@ -1895,7 +1891,6 @@ dependencies = [
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",
- "void",
 ]
 
 [[package]]
