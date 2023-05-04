@@ -153,11 +153,9 @@ impl ConfigMembersProvider {
     /// Creates a new [`ConfigMembersProvider`] instance.
     ///
     /// # Arguments
-    ///
     /// * `path` - Path to the peers toml config file.
     ///
     /// # Errors
-    ///
     /// Returns [`ConfigMembersProviderError::NotExist`] if the file does not exist.
     /// Returns [`ConfigMembersProviderError::ParsingFailed`] if the file is not a valid members file.
     pub fn init<I: Into<PathBuf>>(

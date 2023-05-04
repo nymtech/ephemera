@@ -10,6 +10,7 @@ use crate::peer::PeerId;
 use crate::storage::rocksdb::query::Database;
 use crate::storage::rocksdb::store::DbStore;
 use crate::storage::EphemeraDatabase;
+use crate::storage::Result;
 use crate::utilities::crypto::Certificate;
 
 pub(crate) mod query;
@@ -27,7 +28,7 @@ const PREFIX_CERTIFICATES: &str = "block_certificates";
 const PREFIX_MEMBERS: &str = "block_members";
 
 impl RocksDbStorage {
-    pub fn open(db_conf: DatabaseConfiguration) -> anyhow::Result<Self> {
+    pub fn open(db_conf: DatabaseConfiguration) -> Result<Self> {
         info!("Opening RocksDB database at {}", db_conf.rocksdb_path);
 
         let mut options = rocksdb::Options::default();
@@ -37,7 +38,9 @@ impl RocksDbStorage {
             &options,
             &TransactionDBOptions::default(),
             db_conf.rocksdb_path.clone(),
-        )?;
+        )
+        .map_err(|err| anyhow::anyhow!(err))?;
+
         let db = Arc::new(db);
         let db_store = DbStore::new(db.clone());
         let db_query = Database::new(db);
@@ -49,24 +52,32 @@ impl RocksDbStorage {
 }
 
 impl EphemeraDatabase for RocksDbStorage {
-    fn get_block_by_id(&self, block_id: &str) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_block_by_hash(block_id)
+    fn get_block_by_id(&self, block_id: &str) -> Result<Option<Block>> {
+        self.db_query
+            .get_block_by_hash(block_id)
+            .map_err(Into::into)
     }
 
-    fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_last_block()
+    fn get_last_block(&self) -> Result<Option<Block>> {
+        self.db_query.get_last_block().map_err(Into::into)
     }
 
-    fn get_block_by_height(&self, height: u64) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_block_by_height(height)
+    fn get_block_by_height(&self, height: u64) -> Result<Option<Block>> {
+        self.db_query
+            .get_block_by_height(height)
+            .map_err(Into::into)
     }
 
-    fn get_block_certificates(&self, block_id: &str) -> anyhow::Result<Option<Vec<Certificate>>> {
-        self.db_query.get_block_certificates(block_id)
+    fn get_block_certificates(&self, block_id: &str) -> Result<Option<Vec<Certificate>>> {
+        self.db_query
+            .get_block_certificates(block_id)
+            .map_err(Into::into)
     }
 
-    fn get_block_broadcast_group(&self, block_id: &str) -> anyhow::Result<Option<Vec<PeerId>>> {
-        self.db_query.get_block_broadcast_group(block_id)
+    fn get_block_broadcast_group(&self, block_id: &str) -> Result<Option<Vec<PeerId>>> {
+        self.db_query
+            .get_block_broadcast_group(block_id)
+            .map_err(Into::into)
     }
 
     fn store_block(
@@ -74,8 +85,10 @@ impl EphemeraDatabase for RocksDbStorage {
         block: &Block,
         certificates: HashSet<Certificate>,
         members: HashSet<PeerId>,
-    ) -> anyhow::Result<()> {
-        self.db_store.store_block(block, certificates, members)
+    ) -> Result<()> {
+        self.db_store
+            .store_block(block, certificates, members)
+            .map_err(Into::into)
     }
 }
 

@@ -288,8 +288,8 @@ build() {
       #cargo build --manifest-path "$PROJECT_ROOT"/examples/nym-api/Cargo.toml --release --features "sqlite_storage" --no-default-features
   else
       echo "Building ephemera..."
-#      cargo build --release
-      cargo build --release --features "rocksdb_storage" --no-default-features
+      cargo build --release
+#      cargo build --release --features "rocksdb_storage" --no-default-features
       #cargo build --release --features "sqlite_storage" --no-default-features
   fi
 }

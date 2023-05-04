@@ -56,7 +56,24 @@ From the top-level directory:
 ```
 
 ### Run the example
+```bash
+cargo run -- -h
+
+Ephemera members provider http example
+
+Usage: members_provider_http <--all|--reduced <REDUCED>|--healthy>
+
+Options:
+      --all
+          
+      --reduced <REDUCED>
+          
+      --healthy
+          
+  -h, --help
+          Print help
+```
 
 ```bash
-  cargo run
+  cargo run -- --all
 ```

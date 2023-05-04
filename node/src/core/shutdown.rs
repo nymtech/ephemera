@@ -1,4 +1,7 @@
+
+
 use log::info;
+
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 
@@ -24,7 +27,6 @@ impl Handle {
     /// This will send a shutdown signal to all tasks and wait for them to finish.
     ///
     /// # Panics
-    ///
     /// This will panic if shutdown signal can't be sent.
     pub fn shutdown(&mut self) {
         self.shutdown_started = true;
@@ -53,12 +55,18 @@ impl ShutdownManager {
         info!("Starting Ephemera shutdown");
         self.shutdown_tx.send(()).unwrap();
         info!("Waiting for tasks to finish");
-        for handle in self.handles {
+        for (i, handle) in self
+            .handles
+            .into_iter()
+            .enumerate()
+            .map(|(i, h)| (i + 1, h))
+        {
             match handle.await.unwrap() {
-                Ok(_) => info!("Task finished successfully"),
-                Err(e) => info!("Task finished with error: {}", e),
+                Ok(_) => info!("Task {i} finished successfully"),
+                Err(e) => info!("Task {i} finished with error: {e}",),
             }
         }
+        info!("All tasks finished");
     }
 
     pub(crate) fn subscribe(&self) -> Shutdown {

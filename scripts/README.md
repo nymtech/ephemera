@@ -50,6 +50,13 @@ Creates configuration for new cluster of nodes in `~/.ephemera` directory.
 
 ## Start cluster with plain Ephemera
 
+With current setup Ephemera by default tries to get peers over http.
+You can either start http peers provider in `example/members-provider-http` or change `cli/run_node.rs` to use `config_members_provider`
+instead of `members-provider-http`.
+
+PS! If you use `members-provider-http` and delete/create new cluster, you need to restart `members-provider-http` as well
+because it keeps state in memory. Otherwise Ephemera complains that it doesn't have enough peers.
+
 ```bash
 ./local-cluster run -a ephemera
 ```

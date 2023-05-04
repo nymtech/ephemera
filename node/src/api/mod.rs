@@ -6,7 +6,7 @@
 
 use std::fmt::Display;
 
-use log::trace;
+use log::{error, trace};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot,
@@ -268,13 +268,15 @@ impl CommandExecutor {
     {
         let (tx, rcv) = oneshot::channel();
         let cmd = f(tx);
-        if let Err(err) = self.commands_channel.send(cmd).await {
-            return Err(ApiError::Internal(err.into()));
+        if let Err(e) = self.commands_channel.send(cmd).await {
+            error!("Failed to send command to Ephemera: {e:?}",);
+            return Err(ApiError::Internal(
+                "Failed to receive response from Ephemera".to_string(),
+            ));
         }
         rcv.await.map_err(|e| {
-            ApiError::Internal(anyhow::Error::msg(format!(
-                "Failed to receive response from Ephemera: {e:?}"
-            )))
+            error!("Failed to receive response from Ephemera: {e:?}",);
+            ApiError::Internal("Failed to receive response from Ephemera".to_string())
         })?
     }
 }

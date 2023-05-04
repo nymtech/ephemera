@@ -45,11 +45,9 @@ impl PeerId {
     /// Returns a peer ID from a raw representation.
     ///
     /// # Returns
-    ///
     /// A `PeerId` if the bytes are valid.
     ///
     /// # Errors
-    ///
     /// An error if input has wrong format. This function is reverse to [`PeerId::to_bytes`].
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PeerIdError> {
         Ok(Self(PeerIdType::from_bytes(bytes).map_err(|e| {

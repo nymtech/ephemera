@@ -21,6 +21,7 @@ use std::collections::HashSet;
 use std::fmt::Display;
 
 use array_bytes::{bytes2hex, hex2bytes};
+use log::error;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utoipa::ToSchema;
@@ -49,7 +50,7 @@ pub enum ApiError {
     #[error("ApplicationError: {0}")]
     Application(#[from] ephemera_api::ApplicationError),
     #[error("Internal error: {0}")]
-    Internal(#[from] anyhow::Error),
+    Internal(String),
 }
 
 /// # Ephemera message.
@@ -362,7 +363,10 @@ impl ApiBlock {
     /// - If the block's certificate is not signed by the block's creator.
     pub fn verify(&self, certificate: &ApiCertificate) -> Result<bool, ApiError> {
         let block: Block = self.clone().try_into()?;
-        let valid = block.verify(&(certificate.clone()).into())?;
+        let valid = block.verify(&(certificate.clone()).into()).map_err(|e| {
+            error!("Failed to verify block: {}", e);
+            ApiError::Internal("Failed to verify block certificate".to_string())
+        })?;
         Ok(valid)
     }
 }
@@ -386,13 +390,14 @@ impl ApiRawBlock {
 
 impl ApiCertificate {
     /// # Errors
-    /// -
+    /// - `EncodingError` if the message cannot be encoded.
+    /// - `KeyPairError` if the message cannot be signed.
     pub fn prepare<D: Encode>(key_pair: &Keypair, data: &D) -> anyhow::Result<Self> {
         Certificate::prepare(key_pair, data).map(Into::into)
     }
 
     /// # Errors
-    /// -
+    /// -`EncodingError` if the message cannot be encoded.
     pub fn verify<D: Encode>(&self, data: &D) -> anyhow::Result<bool> {
         let certificate: Certificate = (self.clone()).into();
         Certificate::verify(&certificate, data)

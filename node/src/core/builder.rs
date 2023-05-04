@@ -212,12 +212,14 @@ impl<A: Application> EphemeraStarterWithApplication<A> {
     fn connect_rocksdb(&self) -> anyhow::Result<RocksDbStorage> {
         info!("Opening database...");
         RocksDbStorage::open(self.init.config.storage.clone())
+            .map_err(|e| anyhow::anyhow!("Failed to open database: {}", e))
     }
 
     #[cfg(feature = "sqlite_storage")]
     fn connect_sqlite(&mut self) -> anyhow::Result<SqliteStorage> {
         info!("Opening database...");
         SqliteStorage::open(self.init.config.storage.clone())
+            .map_err(|e| anyhow::anyhow!("Failed to open database: {}", e))
     }
 
     fn init_block_manager<D: EphemeraDatabase + ?Sized>(

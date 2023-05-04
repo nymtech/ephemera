@@ -8,6 +8,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::broadcast::bracha::quorum::Quorum;
+use crate::storage::DatabaseError;
 use crate::{
     api::{application::Application, application::CheckBlockResult, ApiListener},
     block::{manager::BlockManager, types::block::Block},
@@ -32,9 +33,11 @@ use crate::{
     websocket::ws_manager::WsMessageBroadcaster,
 };
 
-//Just a placeholder now
 #[derive(Error, Debug)]
 enum EphemeraCoreError {
+    #[error("DatabaseFailure: {0}")]
+    DatabaseFailure(DatabaseError),
+    //Just a placeholder now
     #[error("EphemeraCore: {0}")]
     EphemeraCore(#[from] anyhow::Error),
 }
@@ -96,13 +99,14 @@ impl<A: Application> Ephemera<A> {
     }
 
     /// Main loop of ephemera node.
-    /// 1. Block manager generates new blocks.
-    /// 2. Receive messages from network.
-    /// 3. Receive blocks from network.
-    /// 4. Receive http api request
-    /// 5. Receive rust api request
+    /// 1. Block manager generates new blocks or receives blocks from network.
+    /// 2. Run reliable broadcast.
+    /// 3. Process reliable broadcast result.
+    /// 4. Process http api request
+    /// 5. Process rust api request
     /// 6. Publish(gossip) messages to network
     /// 7. Publish blocks to network
+    /// 8. Broadcast messages to websocket clients
     pub async fn run(mut self) {
         info!("Starting ephemera services");
         for service in self.services.drain(..) {
@@ -125,6 +129,11 @@ impl<A: Application> Ephemera<A> {
                 Some(net_event) = self.from_network.net_event_rcv.recv() => {
                     if let Err(err) = self.process_network_event(net_event).await{
                         error!("Error processing network event: {:?}", err);
+                        if let EphemeraCoreError::DatabaseFailure(_) = err {
+                            info!("Database failure. Shutting down ephemera");
+                            self.shutdown_manager.stop().await;
+                            break;
+                        }
                     }
                 }
 
@@ -151,6 +160,7 @@ impl<A: Application> Ephemera<A> {
                 }
             }
         }
+        info!("Ephemera main loop finished");
     }
 
     async fn process_network_event(&mut self, net_event: NetworkEvent) -> Result<()> {
@@ -183,9 +193,7 @@ impl<A: Application> Ephemera<A> {
                 }
             }
             NetworkEvent::BroadcastMessage(rb_msg) => {
-                if let Err(err) = self.process_block_from_network(*rb_msg).await {
-                    error!("Error processing block from network: {:?}", err);
-                }
+                self.process_block_from_network(*rb_msg).await?;
             }
             NetworkEvent::GroupUpdate(event) => {
                 self.process_group_update(event);
@@ -367,11 +375,13 @@ impl<A: Application> Ephemera<A> {
                                             "Error: Group not found for block: {hash:?}"
                                         ))?;
 
-                                    self.storage.lock().await.store_block(
+                                    if let Err(e) = self.storage.lock().await.store_block(
                                         &block,
                                         certificates.clone(),
                                         members.clone(),
-                                    )?;
+                                    ) {
+                                        return Err(EphemeraCoreError::DatabaseFailure(e));
+                                    }
 
                                     // It is open question how much Application `deliver_block` failure should affect
                                     // continuing with next block.

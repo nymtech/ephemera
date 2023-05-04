@@ -2,9 +2,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use clap::Parser;
-use log::trace;
+use futures_util::future::Either;
+use log::{info, trace};
 use reqwest::Url;
 use tokio::signal::unix::{signal, SignalKind};
+
 
 use crate::ephemera_api::ApplicationResult;
 use crate::utilities::codec::{Codec, EphemeraCodec};
@@ -61,6 +63,7 @@ impl RunExternalNodeCmd {
             .build();
 
         let mut ephemera_shutdown = ephemera.ephemera_handle.shutdown.clone();
+        let mut ephemera_shutdown_internal = ephemera_shutdown.clone();
 
         let ephemera_handle = tokio::spawn(ephemera.run());
 
@@ -72,14 +75,23 @@ impl RunExternalNodeCmd {
                     ephemera_shutdown.shutdown();
                 }
                 _ = stream_term.recv() => {
-                   ephemera_shutdown.shutdown();
+                    ephemera_shutdown.shutdown();
                 }
             }
         };
 
-        //Wait shutdown signal
-        shutdown.await;
-        ephemera_handle.await.unwrap();
+        match futures::future::select(Box::pin(shutdown), ephemera_handle).await {
+            Either::Left((_, ephemera_exited)) => {
+                info!("Shutdown signal received, shutting down");
+                ephemera_exited.await.unwrap();
+                info!("Shutdown complete");
+            }
+            Either::Right((_, _)) => {
+                info!("Ephemera failed, trying graceful shutdown...");
+                ephemera_shutdown_internal.shutdown();
+                info!("Shutdown complete");
+            }
+        }
         Ok(())
     }
 

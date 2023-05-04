@@ -129,7 +129,10 @@ impl ApiCmdProcessor {
             .await
         {
             Ok(_) => Ok(()),
-            Err(err) => Err(ApiError::Internal(err)),
+            Err(err) => {
+                error!("Error sending StoreInDht to network: {:?}", err);
+                Err(ApiError::Internal("Failed to store in DHT".to_string()))
+            }
         };
         reply
             .send(response)
@@ -157,7 +160,7 @@ impl ApiCmdProcessor {
             Err(err) => {
                 error!("Error sending QueryDht to network: {:?}", err);
                 reply
-                    .send(Err(ApiError::Internal(err)))
+                    .send(Err(ApiError::Internal("Failed to query DHT".to_string())))
                     .expect("Error sending QueryDht response to api");
             }
         };
@@ -182,7 +185,12 @@ impl ApiCmdProcessor {
                 });
                 Ok(certificates)
             }
-            Err(err) => Err(ApiError::Internal(err)),
+            Err(err) => {
+                error!("Error querying block certificates: {:?}", err);
+                Err(ApiError::Internal(
+                    "Failed to query block certificates".to_string(),
+                ))
+            }
         };
         reply
             .send(response)
@@ -195,10 +203,13 @@ impl ApiCmdProcessor {
     ) {
         let response = match ephemera.storage.lock().await.get_last_block() {
             Ok(Some(block)) => Ok(block.into()),
-            Ok(None) => Err(ApiError::Internal(anyhow::Error::msg(
-                "No blocks found, this is a bug!",
-            ))),
-            Err(err) => Err(ApiError::Internal(err)),
+            Ok(None) => Err(ApiError::Internal(
+                "No blocks found, this is a bug!".to_string(),
+            )),
+            Err(err) => {
+                error!("Error querying last block: {:?}", err);
+                Err(ApiError::Internal("Failed to query last block".to_string()))
+            }
         };
         reply
             .send(response)
@@ -216,7 +227,12 @@ impl ApiCmdProcessor {
                 Ok(api_block.into())
             }
             Ok(None) => Ok(None),
-            Err(err) => Err(ApiError::Internal(err)),
+            Err(err) => {
+                error!("Error querying block by height: {:?}", err);
+                Err(ApiError::Internal(
+                    "Failed to query block by height".to_string(),
+                ))
+            }
         };
         reply
             .send(response)
@@ -234,7 +250,12 @@ impl ApiCmdProcessor {
                 Ok(api_block.into())
             }
             Ok(None) => Ok(None),
-            Err(err) => Err(ApiError::Internal(err)),
+            Err(err) => {
+                error!("Error querying block by id: {:?}", err);
+                Err(ApiError::Internal(
+                    "Failed to query block by id".to_string(),
+                ))
+            }
         };
         reply
             .send(response)
@@ -263,13 +284,17 @@ impl ApiCmdProcessor {
                             .await
                         {
                             Ok(_) => Ok(()),
-                            Err(err) => Err(ApiError::Internal(err)),
+                            Err(err) => {
+                                error!("Error sending EphemeraMessage to network: {:?}", err);
+                                Err(ApiError::Internal("Failed to submit message".to_string()))
+                            }
                         }
                     }
                     Err(err) => match err {
                         BlockManagerError::DuplicateMessage(_) => Err(ApiError::DuplicateMessage),
                         BlockManagerError::BlockManager(err) => {
-                            Err(ApiError::Internal(anyhow::Error::msg(err.to_string())))
+                            error!("Error submitting message to block manager: {:?}", err);
+                            Err(ApiError::Internal("Failed to submit message".to_string()))
                         }
                     },
                 }
@@ -305,7 +330,12 @@ impl ApiCmdProcessor {
                 Ok(Some(ApiBlockBroadcastInfo::new(local_peer, peers)))
             }
             Ok(None) => Ok(None),
-            Err(err) => Err(ApiError::Internal(err)),
+            Err(err) => {
+                error!("Error querying block broadcast info: {:?}", err);
+                Err(ApiError::Internal(
+                    "Failed to query block broadcast info".to_string(),
+                ))
+            }
         };
         reply
             .send(response)

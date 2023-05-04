@@ -8,6 +8,7 @@ use crate::peer::PeerId;
 use crate::storage::sqlite::query::DbQuery;
 use crate::storage::sqlite::store::Database;
 use crate::storage::EphemeraDatabase;
+use crate::storage::Result;
 use crate::utilities::crypto::Certificate;
 
 pub(crate) mod query;
@@ -25,13 +26,14 @@ pub(crate) struct SqliteStorage {
 }
 
 impl SqliteStorage {
-    pub(crate) fn open(db_conf: DatabaseConfiguration) -> anyhow::Result<Self> {
+    pub(crate) fn open(db_conf: DatabaseConfiguration) -> Result<Self> {
         let mut flags = rusqlite::OpenFlags::default();
         if !db_conf.create_if_not_exists {
             flags.remove(rusqlite::OpenFlags::SQLITE_OPEN_CREATE);
         }
 
-        let mut connection = Connection::open_with_flags(db_conf.sqlite_path.clone(), flags)?;
+        let mut connection = Connection::open_with_flags(db_conf.sqlite_path.clone(), flags)
+            .map_err(|err| anyhow::anyhow!(err))?;
         Self::run_migrations(&mut connection)?;
 
         info!("Starting db backend with path: {}", db_conf.sqlite_path);
@@ -41,7 +43,7 @@ impl SqliteStorage {
         Ok(storage)
     }
 
-    pub(crate) fn run_migrations(connection: &mut Connection) -> anyhow::Result<()> {
+    pub(crate) fn run_migrations(connection: &mut Connection) -> Result<()> {
         info!("Running database migrations");
         match migrations::migrations::runner().run(connection) {
             Ok(ok) => {
@@ -50,31 +52,39 @@ impl SqliteStorage {
             }
             Err(err) => {
                 error!("Database migrations failed: {}", err);
-                Err(anyhow::anyhow!(err))
+                Err(anyhow::anyhow!(err).into())
             }
         }
     }
 }
 
 impl EphemeraDatabase for SqliteStorage {
-    fn get_block_by_id(&self, block_id: &str) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_block_by_hash(block_id)
+    fn get_block_by_id(&self, block_id: &str) -> Result<Option<Block>> {
+        self.db_query
+            .get_block_by_hash(block_id)
+            .map_err(Into::into)
     }
 
-    fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_last_block()
+    fn get_last_block(&self) -> Result<Option<Block>> {
+        self.db_query.get_last_block().map_err(Into::into)
     }
 
-    fn get_block_by_height(&self, height: u64) -> anyhow::Result<Option<Block>> {
-        self.db_query.get_block_by_height(height)
+    fn get_block_by_height(&self, height: u64) -> Result<Option<Block>> {
+        self.db_query
+            .get_block_by_height(height)
+            .map_err(Into::into)
     }
 
-    fn get_block_certificates(&self, block_id: &str) -> anyhow::Result<Option<Vec<Certificate>>> {
-        self.db_query.get_block_certificates(block_id)
+    fn get_block_certificates(&self, block_id: &str) -> Result<Option<Vec<Certificate>>> {
+        self.db_query
+            .get_block_certificates(block_id)
+            .map_err(Into::into)
     }
 
-    fn get_block_broadcast_group(&self, block_id: &str) -> anyhow::Result<Option<Vec<PeerId>>> {
-        self.db_query.get_block_broadcast_group(block_id)
+    fn get_block_broadcast_group(&self, block_id: &str) -> Result<Option<Vec<PeerId>>> {
+        self.db_query
+            .get_block_broadcast_group(block_id)
+            .map_err(Into::into)
     }
 
     fn store_block(
@@ -82,7 +92,9 @@ impl EphemeraDatabase for SqliteStorage {
         block: &Block,
         certificates: HashSet<Certificate>,
         members: HashSet<PeerId>,
-    ) -> anyhow::Result<()> {
-        self.db_store.store_block(block, certificates, members)
+    ) -> Result<()> {
+        self.db_store
+            .store_block(block, certificates, members)
+            .map_err(Into::into)
     }
 }
