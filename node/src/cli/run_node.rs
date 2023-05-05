@@ -71,10 +71,10 @@ impl RunExternalNodeCmd {
             let mut stream_term = signal(SignalKind::terminate()).unwrap();
             tokio::select! {
                 _ = stream_int.recv() => {
-                    ephemera_shutdown.shutdown();
+                    ephemera_shutdown.shutdown().expect("Failed to shutdown");
                 }
                 _ = stream_term.recv() => {
-                    ephemera_shutdown.shutdown();
+                    ephemera_shutdown.shutdown().expect("Failed to shutdown");
                 }
             }
         };
@@ -87,7 +87,9 @@ impl RunExternalNodeCmd {
             }
             Either::Right((_, _)) => {
                 info!("Ephemera failed, trying graceful shutdown...");
-                ephemera_shutdown_internal.shutdown();
+                ephemera_shutdown_internal
+                    .shutdown()
+                    .expect("Failed to shutdown");
                 info!("Shutdown complete");
             }
         }

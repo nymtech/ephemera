@@ -45,6 +45,7 @@ impl MetricsCollector {
                 }
             }
         }
+        info!("Metrics collector stopped")
     }
 
     pub(crate) async fn collect(&mut self) -> anyhow::Result<()> {

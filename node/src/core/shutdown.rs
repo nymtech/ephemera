@@ -1,5 +1,6 @@
 use log::info;
 
+use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 
@@ -24,11 +25,14 @@ impl Handle {
     /// Shutdown the node.
     /// This will send a shutdown signal to all tasks and wait for them to finish.
     ///
+    /// # Errors
+    /// This will return an error if shutdown signal can't be sent.
+    ///
     /// # Panics
     /// This will panic if shutdown signal can't be sent.
-    pub fn shutdown(&mut self) {
+    pub fn shutdown(&mut self) -> Result<(), SendError<()>> {
         self.shutdown_started = true;
-        self.external_shutdown.send(()).unwrap();
+        self.external_shutdown.send(())
     }
 }
 

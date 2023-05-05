@@ -86,10 +86,12 @@ where
                     info!("Rewarding epoch {} ...", self.epoch.current_epoch_numer());
                     if let Err(err) = self.perform_epoch_operations().await {
                         error!("Reward calculator failed: {}", err);
+                        break;
                     }
                 }
             }
         }
+        info!("Reward manager stopped");
     }
 
     pub(crate) async fn calculate_rewards_for_previous_epoch(

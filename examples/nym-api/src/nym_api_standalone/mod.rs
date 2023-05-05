@@ -37,12 +37,14 @@ impl NymApi {
                 _ = metrics.interval.tick() => {
                     if let Err(err) = metrics.collect().await {
                         error!("Metrics collector failed: {}", err);
+                        break;
                     }
                 }
                 _ = reward.epoch.wait_epoch_end() => {
                     info!("Rewarding epoch ...");
                     if let Err(err) = reward.perform_epoch_operations().await {
                         error!("Reward calculator failed: {}", err);
+                        break;
                     }
                 }
             }
