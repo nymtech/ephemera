@@ -36,16 +36,13 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-///Cosmos style ABCI application hook
+/// Cosmos style ABCI application hook
 ///
-/// Notes:
-/// A) These functions should be relatively fast, as they are called synchronously by Ephemera main loop.
-/// B) They should not wait on a lock
-/// C) They should not panic
+/// These functions should be relatively fast, as they are called synchronously by Ephemera main loop.
 pub trait Application {
     /// It's called when receiving a new message from network before adding it to the mempool.
     /// It's up to the application to decide whether the message is valid or not.
-    /// Basic check could for example be signature verification.
+    /// Basic check could be for example signature verification.
     ///
     /// # Arguments
     /// * `message` - message to be checked

@@ -1,6 +1,6 @@
 //! # Ephemera API
 //!
-//! This module contains all the types and functions available as part of the Ephemera public API.
+//! This module contains all the types and functions available as part of Ephemera public API.
 //!
 //! This API is also available over HTTP.
 

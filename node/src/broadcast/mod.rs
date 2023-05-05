@@ -1,37 +1,5 @@
-//! This a basic implementation of a `broadcast_protocol` where participating peers go through three rounds to
-//! reach a consensus on if/when to deliver a message.
+//! Simple reliable broadcast protocol(Bracha) implementation
 //!
-//! PRE-PREPARE:
-//!      1. Upon receiving pre-prepare message, peer sends PREPARE message to all other peers.
-//!
-//! PREPARE:
-//!     1. When peer receives a PREPARE message, it sends PREPARE message to all other peers.
-//! COMMIT:
-//!     1. When peer receives a quorum of PREPARE messages, it sends COMMIT message to all peers.
-//!     2. When peer receives quorum of COMMIT messages, it considers the message as committed and can deliver it.
-//!
-//! It is possible to register a callback which will be called for the following events:
-//!     1. Pre-prepare message received
-//!     2. Prepare message received
-//!     3. Prepare quorum reached
-//!     4. Commit message received
-//!     5. Commit quorum reached
-//!
-//! Callback can return optional (modified) message payload which is sent along with consensus message
-//!  instead of the original payload from client.
-//!
-
-//! Limitations:
-//! - Prepare and commit messages can reach out of order due to network and node processing delays. Nevertheless,
-//!   a peer won't commit a message until it receives a quorum of prepare messages.
-//! - Current implementation makes only progress(updates its state machine) when it receives a message from another peer.
-//!   If for some reason messages are lost, the `broadcast_protocol` will not make progress. This can be fixed by introducing a timer and some concept
-//!   of views/epoch.
-//! - It doesn't try to total order different messages. All messages reach quorum consensus independently.
-//!   All it does is that a quorum or no quorum of peers deliver the message.
-//! - It doesn't verify the other peers authenticity.
-//!   Also this can be a task for an upstream layer(gossip...) which handles networking and peers relationship.
-
 use std::collections::HashSet;
 use std::fmt::{Debug, Display};
 

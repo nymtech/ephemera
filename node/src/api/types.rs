@@ -1,8 +1,4 @@
-//! # Api Types
-//!
 //! This module contains all the types that are used in the API.
-//!
-//! ## Types
 //!
 //! - `ApiEphemeraMessage`
 //! - `RawApiEphemeraMessage`

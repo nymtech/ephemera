@@ -1,6 +1,6 @@
-//! Message pool for ephemera messages
+//! Message pool for Ephemera messages
 //!
-//! It stores pending Ephemera messages which will be added to the next block.
+//! It stores pending Ephemera messages which will be added to a future block.
 //! It doesn't have any other logic than just storing messages.
 //!
 //! It's up to the user provided [`crate::ephemera_api::Application::check_tx`] to decide which messages to include.

@@ -1,4 +1,4 @@
-//! This is used to add a peer to the configuration file. Only used for testing purposes.
+//! This is used to create local peers configuration file. Useful for local cluster development.
 
 use crate::cli::PEERS_CONFIG_FILE;
 use clap::Parser;
