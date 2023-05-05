@@ -199,7 +199,6 @@ impl<A: Application> Ephemera<A> {
                 self.process_group_update(event);
             }
             NetworkEvent::QueryDhtResponse { key, value } => {
-                trace!("New dht query response: {:?}", key);
                 match self.api_cmd_processor.dht_query_cache.pop(&key) {
                     Some(replies) => {
                         for reply in replies {

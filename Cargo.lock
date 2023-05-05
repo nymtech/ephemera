@@ -3664,6 +3664,7 @@ dependencies = [
  "clap",
  "dirs 5.0.1",
  "ephemera",
+ "futures",
  "lazy_static",
  "log",
  "pretty_env_logger",

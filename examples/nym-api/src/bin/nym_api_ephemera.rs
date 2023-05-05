@@ -61,24 +61,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
     let nym_api = tokio::spawn(NymApi::run(args, ephemera_config, shutdown_rx));
 
-    let shutdown = async {
-        let mut stream_int = signal(SignalKind::interrupt()).unwrap();
-        let mut stream_term = signal(SignalKind::terminate()).unwrap();
-        tokio::select! {
-            _ = stream_int.recv() => {
-                shutdown_tx.send(()).unwrap();
-            }
-            _ = stream_term.recv() => {
-                shutdown_tx.send(()).unwrap();
-            }
+    let mut stream_int = signal(SignalKind::interrupt()).unwrap();
+    let mut stream_term = signal(SignalKind::terminate()).unwrap();
+    tokio::select! {
+        _ = stream_int.recv() => {
+            shutdown_tx.send(()).unwrap();
         }
-    };
-
-    //Wait shutdown signal
-    shutdown.await;
-
-    //Wait for Nym-Api to finish
-    nym_api.await??;
+        _ = stream_term.recv() => {
+            shutdown_tx.send(()).unwrap();
+        }
+        _ = nym_api => {}
+    }
 
     info!("Nym-Api Ephemera simulation finished");
     Ok(())

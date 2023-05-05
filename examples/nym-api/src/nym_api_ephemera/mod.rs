@@ -1,7 +1,12 @@
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
+use actix_web::body::MessageBody;
+use futures::future::Either;
 use log::info;
 use tokio::sync::broadcast::Sender;
+use tokio::sync::oneshot::error::RecvError;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
@@ -129,30 +134,44 @@ impl NymApi {
         shutdown: Receiver<()>,
         ephemera_shutdown: &mut ShutdownHandle,
         shutdown_signal_tx: Sender<()>,
-        ephemera: JoinHandle<()>,
-        rewards: JoinHandle<()>,
-        metrics: JoinHandle<()>,
+        mut ephemera: JoinHandle<()>,
+        mut rewards: JoinHandle<()>,
+        mut metrics: JoinHandle<()>,
     ) -> anyhow::Result<()> {
-        shutdown.await?;
-        info!("Shutting down nym api ...");
-        shutdown_signal_tx.send(())?;
-
-        info!("Shutting down metrics collector ...");
-        metrics.await?;
-        info!("Metrics collector shut down complete");
-
-        info!("Shutting down rewards ...");
-        //doing abort here, rewards has unresponsive long-running loop to submit rewards.
-        //No need to bother about graceful shutdown(in simulation)
-        rewards.abort();
-        info!("Rewards shut down complete");
-
-        info!("Shutting down ephemera ...");
-        ephemera_shutdown.shutdown();
-        ephemera.await?;
-        info!("Ephemera shut down complete");
-
-        info!("Shut down complete...");
+        async {
+            tokio::select! {
+                _ = &mut metrics => {
+                    info!("Metrics failed, shutting down nym api ...");
+                    shutdown_signal_tx.send(()).expect("Failed to send shutdown signal");
+                    rewards.abort();
+                    ephemera_shutdown.shutdown();
+                    ephemera.await.expect("Failed to stop ephemera");
+                }
+                _ = &mut rewards => {
+                    info!("Rewards failed, shutting down nym api ...");
+                    shutdown_signal_tx.send(()).expect("Failed to send shutdown signal");
+                    metrics.await.expect("Failed to stop metrics");
+                    ephemera_shutdown.shutdown();
+                    ephemera.await.expect("Failed to stop ephemera");
+                }
+                _ = &mut ephemera => {
+                    info!("Ephemera failed, shutting down nym api ...");
+                    shutdown_signal_tx.send(()).expect("Failed to send shutdown signal");
+                    rewards.abort();
+                    metrics.await.expect("Failed to stop metrics");
+                }
+                _ = shutdown => {
+                    info!("Received shutdown signal, shutting down nym api ...");
+                    shutdown_signal_tx.send(()).expect("Failed to send shutdown signal");
+                    rewards.abort();
+                    metrics.await.expect("Failed to stop metrics");
+                    ephemera_shutdown.shutdown();
+                    ephemera.await.expect("Failed to stop ephemera");
+                }
+            }
+        }
+        .await;
+        info!("Nym-Api Shut down complete");
 
         Ok(())
     }

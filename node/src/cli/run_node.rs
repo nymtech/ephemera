@@ -7,7 +7,6 @@ use log::{info, trace};
 use reqwest::Url;
 use tokio::signal::unix::{signal, SignalKind};
 
-
 use crate::ephemera_api::ApplicationResult;
 use crate::utilities::codec::{Codec, EphemeraCodec};
 use crate::{
