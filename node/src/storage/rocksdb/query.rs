@@ -7,8 +7,10 @@ use crate::block::types::block::Block;
 use crate::network::PeerId;
 use crate::storage::rocksdb::{
     block_hash_key, block_height_key, certificates_key, last_block_key, members_key,
+    merkle_tree_key,
 };
 use crate::utilities::crypto::Certificate;
+use crate::utilities::merkle::MerkleTree;
 
 pub struct Database {
     database: Arc<TransactionDB>,
@@ -92,6 +94,24 @@ impl Database {
             Ok(Some(members))
         } else {
             trace!("Didn't find members");
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn get_block_merkle_tree(
+        &self,
+        block_hash: &str,
+    ) -> anyhow::Result<Option<MerkleTree>> {
+        trace!("Getting block merkle tree: {}", block_hash);
+
+        let merkle_tree_key = merkle_tree_key(block_hash);
+
+        if let Some(merkle_tree) = self.database.get(merkle_tree_key)? {
+            let merkle_tree: MerkleTree = serde_json::from_slice(&merkle_tree)?;
+            trace!("Found merkle tree: {:?}", merkle_tree);
+            Ok(Some(merkle_tree))
+        } else {
+            trace!("Didn't find merkle tree");
             Ok(None)
         }
     }

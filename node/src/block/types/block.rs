@@ -169,6 +169,10 @@ impl Block {
         let raw_block: RawBlock = self.clone().into();
         raw_block.hash_with_default_hasher()
     }
+
+    pub(crate) fn merkle_tree(&self) -> anyhow::Result<MerkleTree> {
+        merkle_tree(&self.messages)
+    }
 }
 
 impl Display for Block {
@@ -205,12 +209,7 @@ impl RawBlock {
 
     pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<Hash> {
         let header_hash = self.header.hash_with_default_hasher()?;
-        let message_hashes = self
-            .messages
-            .iter()
-            .map(EphemeraMessage::hash_with_default_hasher)
-            .collect::<anyhow::Result<Vec<Hash>>>()?;
-        let merkle_root = MerkleTree::build_tree(&message_hashes).root_hash();
+        let merkle_root = merkle_tree(&self.messages)?.root_hash();
         let block_hash = Hasher::digest(&[header_hash.inner(), merkle_root.inner()].concat());
         Ok(block_hash.into())
     }
@@ -270,11 +269,21 @@ impl EphemeraHash for RawBlock {
     }
 }
 
+pub(crate) fn merkle_tree(messages: &[EphemeraMessage]) -> anyhow::Result<MerkleTree> {
+    let message_hashes = messages
+        .iter()
+        .map(EphemeraMessage::hash_with_default_hasher)
+        .collect::<anyhow::Result<Vec<Hash>>>()?;
+    let merkle_tree = MerkleTree::build_tree(&message_hashes);
+    Ok(merkle_tree)
+}
+
 #[cfg(test)]
 mod test {
-    use super::*;
     use crate::block::types::message::RawEphemeraMessage;
     use crate::crypto::EphemeraKeypair;
+
+    use super::*;
 
     #[test]
     fn test_block_hash_no_messages() {

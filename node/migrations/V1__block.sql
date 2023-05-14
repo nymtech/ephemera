@@ -16,3 +16,9 @@ CREATE TABLE IF NOT EXISTS block_broadcast_group (
     block_hash      TEXT         NOT NULL UNIQUE,
     members         BLOB         NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS block_merkle_tree (
+    id              INTEGER      NOT NULL PRIMARY KEY AUTOINCREMENT,
+    block_hash      TEXT         NOT NULL UNIQUE,
+    merkle_tree     BLOB         NOT NULL
+);

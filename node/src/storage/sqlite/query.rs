@@ -124,6 +124,35 @@ impl DbQuery {
         Ok(members)
     }
 
+    pub(crate) fn get_block_merkle_tree(
+        &self,
+        block_hash: &str,
+    ) -> anyhow::Result<Option<Vec<String>>> {
+        let mut stmt = self
+            .connection
+            .prepare_cached("SELECT merkle_tree FROM block_merkle_tree where block_hash = ?1")?;
+
+        let merkle_tree = stmt
+            .query_row(params![block_hash], |row| {
+                let merkle_tree: Vec<u8> = row.get(0)?;
+                let merkle_tree =
+                    serde_json::from_slice::<Vec<String>>(&merkle_tree).map_err(|e| {
+                        error!("Error deserializing merkle_tree: {}", e);
+                        rusqlite::Error::InvalidQuery {}
+                    })?;
+                Ok(merkle_tree)
+            })
+            .optional()?;
+
+        if merkle_tree.is_some() {
+            trace!("Found block {} merkle_tree", block_hash);
+        } else {
+            trace!("Merkle_tree not found");
+        };
+
+        Ok(merkle_tree)
+    }
+
     fn map_block() -> impl FnOnce(&Row) -> Result<Block, rusqlite::Error> {
         |row| {
             let body: Vec<u8> = row.get(0)?;

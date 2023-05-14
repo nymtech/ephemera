@@ -34,6 +34,8 @@ impl Database {
                 .map_err(|e| anyhow::anyhow!(e))?;
         let members_bytes = serde_json::to_vec(&members.into_iter().collect::<Vec<PeerId>>())
             .map_err(|e| anyhow::anyhow!(e))?;
+        let merkle_tree = block.merkle_tree()?;
+        let merkle_tree_bytes = serde_json::to_vec(&merkle_tree).map_err(|e| anyhow::anyhow!(e))?;
 
         let tx = self.connection.transaction()?;
         {
@@ -53,6 +55,13 @@ impl Database {
             )?;
 
             statement.execute(params![&hash, &members_bytes])?;
+
+            //store Merkle Tree
+            let mut statement = tx.prepare_cached(
+                "INSERT INTO block_merkle_tree (block_hash, merkle_tree) VALUES (?1, ?2)",
+            )?;
+
+            statement.execute(params![&hash, &merkle_tree_bytes])?;
         }
 
         tx.commit()?;

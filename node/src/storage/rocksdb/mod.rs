@@ -26,9 +26,10 @@ const PREFIX_BLOCK_HASH: &str = "block_hash";
 const PREFIX_BLOCK_HEIGHT: &str = "block_height";
 const PREFIX_CERTIFICATES: &str = "block_certificates";
 const PREFIX_MEMBERS: &str = "block_members";
+const MERKLE_TREE: &str = "merkle_tree";
 
 impl RocksDbStorage {
-    pub fn open(db_conf: DatabaseConfiguration) -> Result<Self> {
+    pub fn open(db_conf: &DatabaseConfiguration) -> Result<Self> {
         info!("Opening RocksDB database at {}", db_conf.rocksdb_path);
 
         let mut options = rocksdb::Options::default();
@@ -110,4 +111,8 @@ fn certificates_key(block_hash: &str) -> String {
 
 fn members_key(block_hash: &str) -> String {
     format!("{PREFIX_MEMBERS}:{block_hash}",)
+}
+
+fn merkle_tree_key(block_hash: &str) -> String {
+    format!("{MERKLE_TREE}:{block_hash}",)
 }

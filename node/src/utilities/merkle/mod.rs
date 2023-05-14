@@ -1,6 +1,6 @@
-use crate::utilities::hash::{EphemeraHasher, Hash, Hasher};
-
 use serde::{Deserialize, Serialize};
+
+use crate::utilities::hash::{EphemeraHasher, Hash, Hasher};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,6 +14,8 @@ impl MerkleTree {
         if leaves.is_empty() {
             return Self {
                 leaf_count: 1,
+                //So every message which matches this hash will be accepted
+                //Not sure if it's a problem
                 nodes: vec![Hash::new([0; 32])],
             };
         }
@@ -82,11 +84,13 @@ impl MerkleTree {
 
 #[cfg(test)]
 mod tests {
-    use rand::RngCore;
     use std::iter;
 
-    use super::*;
+    use rand::RngCore;
+
     use crate::utilities::hash::Hash;
+
+    use super::*;
 
     #[test]
     fn test_merkle() {
