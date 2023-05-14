@@ -2,6 +2,7 @@ use std::fmt::{Debug, Display};
 
 use serde::{Deserialize, Serialize};
 
+use crate::utilities::merkle::MerkleTree;
 use crate::{
     block::types::message::EphemeraMessage,
     codec::{Decode, Encode},
@@ -85,6 +86,13 @@ impl RawBlockHeader {
             height,
         }
     }
+
+    pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<Hash> {
+        let mut hasher = Hasher::default();
+        self.hash(&mut hasher)?;
+        let header_hash = hasher.finish().into();
+        Ok(header_hash)
+    }
 }
 
 impl Display for RawBlockHeader {
@@ -129,7 +137,7 @@ impl Block {
     }
 
     pub(crate) fn new_genesis_block(creator: PeerId) -> Self {
-        Self {
+        let mut block = Self {
             header: BlockHeader {
                 timestamp: EphemeraTime::now(),
                 creator,
@@ -137,7 +145,13 @@ impl Block {
                 hash: Hash::new([0; 32]),
             },
             messages: Vec::new(),
-        }
+        };
+
+        let hash = block
+            .hash_with_default_hasher()
+            .expect("Failed to hash genesis block");
+        block.header.hash = hash;
+        block
     }
 
     pub(crate) fn sign(&self, keypair: &Keypair) -> anyhow::Result<Certificate> {
@@ -190,10 +204,15 @@ impl RawBlock {
     }
 
     pub(crate) fn hash_with_default_hasher(&self) -> anyhow::Result<Hash> {
-        let mut hasher = Hasher::default();
-        self.hash(&mut hasher)?;
-        let block_hash = hasher.finish().into();
-        Ok(block_hash)
+        let header_hash = self.header.hash_with_default_hasher()?;
+        let message_hashes = self
+            .messages
+            .iter()
+            .map(EphemeraMessage::hash_with_default_hasher)
+            .collect::<anyhow::Result<Vec<Hash>>>()?;
+        let merkle_root = MerkleTree::build_tree(&message_hashes).root_hash();
+        let block_hash = Hasher::digest(&[header_hash.inner(), merkle_root.inner()].concat());
+        Ok(block_hash.into())
     }
 }
 
@@ -248,5 +267,52 @@ impl EphemeraHash for RawBlock {
             message.hash(state)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::block::types::message::RawEphemeraMessage;
+    use crate::crypto::EphemeraKeypair;
+
+    #[test]
+    fn test_block_hash_no_messages() {
+        let block = Block::new_genesis_block(PeerId::random());
+        let block_hash = block.hash_with_default_hasher().unwrap();
+        assert_eq!(block_hash, block.get_hash());
+    }
+
+    #[test]
+    fn test_block_hash_with_messages() {
+        let messages = create_ephemera_messages(10);
+        let message_hashes = messages
+            .iter()
+            .map(EphemeraMessage::hash_with_default_hasher)
+            .collect::<anyhow::Result<Vec<Hash>>>()
+            .unwrap();
+
+        let raw_block = RawBlock::new(RawBlockHeader::new(PeerId::random(), 0), messages);
+        let block_hash = raw_block.hash_with_default_hasher().unwrap();
+
+        let header_hash = raw_block.header.hash_with_default_hasher().unwrap();
+        let merkle_root = MerkleTree::build_tree(&message_hashes).root_hash();
+        let expected_block_hash =
+            Hasher::digest(&[header_hash.inner(), merkle_root.inner()].concat());
+
+        assert_eq!(block_hash, expected_block_hash.into());
+    }
+
+    fn create_ephemera_messages(n: usize) -> Vec<EphemeraMessage> {
+        let keypair = Keypair::generate(None);
+        let mut messages = Vec::new();
+        for i in 0..n {
+            let label = format!("test {i}",);
+            let message = RawEphemeraMessage::new(label, vec![0; 32]);
+            let certificate = Certificate::prepare(&keypair, &message).unwrap();
+            let ephemera_message = EphemeraMessage::new(message, certificate);
+            messages.push(ephemera_message);
+        }
+        messages
     }
 }

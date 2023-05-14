@@ -10,7 +10,14 @@ pub struct MerkleTree {
 }
 
 impl MerkleTree {
-    fn build_tree(leaves: &[Hash]) -> Self {
+    pub(crate) fn build_tree(leaves: &[Hash]) -> Self {
+        if leaves.is_empty() {
+            return Self {
+                leaf_count: 1,
+                nodes: vec![Hash::new([0; 32])],
+            };
+        }
+
         let leaf_count = leaves.len();
         let mut nodes = Vec::with_capacity(leaf_count * 2);
         nodes.extend_from_slice(leaves);
