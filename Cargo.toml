@@ -7,7 +7,6 @@ members = [
     "examples/nym-api",
     "node",
     "tools/rocksdb-repl",
-    "examples/test2"
 ]
 
 default-members = [
