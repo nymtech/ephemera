@@ -36,7 +36,6 @@ use crate::{
     },
 };
 
-
 #[derive(Error, Debug)]
 pub enum ApiError {
     #[error("Application rejected ephemera message")]
@@ -264,7 +263,8 @@ pub struct ApiVerifyMessageInBlock {
 }
 
 impl ApiVerifyMessageInBlock {
-    #[must_use] pub fn new(block_hash: String, message_hash: String, message_index: usize) -> Self {
+    #[must_use]
+    pub fn new(block_hash: String, message_hash: String, message_index: usize) -> Self {
         Self {
             block_hash,
             message_hash,

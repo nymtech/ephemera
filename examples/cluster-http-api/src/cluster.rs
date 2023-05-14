@@ -8,10 +8,10 @@ use rand::Rng;
 use tokio::task::JoinHandle;
 
 use ephemera::crypto::{EphemeraKeypair, Keypair};
-use ephemera::ephemera_api::{ApiDhtQueryRequest, ApiDhtStoreRequest};
+use ephemera::ephemera_api::{ApiDhtQueryRequest, ApiDhtStoreRequest, Client};
 
 use crate::node::Node;
-use crate::util::{create_ephemera_message, HealthyClient};
+use crate::util::create_ephemera_message;
 use crate::{node, Args};
 
 const EPHEMERA_IP: &str = "127.0.0.1";
@@ -423,10 +423,10 @@ impl Cluster {
         Duration::from_secs(avg_interval)
     }
 
-    async fn clients(&self) -> HashMap<usize, HealthyClient> {
+    async fn clients(&self) -> HashMap<usize, Client> {
         let mut clients = HashMap::new();
         for node in self.nodes.lock().await.iter() {
-            let client = HealthyClient::new_with_timeout(node.url.clone(), 30);
+            let client = Client::new_with_timeout(node.url.clone(), 30);
             clients.insert(node.id, client);
         }
         clients

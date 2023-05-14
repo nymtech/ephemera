@@ -4,12 +4,12 @@ use std::thread;
 
 use clap::Parser;
 
+use ephemera::peer::ToPeerId;
 use ephemera::{
     codec::Encode,
     crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair},
     ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage},
 };
-use ephemera::peer::ToPeerId;
 
 use crate::http_client::SignedMessageClient;
 use crate::ws_listener::WsBlockListener;
@@ -71,20 +71,20 @@ async fn main() {
     tokio::spawn(async move {
         listen_ws_blocks(listen_ws_data, listen_ws_args).await;
     })
-        .await
-        .unwrap();
+    .await
+    .unwrap();
 }
 
 async fn listen_ws_blocks(shared_data: Arc<Mutex<Data>>, args: Args) {
     let ws_url = format!("ws://{}:{}", args.host, args.ws_port);
-    println!("Listening to ws blocks on {ws_url}\n", );
+    println!("Listening to ws blocks on {ws_url}\n",);
     let mut listener = WsBlockListener::new(ws_url, shared_data);
     listener.listen().await;
 }
 
 async fn send_signed_messages(keypair: Keypair, shared_data: Arc<Mutex<Data>>, args: Args) -> ! {
     let http_url = format!("http://{}:{}", args.host, args.http_port);
-    println!("Sending messages to {http_url}\n", );
+    println!("Sending messages to {http_url}\n",);
     println!(
         "Sending signed messages every {} ms\n",
         args.messages_frequency_ms
@@ -94,7 +94,7 @@ async fn send_signed_messages(keypair: Keypair, shared_data: Arc<Mutex<Data>>, a
     let keypair = Arc::new(keypair);
     loop {
         let msg = client
-            .signed_message(keypair.clone(), format!("Epoch {counter}", ))
+            .signed_message(keypair.clone(), format!("Epoch {counter}",))
             .await;
 
         client.send_message(msg).await;
@@ -229,7 +229,7 @@ fn verify_block_certificates(
                 }
             }
             Err(err) => {
-                println!("Certificate verification failed: {err:?}", );
+                println!("Certificate verification failed: {err:?}",);
             }
         }
     }
@@ -243,8 +243,8 @@ fn compare_blocks(block: &ApiBlock, http_block: &ApiBlock) {
     let http_block_header = &http_block.header;
     if ws_block_header != http_block_header {
         println!("Block header mismatch");
-        println!("WS: {ws_block_header:?}", );
-        println!("HTTP: {http_block_header:?}", );
+        println!("WS: {ws_block_header:?}",);
+        println!("HTTP: {http_block_header:?}",);
     } else {
         println!("Block header match");
     }
