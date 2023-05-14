@@ -12,6 +12,7 @@ use crate::storage::rocksdb::store::DbStore;
 use crate::storage::EphemeraDatabase;
 use crate::storage::Result;
 use crate::utilities::crypto::Certificate;
+use crate::utilities::merkle::MerkleTree;
 
 pub(crate) mod query;
 pub(crate) mod store;
@@ -53,7 +54,7 @@ impl RocksDbStorage {
 }
 
 impl EphemeraDatabase for RocksDbStorage {
-    fn get_block_by_id(&self, block_id: &str) -> Result<Option<Block>> {
+    fn get_block_by_hash(&self, block_id: &str) -> Result<Option<Block>> {
         self.db_query
             .get_block_by_hash(block_id)
             .map_err(Into::into)
@@ -89,6 +90,12 @@ impl EphemeraDatabase for RocksDbStorage {
     ) -> Result<()> {
         self.db_store
             .store_block(block, certificates, members)
+            .map_err(Into::into)
+    }
+
+    fn get_block_merkle_tree(&self, block_hash: &str) -> Result<Option<MerkleTree>> {
+        self.db_query
+            .get_block_merkle_tree(block_hash)
             .map_err(Into::into)
     }
 }

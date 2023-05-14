@@ -46,8 +46,8 @@ impl ApiCmdProcessor {
                 Self::submit_message(ephemera, api_msg, reply).await?;
             }
 
-            ToEphemeraApiCmd::QueryBlockById(block_id, reply) => {
-                Self::query_block_by_id(ephemera, &block_id, reply).await;
+            ToEphemeraApiCmd::QueryBlockByHash(block_hash, reply) => {
+                Self::query_block_by_hash(ephemera, &block_hash, reply).await;
             }
 
             ToEphemeraApiCmd::QueryBlockByHeight(height, reply) => {
@@ -79,6 +79,10 @@ impl ApiCmdProcessor {
             }
             ToEphemeraApiCmd::QueryBlockBroadcastInfo(hash, reply) => {
                 Self::query_block_broadcast_info(ephemera, &hash, reply).await;
+            }
+            ToEphemeraApiCmd::VerifyMessageInBlock(block_hash, message_hash, index, reply) => {
+                Self::verify_message_in_block(ephemera, block_hash, message_hash, index, reply)
+                    .await;
             }
         }
         Ok(())
@@ -239,12 +243,12 @@ impl ApiCmdProcessor {
             .expect("Error sending QueryBlockByHeight response to api");
     }
 
-    async fn query_block_by_id<A: Application>(
+    async fn query_block_by_hash<A: Application>(
         ephemera: &mut Ephemera<A>,
-        block_id: &str,
+        block_hash: &str,
         reply: Sender<api::Result<Option<ApiBlock>>>,
     ) {
-        let response = match ephemera.storage.lock().await.get_block_by_id(block_id) {
+        let response = match ephemera.storage.lock().await.get_block_by_hash(block_hash) {
             Ok(Some(block)) => {
                 let api_block: ApiBlock = block.into();
                 Ok(api_block.into())
@@ -259,7 +263,7 @@ impl ApiCmdProcessor {
         };
         reply
             .send(response)
-            .expect("Error sending QueryBlockById response to api");
+            .expect("Error sending QueryBlockByHash response to api");
     }
 
     async fn submit_message<A: Application>(
@@ -340,5 +344,47 @@ impl ApiCmdProcessor {
         reply
             .send(response)
             .expect("Error sending QueryBlockBroadcastGroup response to api");
+    }
+    async fn verify_message_in_block<A: Application>(
+        ephemera: &mut Ephemera<A>,
+        block_hash: String,
+        message_hash: String,
+        index: usize,
+        reply: Sender<api::Result<bool>>,
+    ) {
+        let message_hash_hash = message_hash.parse();
+        if message_hash_hash.is_err() {
+            reply
+                .send(Err(ApiError::InvalidHash(
+                    "Failed to parse message hash".to_string(),
+                )))
+                .expect("Error sending VerifyMessageInBlock response to api");
+            return;
+        }
+
+        let message_hash_hash = message_hash_hash.unwrap();
+
+        let storage = ephemera.storage.lock().await;
+        match storage.get_block_merkle_tree(&block_hash) {
+            Ok(Some(tree)) => {
+                let result = tree.verify_leaf_at_index(message_hash_hash, index);
+                reply
+                    .send(Ok(result))
+                    .expect("Error sending VerifyMessageInBlock response to api");
+            }
+            Ok(None) => {
+                reply
+                    .send(Ok(false))
+                    .expect("Error sending VerifyMessageInBlock response to api");
+            }
+            Err(err) => {
+                error!("Error querying block merkle tree: {:?}", err);
+                reply
+                    .send(Err(ApiError::Internal(
+                        "Failed to verify message".to_string(),
+                    )))
+                    .expect("Error sending VerifyMessageInBlock response to api");
+            }
+        }
     }
 }

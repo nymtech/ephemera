@@ -25,9 +25,9 @@ impl Database {
     pub(crate) fn get_block_by_hash(&self, block_hash: &str) -> anyhow::Result<Option<Block>> {
         trace!("Getting block by id: {:?}", block_hash);
 
-        let block_id_key = block_hash_key(block_hash);
+        let block_hash_key = block_hash_key(block_hash);
 
-        let block = if let Some(block) = self.database.get(block_id_key)? {
+        let block = if let Some(block) = self.database.get(block_hash_key)? {
             let block = serde_json::from_slice::<Block>(&block)?;
             trace!("Found block: {}", block.header);
             Some(block)
@@ -41,8 +41,8 @@ impl Database {
     pub(crate) fn get_last_block(&self) -> anyhow::Result<Option<Block>> {
         trace!("Getting last block");
 
-        if let Some(block_id) = self.database.get(last_block_key())? {
-            let block_hash = String::from_utf8(block_id)?;
+        if let Some(block_hash) = self.database.get(last_block_key())? {
+            let block_hash = String::from_utf8(block_hash)?;
             self.get_block_by_hash(&block_hash)
         } else {
             trace!("Unable to get last block");
@@ -53,8 +53,8 @@ impl Database {
     pub(crate) fn get_block_by_height(&self, height: u64) -> anyhow::Result<Option<Block>> {
         trace!("Getting block by height: {}", height);
 
-        if let Some(block_id) = self.database.get(block_height_key(&height))? {
-            let block_hash = String::from_utf8(block_id)?;
+        if let Some(block_hash) = self.database.get(block_height_key(&height))? {
+            let block_hash = String::from_utf8(block_hash)?;
             self.get_block_by_hash(&block_hash)
         } else {
             trace!("Didn't find block");

@@ -5,6 +5,7 @@ use crate::block::types::block::Block;
 use crate::config::DatabaseConfiguration;
 use crate::peer::PeerId;
 use crate::utilities::crypto::Certificate;
+use crate::utilities::merkle::MerkleTree;
 
 pub(crate) struct DbQuery {
     pub(crate) connection: Connection,
@@ -127,7 +128,7 @@ impl DbQuery {
     pub(crate) fn get_block_merkle_tree(
         &self,
         block_hash: &str,
-    ) -> anyhow::Result<Option<Vec<String>>> {
+    ) -> anyhow::Result<Option<MerkleTree>> {
         let mut stmt = self
             .connection
             .prepare_cached("SELECT merkle_tree FROM block_merkle_tree where block_hash = ?1")?;
@@ -136,7 +137,7 @@ impl DbQuery {
             .query_row(params![block_hash], |row| {
                 let merkle_tree: Vec<u8> = row.get(0)?;
                 let merkle_tree =
-                    serde_json::from_slice::<Vec<String>>(&merkle_tree).map_err(|e| {
+                    serde_json::from_slice::<MerkleTree>(&merkle_tree).map_err(|e| {
                         error!("Error deserializing merkle_tree: {}", e);
                         rusqlite::Error::InvalidQuery {}
                     })?;

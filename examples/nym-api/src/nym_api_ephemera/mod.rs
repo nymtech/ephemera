@@ -145,7 +145,7 @@ impl NymApi {
                 let timeout = tokio::time::sleep(Duration::from_secs(2));
                 future::select(Box::pin(timeout), ser).await;
             }
-            Either::Right(((r, _, ser), _)) => {
+            Either::Right(((_r, _, ser), _)) => {
                 info!("Service failure, shutting down nym api ...");
                 shutdown_signal_tx.send(()).unwrap();
                 ephemera_shutdown.shutdown().unwrap();

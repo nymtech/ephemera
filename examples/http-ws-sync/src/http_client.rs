@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use log::error;
+
 use ephemera::crypto::Keypair;
 use ephemera::ephemera_api;
 use ephemera::ephemera_api::Client;
@@ -25,7 +27,7 @@ impl SignedMessageClient {
         match self.client.get_block_by_hash(&hash).await {
             Ok(block) => block,
             Err(err) => {
-                println!("Error sending message: {err:?}",);
+                println!("Error sending message: {err:?}", );
                 None
             }
         }
@@ -38,7 +40,7 @@ impl SignedMessageClient {
         match self.client.get_block_certificates(hash).await {
             Ok(certificates) => certificates,
             Err(err) => {
-                println!("Error sending message: {err:?}",);
+                println!("Error sending message: {err:?}", );
                 None
             }
         }
@@ -51,10 +53,14 @@ impl SignedMessageClient {
         match self.client.get_block_broadcast_info(hash).await {
             Ok(info) => info,
             Err(err) => {
-                println!("Error sending message: {err:?}",);
+                println!("Error sending message: {err:?}", );
                 None
             }
         }
+    }
+
+    pub(crate) async fn verify_message(&self, block_hash: &str, message_hash: &str, index: usize) -> anyhow::Result<bool> {
+        self.client.verify_message_in_block(block_hash, message_hash, index).await.map_err(|e| e.into())
     }
 
     pub(crate) async fn signed_message(

@@ -14,7 +14,7 @@ use tokio::sync::{
 
 use crate::api::types::{
     ApiBlock, ApiBlockBroadcastInfo, ApiBroadcastInfo, ApiCertificate, ApiEphemeraConfig,
-    ApiEphemeraMessage, ApiError,
+    ApiEphemeraMessage, ApiError, ApiVerifyMessageInBlock,
 };
 
 pub(crate) mod application;
@@ -36,7 +36,7 @@ pub(crate) type Result<T> = std::result::Result<T, ApiError>;
 pub(crate) enum ToEphemeraApiCmd {
     SubmitEphemeraMessage(Box<ApiEphemeraMessage>, oneshot::Sender<Result<()>>),
     QueryBlockByHeight(u64, oneshot::Sender<Result<Option<ApiBlock>>>),
-    QueryBlockById(String, oneshot::Sender<Result<Option<ApiBlock>>>),
+    QueryBlockByHash(String, oneshot::Sender<Result<Option<ApiBlock>>>),
     QueryLastBlock(oneshot::Sender<Result<ApiBlock>>),
     QueryBlockCertificates(String, oneshot::Sender<Result<Option<Vec<ApiCertificate>>>>),
     QueryDht(DhtKey, oneshot::Sender<Result<Option<DhtKV>>>),
@@ -47,6 +47,7 @@ pub(crate) enum ToEphemeraApiCmd {
         String,
         oneshot::Sender<Result<Option<ApiBlockBroadcastInfo>>>,
     ),
+    VerifyMessageInBlock(String, String, usize, oneshot::Sender<Result<bool>>),
 }
 
 impl Display for ToEphemeraApiCmd {
@@ -58,7 +59,7 @@ impl Display for ToEphemeraApiCmd {
             ToEphemeraApiCmd::QueryBlockByHeight(height, _) => {
                 write!(f, "QueryBlockByHeight({height})",)
             }
-            ToEphemeraApiCmd::QueryBlockById(id, _) => write!(f, "QueryBlockById({id})",),
+            ToEphemeraApiCmd::QueryBlockByHash(hash, _) => write!(f, "QueryBlockByHash({hash})",),
             ToEphemeraApiCmd::QueryLastBlock(_) => write!(f, "QueryLastBlock"),
             ToEphemeraApiCmd::QueryBlockCertificates(id, _) => {
                 write!(f, "QueryBlockSignatures{id}")
@@ -77,6 +78,12 @@ impl Display for ToEphemeraApiCmd {
             }
             ToEphemeraApiCmd::QueryBlockBroadcastInfo(hash, ..) => {
                 write!(f, "BlockBroadcastInfo({hash})")
+            }
+            ToEphemeraApiCmd::VerifyMessageInBlock(block_id, message_id, height, _) => {
+                write!(
+                    f,
+                    "VerifyMessageInBlock({block_id}, {message_id}, {height})",
+                )
             }
         }
     }
@@ -117,7 +124,7 @@ impl CommandExecutor {
     /// * `ApiError::InternalError` - If there is an internal error
     pub async fn get_block_by_id(&self, block_id: String) -> Result<Option<ApiBlock>> {
         trace!("get_block_by_id({:?})", block_id);
-        self.send_and_wait_response(|tx| ToEphemeraApiCmd::QueryBlockById(block_id, tx))
+        self.send_and_wait_response(|tx| ToEphemeraApiCmd::QueryBlockByHash(block_id, tx))
             .await
     }
 
@@ -257,6 +264,26 @@ impl CommandExecutor {
         trace!("send_ephemera_message({message})",);
         self.send_and_wait_response(|tx| {
             ToEphemeraApiCmd::SubmitEphemeraMessage(message.into(), tx)
+        })
+        .await
+    }
+
+    /// Verifies if given message is in block identified by block hash
+    /// Returns true if message is in block, false otherwise. False can also mean that block or message
+    /// does not exist.
+    ///
+    /// # Arguments
+    /// * `request` - Message and block hash
+    ///
+    /// # Errors
+    /// * `ApiError::InternalError` - If there is an internal error
+    pub async fn verify_message_in_block(&self, request: ApiVerifyMessageInBlock) -> Result<bool> {
+        trace!("verify_message_in_block({request})",);
+        let block_hash = request.block_hash;
+        let message_hash = request.message_hash;
+        let index = request.message_index;
+        self.send_and_wait_response(|tx| {
+            ToEphemeraApiCmd::VerifyMessageInBlock(block_hash, message_hash, index, tx)
         })
         .await
     }

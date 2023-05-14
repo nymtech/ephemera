@@ -53,7 +53,7 @@ impl MerkleTree {
         self.nodes[self.nodes.len() - 1]
     }
 
-    pub(crate) fn verify_leaf_at_index(&self, hash: Hash, leaf_index: usize) -> Hash {
+    pub(crate) fn verify_leaf_at_index(&self, hash: Hash, leaf_index: usize) -> bool {
         let mut level_offset = 0;
         let mut level_len = self.leaf_count;
         let mut leaf_index = leaf_index;
@@ -78,7 +78,7 @@ impl MerkleTree {
             level_offset += level_len;
             level_len = (level_len + 1) / 2;
         }
-        current_hash
+        current_hash == self.root_hash()
     }
 }
 
@@ -154,8 +154,8 @@ mod tests {
                 .zip(wrong_leaves.into_iter())
                 .enumerate()
             {
-                assert_eq!(tree.verify_leaf_at_index(correct, i), tree.root_hash());
-                assert_ne!(tree.verify_leaf_at_index(wrong, i), tree.root_hash());
+                assert!(tree.verify_leaf_at_index(correct, i));
+                assert!(!tree.verify_leaf_at_index(wrong, i));
             }
         }
     }

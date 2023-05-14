@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::api::types::{ApiBlockBroadcastInfo, ApiBroadcastInfo, ApiHealth};
 use crate::ephemera_api::{
     ApiBlock, ApiCertificate, ApiDhtQueryRequest, ApiDhtQueryResponse, ApiDhtStoreRequest,
-    ApiEphemeraConfig, ApiEphemeraMessage,
+    ApiEphemeraConfig, ApiEphemeraMessage, ApiVerifyMessageInBlock,
 };
 
 #[derive(Error, Debug)]
@@ -403,6 +403,55 @@ impl Client {
     ) -> Result<Option<ApiBlockBroadcastInfo>> {
         let url = format!("ephemera/broadcast/block/broadcast_info/{hash}",);
         self.query_optional(&url).await
+    }
+
+    /// Verifies if given message is in block identified by block hash
+    ///
+    /// # Example
+    /// ```no_run
+    /// use ephemera::ephemera_api::Client;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::new("http://localhost:7000/".to_string());
+    /// let is_in_block = client.verify_message_in_block("block_hash", "message_hash", 0).await?;
+    /// Ok(())
+    /// }
+    /// ```
+    ///
+    /// # Arguments
+    /// * `block_hash` - Hash of the block to query.
+    /// * `message_hash` - Hash of the message to query.
+    /// * `message_index` - Index of the message in the block.
+    ///
+    /// # Returns
+    /// * bool - True if the message is in the block, false otherwise.
+    ///
+    /// # Errors
+    /// If the request fails.
+    pub async fn verify_message_in_block(
+        &self,
+        block_hash: &str,
+        message_hash: &str,
+        message_index: usize,
+    ) -> Result<bool> {
+        let request = ApiVerifyMessageInBlock::new(
+            block_hash.to_string(),
+            message_hash.to_string(),
+            message_index,
+        );
+
+        let url = format!("{}/{}", self.url, "ephemera/messages/verify");
+        let response = self.client.post(&url).json(&request).send().await?;
+        if response.status().is_success() {
+            let body = response.json::<bool>().await?;
+            Ok(body)
+        } else {
+            Err(Error::UnexpectedResponse {
+                status: response.status(),
+                body: response.text().await?,
+            })
+        }
     }
 
     async fn query_optional<T: for<'de> serde::Deserialize<'de>>(

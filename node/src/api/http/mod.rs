@@ -28,6 +28,7 @@ pub(crate) fn init(node_info: &NodeInfo, api: CommandExecutor) -> anyhow::Result
             .service(query::broadcast_info)
             .service(submit::submit_message)
             .service(submit::store_in_dht)
+            .service(submit::verify_message_in_block)
             .service(swagger_ui())
     })
     .keep_alive(KeepAlive::Os)
@@ -55,6 +56,7 @@ fn swagger_ui() -> SwaggerUi {
             query::broadcast_info,
             submit::submit_message,
             submit::store_in_dht,
+            submit::verify_message_in_block
         ),
         components(schemas(
             types::ApiBlock,
@@ -67,6 +69,7 @@ fn swagger_ui() -> SwaggerUi {
             types::ApiDhtQueryRequest,
             types::ApiDhtQueryResponse,
             types::ApiBroadcastInfo,
+            types::ApiVerifyMessageInBlock,
         ))
     )]
     struct ApiDoc;

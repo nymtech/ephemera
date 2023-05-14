@@ -12,6 +12,7 @@
 //! - `ApiDhtStoreRequest`
 //! - `ApiBroadcastInfo`
 //! - `ApiBlockBroadcastInfo`
+//! - `ApiVerifyMessageInBlock`
 
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -35,14 +36,15 @@ use crate::{
     },
 };
 
+
 #[derive(Error, Debug)]
 pub enum ApiError {
     #[error("Application rejected ephemera message")]
     ApplicationRejectedMessage,
     #[error("Duplicate message")]
     DuplicateMessage,
-    #[error("Invalid block hash: {0}")]
-    InvalidBlockHash(#[from] bs58::decode::Error),
+    #[error("Invalid hash: {0}")]
+    InvalidHash(String),
     #[error("ApplicationError: {0}")]
     Application(#[from] ephemera_api::ApplicationError),
     #[error("Internal error: {0}")]
@@ -83,6 +85,16 @@ impl ApiEphemeraMessage {
             data: raw_message.data,
             certificate,
         }
+    }
+
+    /// Generates the message hash.
+    ///
+    /// # Errors
+    /// - If internal hash function fails.
+    pub fn hash(&self) -> anyhow::Result<String> {
+        let em = EphemeraMessage::from(self.clone());
+        let hash = em.hash_with_default_hasher()?.to_string();
+        Ok(hash)
     }
 }
 
@@ -242,6 +254,33 @@ pub struct ApiBroadcastInfo {
 pub struct ApiBlockBroadcastInfo {
     pub local_peer_id: PeerId,
     pub broadcast_group: Vec<PeerId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiVerifyMessageInBlock {
+    pub block_hash: String,
+    pub message_hash: String,
+    pub message_index: usize,
+}
+
+impl ApiVerifyMessageInBlock {
+    #[must_use] pub fn new(block_hash: String, message_hash: String, message_index: usize) -> Self {
+        Self {
+            block_hash,
+            message_hash,
+            message_index,
+        }
+    }
+}
+
+impl Display for ApiVerifyMessageInBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{ block_hash: {}, message_hash: {} }}",
+            self.block_hash, self.message_hash
+        )
+    }
 }
 
 impl ApiBlockBroadcastInfo {
@@ -467,7 +506,10 @@ impl TryFrom<ApiBlock> for Block {
                 timestamp: api_block.header.timestamp,
                 creator: api_block.header.creator,
                 height: api_block.header.height,
-                hash: api_block.header.hash.parse()?,
+                hash: api_block.header.hash.parse().map_err(|e| {
+                    error!("Failed to parse block hash: {}", e);
+                    ApiError::Internal("Failed to parse block hash".to_string())
+                })?,
             },
             messages,
         })
