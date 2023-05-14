@@ -91,8 +91,7 @@ See [README.md](../examples/members_provider_http/README.md)
 ## About reliable broadcast and consensus
 
 In blockchain technology blocks have two main purposes:
-1. To maintain chain of blocks, so that the validity of a each block can be cryptographically
-   verified by the previous blocks
+1. To maintain chain of blocks, so that the validity of each block can be cryptographically verified by the previous blocks
 2. As a unit of consensus, each block contains a set of transactions/messages/actions that are agreed upon by
    the network. This set of transactions is chosen from the global set of all possible transactions that are pending.
    We call the set of transactions in a block consensus because the set of nodes trying to achieve global shared state
@@ -129,7 +128,7 @@ Reliable broadcast with blocks helps to ensure this total ordering.
 Because Ephemera doesn't use the idea of leader, we can say that it solves consensus partially.
 It allows each instance to create a block. And then it's up to an application to decide which block to use.
 
-Also as it doesn't implement a full consensus algorithm, it doesn't ensure the termination.
+Also, as it doesn't implement a full consensus algorithm, it doesn't ensure the termination.
 There's no algorithm in place what tries to reach a consensus about a single block globally and sequentially
 in time.
 

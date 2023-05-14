@@ -1,148 +1,151 @@
-use crate::block::types::block::Block;
-use crate::block::types::message::EphemeraMessage;
-use crate::codec::Encode;
 use crate::utilities::hash::{EphemeraHasher, Hash, Hasher};
-use log::info;
 
-pub(crate) struct Merkle;
+use serde::{Deserialize, Serialize};
 
-#[allow(dead_code)]
-impl Merkle {
-    /// Calculate block merkle root hash
-    pub(crate) fn calculate_merkle_root<H: EphemeraHasher>(
-        block: &Block,
-        mut hasher: H,
-    ) -> anyhow::Result<Hash> {
-        let header_bytes = block.header.encode()?;
-        hasher.update(&header_bytes);
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MerkleTree {
+    leaf_count: usize,
+    nodes: Vec<Hash>,
+}
 
-        if block.messages.is_empty() {
-            let hash = hasher.finish().into();
-            return Ok(hash);
-        }
-        let mut message_hashes = vec![];
-        for message in &block.messages {
-            let bytes = message.encode()?;
-            let hash = Hasher::digest(bytes.as_slice());
-            message_hashes.push(hash);
-        }
+impl MerkleTree {
+    fn build_tree(leaves: &[Hash]) -> Self {
+        let leaf_count = leaves.len();
+        let mut nodes = Vec::with_capacity(leaf_count * 2);
+        nodes.extend_from_slice(leaves);
 
-        let mut iter = message_hashes.into_iter();
-        let mut messages_root = vec![];
-        loop {
-            let mut new_hashes = vec![];
-            let first = iter.next();
-            let second = iter.next();
+        let mut prev_level_len = leaf_count;
+        let mut prev_offset = 0;
+        let mut current_offset = leaf_count;
 
-            match (first, second) {
-                (Some(first), Some(second)) => {
-                    let mut hash = first.to_vec();
-                    hash.extend_from_slice(&second);
-                    let hash = Hasher::digest(&hash);
-                    new_hashes.push(hash);
-                }
-                (Some(first), None) => {
-                    new_hashes.push(first);
-                    break;
-                }
-                (None, None) => {}
-                _ => break,
+        while prev_level_len > 1 {
+            let current_level_len = (prev_level_len + 1) / 2;
+
+            for i in 0..current_level_len {
+                let prev_index = i * 2;
+                let left = nodes[prev_offset + prev_index];
+                let right = if prev_index + 1 < prev_level_len {
+                    nodes[prev_offset + prev_index + 1]
+                } else {
+                    nodes[prev_offset + prev_index]
+                };
+                let hash = Hasher::digest(&[left.inner(), right.inner()].concat()).into();
+                nodes.push(hash);
             }
-
-            if new_hashes.len() == 1 {
-                messages_root = new_hashes[0].to_vec();
-                break;
-            } else if new_hashes.len() == 2 {
-                let mut hash = new_hashes[0].to_vec();
-                hash.extend_from_slice(&new_hashes[1]);
-                messages_root = Hasher::digest(&hash).to_vec();
-                break;
-            }
-
-            info!("Merkle tree has {} hashes", new_hashes.len());
-            iter = new_hashes.into_iter();
+            prev_level_len = current_level_len;
+            prev_offset = current_offset;
+            current_offset += current_level_len;
         }
-
-        let mut header_hash = hasher.finish().to_vec();
-        header_hash.extend_from_slice(&messages_root);
-        let root_hash = Hasher::digest(&header_hash);
-
-        Ok(root_hash.into())
+        Self { leaf_count, nodes }
     }
 
-    /// Verify that a message is in a block.
-    /// The message is verified by checking that the `merkle_root` of the block matches the given `merkle_root`.
-    ///
-    /// PS! It doesn't check message index
-    pub(crate) fn verify_message_hash_in_block(
-        merkle_root: Hash,
-        block: &Block,
-        message: &EphemeraMessage,
-    ) -> anyhow::Result<bool> {
-        let mut correct_index = false;
-        for msg in block.messages.clone() {
-            if msg == *message {
-                correct_index = true;
-            }
-        }
-        if !correct_index {
-            return Ok(false);
-        }
+    pub(crate) fn root_hash(&self) -> Hash {
+        self.nodes[self.nodes.len() - 1]
+    }
 
-        //As we don't have a merkle tree saved anywhere(yet), we just do a brute force check
-        let hasher = Hasher::default();
-        Ok(Self::calculate_merkle_root(block, hasher)? == merkle_root)
+    pub(crate) fn verify_leaf_at_index(&self, hash: Hash, leaf_index: usize) -> Hash {
+        let mut level_offset = 0;
+        let mut level_len = self.leaf_count;
+        let mut leaf_index = leaf_index;
+        let mut current_hash = hash;
+        while level_offset + level_len < self.nodes.len() {
+            let level = &self.nodes[level_offset..(level_offset + level_len)];
+            if leaf_index % 2 == 0 {
+                let right_index = if leaf_index + 1 < level_len {
+                    leaf_index + 1
+                } else {
+                    leaf_index
+                };
+                current_hash =
+                    Hasher::digest(&[current_hash.inner(), level[right_index].inner()].concat())
+                        .into();
+            } else {
+                current_hash =
+                    Hasher::digest(&[level[leaf_index - 1].inner(), current_hash.inner()].concat())
+                        .into();
+            }
+            leaf_index /= 2;
+            level_offset += level_len;
+            level_len = (level_len + 1) / 2;
+        }
+        current_hash
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::crypto::EphemeraKeypair;
-    use crate::peer::PeerId;
-    use crate::{
-        block::{
-            types::block::{Block, RawBlock, RawBlockHeader},
-            types::message::{EphemeraMessage, RawEphemeraMessage},
-        },
-        codec::Encode,
-        crypto::Keypair,
-        utilities::{crypto::Certificate, hash::Hasher, merkle::Merkle},
-    };
+    use rand::RngCore;
+    use std::iter;
+
+    use super::*;
+    use crate::utilities::hash::Hash;
 
     #[test]
     fn test_merkle() {
-        for i in 0..=10 {
-            let (block, messages) = new_block(i);
-            let merkle_root = Merkle::calculate_merkle_root(&block, Hasher::default()).unwrap();
+        //Technically testing one implementation against another...
+        for i in 1..10 {
+            let mut rnd = rand::thread_rng();
+            let leaves = iter::repeat_with(|| {
+                let mut bytes = [0u8; 32];
+                rnd.fill_bytes(&mut bytes);
+                Hash::new(bytes)
+            })
+            .take(i)
+            .collect::<Vec<_>>();
 
-            for message in messages.iter().take(i) {
-                assert!(
-                    Merkle::verify_message_hash_in_block(merkle_root, &block, message,).unwrap()
-                );
+            let mut level: Vec<Hash> = leaves.clone();
+
+            while level.len() > 1 {
+                level = level
+                    .chunks(2)
+                    .map(|chunk| {
+                        if chunk.len() == 1 {
+                            Hasher::digest(&[chunk[0].inner(), chunk[0].inner()].concat()).into()
+                        } else {
+                            Hasher::digest(&[chunk[0].inner(), chunk[1].inner()].concat()).into()
+                        }
+                    })
+                    .collect();
             }
+
+            let root: Hash = level[0];
+
+            let tree = MerkleTree::build_tree(&leaves);
+            assert_eq!(tree.root_hash(), root);
         }
     }
 
-    #[allow(clippy::cast_possible_truncation)]
-    fn new_block(nr_of_messages: usize) -> (Block, Vec<EphemeraMessage>) {
-        let peer_id = PeerId::random();
-        let header = RawBlockHeader::new(peer_id, 0);
+    #[test]
+    fn test_verify_leaf() {
+        for i in 0..10 {
+            let mut rnd = rand::thread_rng();
+            let right_leaves = iter::repeat_with(|| {
+                let mut bytes = [0u8; 32];
+                rnd.fill_bytes(&mut bytes);
+                Hash::new(bytes)
+            })
+            .take(i)
+            .collect::<Vec<_>>();
 
-        let keypair = Keypair::generate(None);
-        let signature = keypair.sign(&header.encode().unwrap()).unwrap();
-        let certificate = Certificate::new(signature, keypair.public_key());
+            let wrong_leaves = iter::repeat_with(|| {
+                let mut bytes = [0u8; 32];
+                rnd.fill_bytes(&mut bytes);
+                Hash::new(bytes)
+            })
+            .take(i)
+            .collect::<Vec<_>>();
 
-        let mut messages = vec![];
-        for i in 0..nr_of_messages {
-            messages.push(EphemeraMessage::new(
-                RawEphemeraMessage::new(format!("label{i}"), vec![i as u8]),
-                certificate.clone(),
-            ));
+            let tree = MerkleTree::build_tree(&right_leaves);
+
+            for (i, (correct, wrong)) in right_leaves
+                .into_iter()
+                .zip(wrong_leaves.into_iter())
+                .enumerate()
+            {
+                assert_eq!(tree.verify_leaf_at_index(correct, i), tree.root_hash());
+                assert_ne!(tree.verify_leaf_at_index(wrong, i), tree.root_hash());
+            }
         }
-
-        let raw_block = RawBlock::new(header, messages.clone());
-        let block_hash = raw_block.hash_with_default_hasher().unwrap();
-        let block = Block::new(raw_block, block_hash);
-        (block, messages)
     }
 }

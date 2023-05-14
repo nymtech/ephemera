@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display};
+
 use std::str::FromStr;
 
 use blake2::{Blake2b, Digest};
@@ -13,6 +14,10 @@ pub struct Hash([u8; 32]);
 impl Hash {
     pub fn new(hash: [u8; 32]) -> Self {
         Self(hash)
+    }
+
+    pub fn inner(&self) -> [u8; 32] {
+        self.0
     }
 
     pub(crate) fn base58(&self) -> String {
