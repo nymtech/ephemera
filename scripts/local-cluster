@@ -394,7 +394,7 @@ run_ephemera() {
   echo "Starting $d"
   $EPHEMERA run-node \
   --config-file ~/.ephemera/node"${NR}"/ephemera.toml \
-  --http-provider-url http://127.0.0.1:8000/peers \
+  --peers-config ~/.ephemera/peers.toml \
   >"$LOGS_FILE" 2>&1 &
 
   echo "$NR":"$!" >>"$PIDS_FILE"

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::Parser;
-use log::info;
+use log::{error, info};
 use toml::{Table, Value};
 
 use crate::config::Configuration;
@@ -23,28 +23,30 @@ impl UpdateConfigCmd {
     /// Panics if the config file does not exist.
     pub fn execute(self) {
         let path: PathBuf = self.config_path.clone().into();
-        if Configuration::try_load(path.clone()).is_err() {
-            println!("Config '{}' does not exist", self.config_path);
-            return;
+        match Configuration::try_load(path.clone()) {
+            Ok(_) => {
+                info!("Updating config: {:?}", self);
+
+                let toml_str = fs::read_to_string(path.clone()).unwrap();
+                let table = toml_str.parse::<Table>().unwrap();
+
+                let keys = self.property.split('.').collect::<Vec<&str>>();
+
+                if !table.contains_key(keys[0]) {
+                    println!("Key '{}' does not exist", keys[0]);
+                    return;
+                }
+
+                let mut visitor = ConfigVisitor::new(keys, self.value);
+                let table = visitor.process(table);
+
+                let toml_str = toml::to_string(&table).unwrap();
+                fs::write(path, toml_str).unwrap();
+            }
+            Err(err) => {
+                error!("Error loading configuration file: {err:?}");
+            }
         }
-
-        info!("Updating config: {:?}", self);
-
-        let toml_str = fs::read_to_string(path.clone()).unwrap();
-        let table = toml_str.parse::<Table>().unwrap();
-
-        let keys = self.property.split('.').collect::<Vec<&str>>();
-
-        if !table.contains_key(keys[0]) {
-            println!("Key '{}' does not exist", keys[0]);
-            return;
-        }
-
-        let mut visitor = ConfigVisitor::new(keys, self.value);
-        let table = visitor.process(table);
-
-        let toml_str = toml::to_string(&table).unwrap();
-        fs::write(path, toml_str).unwrap();
     }
 }
 

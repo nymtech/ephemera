@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  node1:
+    image: ephemera
+    volumes:
+      - ~/.ephemera/node1/ephemera.toml:/ephemera.toml
+      - ~/.ephemera/peers.toml:/peers.toml
+    domainname: node1
+    ports:
+      - "7000:7000"
+      - "3000:3000"
+  node2:
+    image: ephemera
+    volumes:
+      - ~/.ephemera/node2/ephemera.toml:/ephemera.toml
+      - ~/.ephemera/peers.toml:/peers.toml
+    domainname: node2
+    ports:
+      - "7001:7001"
+      - "3001:3001"
+  node3:
+    image: ephemera
+    volumes:
+      - ~/.ephemera/node3/ephemera.toml:/ephemera.toml
+      - ~/.ephemera/peers.toml:/peers.toml
+    domainname: node3
+    ports:
+      - "7002:7002"
+      - "3002:3002"

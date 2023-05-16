@@ -122,6 +122,7 @@ pub enum AddressError {
 /// Supported formats:
 /// 1. `<IP>:<PORT>`
 /// 2. `/ip4/<IP>/tcp/<PORT>` - this is format used by libp2p multiaddr.
+/// 3. `/dns4/<NAME>/tcp/<PORT>` - this is format used by libp2p multiaddr.
 /// See [libp2p/multiaddress](https://github.com/libp2p/specs/blob/master/addressing/README.md) for more details.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Address(pub Multiaddr);

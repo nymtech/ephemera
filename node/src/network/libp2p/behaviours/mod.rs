@@ -3,7 +3,7 @@ use std::{iter, sync::Arc, time::Duration};
 
 use libp2p::{
     core::{muxing::StreamMuxerBox, transport::Boxed},
-    gossipsub,
+    dns, gossipsub,
     gossipsub::{IdentTopic as Topic, MessageAuthenticity, ValidationMode},
     kad, noise, request_response as libp2p_request_response,
     swarm::NetworkBehaviour,
@@ -171,6 +171,8 @@ pub(crate) fn create_transport(
     local_key: &Arc<Keypair>,
 ) -> anyhow::Result<Boxed<(Libp2pPeerId, StreamMuxerBox)>> {
     let transport = TokioTransport::new(TokioConfig::default().nodelay(true));
+    let transport = dns::TokioDnsConfig::system(transport)?;
+
     let noise_config = noise::Config::new(local_key.inner())?;
     Ok(transport
         .upgrade(libp2p::core::upgrade::Version::V1)

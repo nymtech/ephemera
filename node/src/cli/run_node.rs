@@ -39,7 +39,7 @@ pub struct RunExternalNodeCmd {
     #[clap(short, long)]
     pub config_file: String,
     #[clap(short, long)]
-    pub http_provider_url: Url,
+    pub peers_config: String,
 }
 
 impl RunExternalNodeCmd {
@@ -54,7 +54,7 @@ impl RunExternalNodeCmd {
             Err(err) => anyhow::bail!("Error loading configuration file: {err:?}"),
         };
 
-        let members_provider = Self::http_members_provider(self.http_provider_url.to_string());
+        let members_provider = Self::config_members_provider_with_path(self.peers_config.clone())?;
         let ephemera = EphemeraStarterInit::new(ephemera_conf.clone())
             .unwrap()
             .with_application(Dummy)
@@ -109,6 +109,18 @@ impl RunExternalNodeCmd {
         Ok(peers_conf)
     }
 
+    #[allow(dead_code)]
+    fn config_members_provider_with_path(
+        peers_conf_path: String,
+    ) -> anyhow::Result<ConfigMembersProvider> {
+        let peers_conf = match ConfigMembersProvider::init(peers_conf_path) {
+            Ok(conf) => conf,
+            Err(err) => anyhow::bail!("Error loading peers file: {err:?}"),
+        };
+        Ok(peers_conf)
+    }
+
+    #[allow(dead_code)]
     fn http_members_provider(url: String) -> HttpMembersProvider {
         HttpMembersProvider::new(url)
     }

@@ -161,7 +161,8 @@ where
         local_peer_id: PeerId,
         membership_kind: MembershipKind,
     ) -> Self {
-        let delay = time::interval(members_provider_delay);
+        let initial_delay = Instant::now() + Duration::from_secs(5);
+        let delay = tokio::time::interval_at(initial_delay, members_provider_delay);
         Behaviour {
             memberships: Memberships::new(),
             local_peer_id,
@@ -339,7 +340,7 @@ where
                     *dial_attempts += 1;
                     trace!("Next attempt({dial_attempts:?}) to dial failed peers");
                 } else {
-                    let start_at = time::Instant::now() + Duration::from_secs(5);
+                    let start_at = Instant::now() + Duration::from_secs(5);
                     *interval_between_dial_attempts =
                         Some(time::interval_at(start_at, Duration::from_secs(10)));
                 }
@@ -430,7 +431,7 @@ where
         _local_addr: &Multiaddr,
         _remote_addr: &Multiaddr,
     ) -> Result<THandler<Self>, ConnectionDenied> {
-        debug!("Established inbound connection with peer: {:?}", peer);
+        trace!("Established inbound connection with peer: {:?}", peer);
         Ok(Handler::new())
     }
 
@@ -456,9 +457,10 @@ where
         addr: &Multiaddr,
         _role_override: Endpoint,
     ) -> Result<THandler<Self>, ConnectionDenied> {
-        debug!(
+        trace!(
             "Established outbound connection with peer: {:?} {:?}",
-            peer, addr
+            peer,
+            addr
         );
         Ok(Handler::new())
     }
