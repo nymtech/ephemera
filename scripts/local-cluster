@@ -305,6 +305,7 @@ create_cluster() {
   HTTP_API_PORT=7000
   for ((c = 1; c <= NR_OF_NODES; c++)); do
     $EPHEMERA init-config \
+      --ip node"$c" \
       --node-name node"$c" \
       --protocol-port $EPHEMERA_PORT \
       --websocket-port "$WS_PORT" \

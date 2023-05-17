@@ -3,8 +3,8 @@ services:
   node1:
     image: ephemera
     volumes:
-      - ~/.ephemera/node1/ephemera.toml:/ephemera.toml
-      - ~/.ephemera/peers.toml:/peers.toml
+      - ./config/ephemera1.toml:/ephemera.toml
+      - ./config/peers.toml:/peers.toml
     domainname: node1
     ports:
       - "7000:7000"
@@ -12,8 +12,8 @@ services:
   node2:
     image: ephemera
     volumes:
-      - ~/.ephemera/node2/ephemera.toml:/ephemera.toml
-      - ~/.ephemera/peers.toml:/peers.toml
+      - ./config/ephemera2.toml:/ephemera.toml
+      - ./config/peers.toml:/peers.toml
     domainname: node2
     ports:
       - "7001:7001"
@@ -21,8 +21,8 @@ services:
   node3:
     image: ephemera
     volumes:
-      - ~/.ephemera/node3/ephemera.toml:/ephemera.toml
-      - ~/.ephemera/peers.toml:/peers.toml
+      - ./config/ephemera3.toml:/ephemera.toml
+      - ./config/peers.toml:/peers.toml
     domainname: node3
     ports:
       - "7002:7002"

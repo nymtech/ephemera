@@ -1,5 +1,5 @@
 FROM rust:1.69.0 as builder
-COPY . /ephemera
+COPY .. /ephemera
 WORKDIR /ephemera
 RUN cargo build --release
 
