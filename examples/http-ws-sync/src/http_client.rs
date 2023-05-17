@@ -1,7 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use log::error;
-
 use ephemera::crypto::Keypair;
 use ephemera::ephemera_api;
 use ephemera::ephemera_api::Client;

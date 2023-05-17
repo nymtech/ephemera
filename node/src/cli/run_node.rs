@@ -140,7 +140,10 @@ impl SignatureVerificationApplication {
         let signature = msg.certificate.clone();
         let raw_message: RawApiEphemeraMessage = msg.into();
         let encoded_message = Codec::encode(&raw_message)?;
-        if self.keypair.verify(&encoded_message, &signature.signature) {
+        if self
+            .keypair
+            .verify(&encoded_message, &signature.signature.into())
+        {
             Ok(())
         } else {
             anyhow::bail!("Invalid signature")

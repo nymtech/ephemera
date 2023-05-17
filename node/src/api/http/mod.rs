@@ -62,6 +62,8 @@ fn swagger_ui() -> SwaggerUi {
             types::ApiBlock,
             types::ApiEphemeraMessage,
             types::ApiCertificate,
+            types::ApiSignature,
+            types::ApiPublicKey,
             types::ApiHealth,
             types::HealthStatus,
             types::ApiEphemeraConfig,

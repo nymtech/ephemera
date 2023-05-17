@@ -1,13 +1,11 @@
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix_web::body::MessageBody;
-use futures::future::{Either, SelectAll};
-use futures::{future, FutureExt};
-use log::{error, info};
+use futures::future;
+use futures::future::Either;
+use log::info;
 use tokio::sync::broadcast::Sender;
-use tokio::sync::oneshot::error::RecvError;
+
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
@@ -138,7 +136,7 @@ impl NymApi {
         let service_fut = future::select_all(handles);
 
         match future::select(shutdown, service_fut).await {
-            Either::Left((s, ser)) => {
+            Either::Left((_s, ser)) => {
                 info!("Shutting down nym api ...");
                 shutdown_signal_tx.send(()).unwrap();
                 ephemera_shutdown.shutdown().unwrap();

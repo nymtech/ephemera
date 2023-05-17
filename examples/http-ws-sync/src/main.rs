@@ -6,7 +6,6 @@ use clap::Parser;
 
 use ephemera::peer::ToPeerId;
 use ephemera::{
-    codec::Encode,
     crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair},
     ephemera_api::{ApiBlock, ApiCertificate, ApiEphemeraMessage, RawApiEphemeraMessage},
 };
@@ -187,11 +186,10 @@ fn verify_messages_signatures(block: &ApiBlock) -> anyhow::Result<()> {
         block.messages.len()
     );
     for message in &block.messages {
-        let signature = message.certificate.clone();
+        let certificate = message.certificate.clone();
         let message: RawApiEphemeraMessage = message.clone().into();
-        let data = message.encode()?;
 
-        if !signature.public_key.verify(&data, &signature.signature) {
+        if !certificate.verify(&message)? {
             anyhow::bail!("Signature verification failed");
         }
     }
@@ -214,7 +212,7 @@ fn verify_block_certificates(
 ) -> anyhow::Result<()> {
     println!("Verifying block certificates: {:?}\n", certificates.len());
     for certificate in certificates {
-        match block.verify(&certificate) {
+        match block.verify(certificate) {
             Ok(valid) => {
                 if valid {
                     println!(

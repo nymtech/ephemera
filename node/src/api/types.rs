@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utoipa::ToSchema;
 
-use crate::peer::PeerId;
+use crate::peer::{PeerId, ToPeerId};
 use crate::utilities::codec::{Codec, DecodingError, EncodingError, EphemeraCodec};
 use crate::{
     block::types::{block::Block, block::BlockHeader, message::EphemeraMessage},
@@ -176,9 +176,15 @@ pub struct ApiRawBlock {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiCertificate {
-    pub signature: Signature,
-    pub public_key: PublicKey,
+    pub signature: ApiSignature,
+    pub public_key: ApiPublicKey,
 }
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiSignature(pub(crate) Signature);
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
+pub struct ApiPublicKey(pub(crate) PublicKey);
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
 pub struct ApiEphemeraConfig {
@@ -446,8 +452,8 @@ impl From<EphemeraMessage> for ApiEphemeraMessage {
             label: ephemera_message.label,
             data: ephemera_message.data,
             certificate: ApiCertificate {
-                signature: ephemera_message.certificate.signature,
-                public_key: ephemera_message.certificate.public_key,
+                signature: ephemera_message.certificate.signature.into(),
+                public_key: ephemera_message.certificate.public_key.into(),
             },
         }
     }
@@ -456,8 +462,8 @@ impl From<EphemeraMessage> for ApiEphemeraMessage {
 impl From<Certificate> for ApiCertificate {
     fn from(signature: Certificate) -> Self {
         Self {
-            signature: signature.signature,
-            public_key: signature.public_key,
+            signature: signature.signature.into(),
+            public_key: signature.public_key.into(),
         }
     }
 }
@@ -465,8 +471,8 @@ impl From<Certificate> for ApiCertificate {
 impl From<ApiCertificate> for Certificate {
     fn from(value: ApiCertificate) -> Self {
         Certificate {
-            signature: value.signature,
-            public_key: value.public_key,
+            signature: value.signature.into(),
+            public_key: value.public_key.into(),
         }
     }
 }
@@ -475,6 +481,36 @@ impl From<&Block> for &ApiBlock {
     fn from(block: &Block) -> Self {
         let api_block: ApiBlock = block.clone().into();
         Box::leak(Box::new(api_block))
+    }
+}
+
+impl From<Signature> for ApiSignature {
+    fn from(signature: Signature) -> Self {
+        Self(signature)
+    }
+}
+
+impl From<ApiSignature> for Signature {
+    fn from(signature: ApiSignature) -> Self {
+        signature.0
+    }
+}
+
+impl ApiPublicKey {
+    pub fn peer_id(&self) -> String {
+        self.0.peer_id().to_string()
+    }
+}
+
+impl From<PublicKey> for ApiPublicKey {
+    fn from(public_key: PublicKey) -> Self {
+        Self(public_key)
+    }
+}
+
+impl From<ApiPublicKey> for PublicKey {
+    fn from(public_key: ApiPublicKey) -> Self {
+        public_key.0
     }
 }
 
@@ -587,7 +623,8 @@ impl ApiDhtQueryResponse {
 
 #[cfg(test)]
 mod test {
-    use crate::crypto::{EphemeraKeypair, EphemeraPublicKey, Keypair};
+    use crate::crypto::EphemeraKeypair;
+    use crate::crypto::Keypair;
 
     use super::*;
 
@@ -602,9 +639,7 @@ mod test {
 
         let certificate = signed_message.certificate;
 
-        assert!(certificate
-            .public_key
-            .verify(&message.encode().unwrap(), &certificate.signature));
+        assert!(certificate.verify(&message).unwrap());
     }
 
     #[test]
@@ -619,8 +654,6 @@ mod test {
         let certificate = signed_message.certificate;
 
         let modified_message = RawApiEphemeraMessage::new("test2".to_string(), vec![1, 2, 3]);
-        assert!(!certificate
-            .public_key
-            .verify(&modified_message.encode().unwrap(), &certificate.signature));
+        assert!(!certificate.verify(&modified_message).unwrap());
     }
 }
