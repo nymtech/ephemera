@@ -1,11 +1,9 @@
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 
 use libp2p::core::ConnectedPoint;
 use libp2p::Multiaddr;
 use serde::Serialize;
-
-use crate::logging::pretty_json;
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash, Serialize)]
 pub(crate) enum Endpoint {
@@ -33,7 +31,7 @@ impl From<ConnectedPoint> for Endpoint {
     }
 }
 
-#[derive(Default, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub(crate) struct Connections {
     dialer: HashSet<Endpoint>,
     listener: HashSet<Endpoint>,
@@ -63,7 +61,7 @@ impl Connections {
     }
 }
 
-#[derive(Default, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub(crate) struct ConnectedPeers {
     connections: HashMap<libp2p_identity::PeerId, Connections>,
 }
@@ -86,12 +84,5 @@ impl ConnectedPeers {
         if let Some(connections) = self.connections.get_mut(peer_id) {
             connections.remove(connected_point);
         }
-    }
-}
-
-impl Debug for ConnectedPeers {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let output = pretty_json(self);
-        write!(f, "{output}",)
     }
 }
