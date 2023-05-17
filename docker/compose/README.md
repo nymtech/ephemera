@@ -7,8 +7,8 @@
 ## Build
 
 ```bash
-cd ../node
-docker build . -f ../docker/Dockerfile -t ephemera
+cd ../../node
+docker build . -f ../docker/compose/Dockerfile -t ephemera:latest
 ```
 
 ## Run with docker compose
