@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ephemera2-deployment
+  labels:
+    app: ephemera2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ephemera2
+  template:
+    metadata:
+      labels:
+        app: ephemera2
+    spec:
+      containers:
+      - image: ephemera:latest
+        imagePullPolicy: IfNotPresent
+        name: ephemera
+        env:
+          - name: EPHEMERA_CONFIG
+            value: "/config/ephemera2.toml"
+          - name: PEERS_CONFIG
+            value: "/config/peers.toml"
+        volumeMounts:
+          - mountPath: /config
+            name: config
+        ports:
+          - containerPort: 3001
+            name: protocol-port
+          - containerPort: 7001
+            name: http-port
+      volumes:
+        - name: config
+          configMap:
+            name: ephemera2

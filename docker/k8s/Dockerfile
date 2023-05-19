@@ -14,8 +14,10 @@ RUN apt-get update && \
 COPY --from=builder /ephemera/target/release/ephemera /usr/local/bin
 
 ENV RUST_BACKTRACE full
-ENV RUST_LOG "info"
+ENV RUST_LOG "debug"
+ENV EPHEMERA_CONFIG "ephemera.toml"
+ENV PEERS_CONFIG "peers.toml"
 
-EXPOSE 3000 7000
+EXPOSE 7000
 
-ENTRYPOINT /usr/local/bin/ephemera run-node --config-file /ephemera-config/ephemera.toml --peers-config /ephemera-config/peers.toml
+ENTRYPOINT /usr/local/bin/ephemera run-node --config-file $EPHEMERA_CONFIG --peers-config $PEERS_CONFIG
