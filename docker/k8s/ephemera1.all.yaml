@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ephemera1-deployment
+  labels:
+    app: ephemera1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ephemera1
+  template:
+    metadata:
+      labels:
+        app: ephemera1
+    spec:
+      containers:
+        - image: 526189391121.dkr.ecr.us-east-1.amazonaws.com/nym:ephemera
+          imagePullPolicy: Always
+          name: ephemera
+          env:
+            - name: EPHEMERA_CONFIG
+              value: "/config/ephemera1.toml"
+            - name: PEERS_CONFIG
+              value: "/config/peers.toml"
+            - name: RUST_LOG
+              value: debug
+          volumeMounts:
+            - mountPath: /config
+              name: config
+          ports:
+            - containerPort: 3000
+              name: protocol-port
+            - containerPort: 7000
+              name: http-port
+      volumes:
+        - name: config
+          configMap:
+            name: ephemera1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ephemera1-svc
+spec:
+  selector:
+    app: ephemera1-service
+  type: NodePort
+  ports:
+    - name: protocol-port-svc
+      protocol: TCP
+      port: 3000
+      targetPort: protocol-port
+    - name: http-port-svc
+      protocol: TCP
+      port: 7000
+      targetPort: http-port

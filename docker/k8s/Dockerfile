@@ -1,4 +1,6 @@
-FROM rust:1.69.0 as builder
+FROM rustlang/rust:nightly-alpine as builder
+RUN apk add --no-cache musl-dev openssl-dev
+
 COPY .. /ephemera
 WORKDIR /ephemera
 RUN cargo build --release
@@ -12,9 +14,9 @@ RUN apt-get update && \
 
 
 COPY --from=builder /ephemera/target/release/ephemera /usr/local/bin
-
+ARG RUST_LOG="info"
 ENV RUST_BACKTRACE full
-ENV RUST_LOG "debug"
+ENV RUST_LOG $RUST_LOG
 ENV EPHEMERA_CONFIG "ephemera.toml"
 ENV PEERS_CONFIG "peers.toml"
 

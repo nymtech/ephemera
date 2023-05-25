@@ -131,12 +131,9 @@ impl RawApiEphemeraMessage {
     /// let keypair = Keypair::generate(None);
     /// let raw_message = RawApiEphemeraMessage::new("test".to_string(), vec![]);
     ///
-    /// let signed_message:ApiEphemeraMessage = raw_message.sign(&keypair).unwrap();
+    /// let signed_message: ApiEphemeraMessage = raw_message.sign(&keypair).unwrap();
     ///
-    /// assert_eq!(signed_message.certificate.public_key, keypair.public_key());
-    ///
-    /// let bytes = raw_message.encode().unwrap();
-    /// assert!(keypair.public_key().verify(&bytes, &signed_message.certificate.signature));
+    /// assert!(signed_message.certificate.verify(&raw_message).unwrap());
     /// ```
     ///
     /// # Errors
@@ -497,6 +494,7 @@ impl From<ApiSignature> for Signature {
 }
 
 impl ApiPublicKey {
+    #[must_use]
     pub fn peer_id(&self) -> String {
         self.0.peer_id().to_string()
     }

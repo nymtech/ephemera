@@ -11,3 +11,11 @@
 ## Examples
 
 [README](examples)
+
+## Code
+
+### Cargo
+
+```bash
+cargo checkmate
+```

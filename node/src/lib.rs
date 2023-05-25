@@ -46,7 +46,8 @@ pub mod ephemera_api {
         types::{
             ApiBlock, ApiBlockBroadcastInfo, ApiBroadcastInfo, ApiCertificate, ApiDhtQueryRequest,
             ApiDhtQueryResponse, ApiDhtStoreRequest, ApiEphemeraConfig, ApiEphemeraMessage,
-            ApiError, ApiHealth, ApiVerifyMessageInBlock, RawApiEphemeraMessage,
+            ApiError, ApiHealth, ApiPublicKey, ApiSignature, ApiVerifyMessageInBlock,
+            RawApiEphemeraMessage,
         },
         CommandExecutor,
     };

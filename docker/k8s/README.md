@@ -1,8 +1,20 @@
 # Kubernetes
 
-Tested only locally with Docker Desktop for Mac.
+## AWS
 
-## How to setup
+[eksctl](https://eksctl.io/) is the official CLI for Amazon EKS
+
+```bash
+brew install eksctl
+```
+
+### Create AWS EKS cluster with `eksctl`
+
+Replace/change/add values in `./k8s/eks/ephemera-cluster-create.yaml`.
+
+```bash
+eksctl create cluster -f ./eks/ephemera-cluster-create.yaml --version=1.26
+```
 
 ### Install kubectl
 
@@ -10,39 +22,75 @@ Tested only locally with Docker Desktop for Mac.
 brew install kubectl
 ```
 
-### Most basic configuration
+### Configure kubectl
+
+```bash
+aws eks --region us-east-1 update-kubeconfig --name ephemera
+```
+
+## If needed, create the ECR repository for local images
+
+```bash
+aws ecr create-repository --repository-name nym --region us-east-1
+```
+
+### Docker login to AWS ECR
+
+```bash
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+```
+
+## Deploy Ephemera to Kubernetes
+
+### Build the Docker image
+
+```bash
+cd ../../node
+docker  build . -f ../docker/k8s/Dockerfile -t ephemera:latest --platform linux/amd64
+```
+
+### Tag the Docker image
+
+```bash
+docker tag ephemera:latest 526189391121.dkr.ecr.us-east-1.amazonaws.com/nym:ephemera
+```
+
+### Push the Docker image
+
+```bash
+docker push <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/nym:ephemera
+```
+
+### Create Ephemera cluster
 
 ```bash
 kubectl create configmap ephemera1 --from-file=config/ephemera1.toml --from-file=config/peers.toml
 kubectl create configmap ephemera2 --from-file=config/ephemera2.toml --from-file=config/peers.toml
 kubectl create configmap ephemera3 --from-file=config/ephemera3.toml --from-file=config/peers.toml
 ```
-
-### Create the cluster
-
+    
 ```bash
-kubectl apply -f ephemera1.deployment.yaml -f ephemera2.deployment.yaml  -f ephemera3.deployment.yaml
-kubectl apply -f ephemera1.service.yaml -f ephemera2.service.yaml  -f ephemera3.service.yaml
+kubectl apply -f ephemera1.all.yaml -f ephemera2.all.yaml  -f ephemera3.all.yaml
 ```
 
-### Check the cluster
+### Check Ephemera cluster
 
 ```bash
 kubectl get pods
 kubectl get services
 ```
 
-### Delete the cluster
+### Delete Ephemera cluster
 
 ```bash
 kubectl delete deploy ephemera1-deployment ephemera2-deployment  ephemera3-deployment
-kubectl delete svc ephemera1-service ephemera2-service ephemera3-service
+kubectl delete svc ephemera1-svc ephemera2-svc ephemera3-svc
 ```
 
-### Access the cluster
+### Delete Ephemera cluster configmaps
 
 ```bash
-curl http://127.0.0.1:7000/ephemera/broadcast/blocks/last
+kubectl delete configmap ephemera1 ephemera2 ephemera3
 ```
 
 
