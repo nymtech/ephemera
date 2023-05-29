@@ -1,0 +1,14 @@
+[Unit]
+Description=Ephemera
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/home/ubuntu/ephemera run-node --config-file $CONFIG_FILE --peers-config $PEERS_CONFIG
+EnvironmentFile=/home/ubuntu/ephemera-service.env
+WorkingDirectory=/home/ubuntu
+Restart=always
+RestartSec=5
+SyslogIdentifier=%n

@@ -39,6 +39,7 @@ impl WsConnection {
                     debug!("Sending message to {}", self.address);
                     if let Err(err) = self.socket.send(msg).await {
                         error!("Error sending message to websocket client: {:?}", err);
+                        break;
                     }
                 }
                 Err(e) => {

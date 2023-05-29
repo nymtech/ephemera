@@ -82,7 +82,9 @@ impl Quorum {
                 }
             }
             BrachaMessageType::Vote => {
-                if !ctx.voted() {
+                if ctx.voted() {
+                    trace!("Voting already done for Block:{}", ctx.hash);
+                } else {
                     // f + 1 votes are enough to send our vote
                     if ctx.vote.len() >= self.max_faulty_nodes {
                         trace!(
@@ -99,8 +101,6 @@ impl Quorum {
                         self.max_faulty_nodes + 1,
                         ctx.hash
                     );
-                } else {
-                    trace!("Voting already done for Block:{}", ctx.hash);
                 }
 
                 if ctx.voted() {

@@ -93,5 +93,14 @@ kubectl delete svc ephemera1 ephemera2 ephemera3
 kubectl delete configmap ephemera1 ephemera2 ephemera3
 ```
 
+## systemctl
 
+```bash
+sudo mv ephemera.service  /etc/systemd/system
+sudo systemctl daemon-reload
+sudo systemctl enable ephemera.service
+sudo systemctl start ephemera.service
+sudo systemctl status ephemera.service
+sudo journalctl -f -u ephemera.service
+```
 
