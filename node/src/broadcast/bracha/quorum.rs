@@ -57,6 +57,7 @@ impl Quorum {
         phase: BrachaMessageType,
     ) -> BrachaAction {
         if self.cluster_size == 0 {
+            trace!("Cluster size is 0, ignoring message");
             return BrachaAction::Ignore;
         }
 
@@ -92,6 +93,14 @@ impl Quorum {
                         );
                         return BrachaAction::Vote;
                     }
+                    trace!(
+                        "Vote send threshold not reached: Voted:{} / Threshold:{} for Block:{}",
+                        ctx.vote.len(),
+                        self.max_faulty_nodes + 1,
+                        ctx.hash
+                    );
+                } else {
+                    trace!("Voting already done for Block:{}", ctx.hash);
                 }
 
                 if ctx.voted() {
@@ -105,6 +114,19 @@ impl Quorum {
                         );
                         return BrachaAction::Deliver;
                     }
+                    trace!(
+                        "Deliver threshold not reached: Voted:{} / Threshold:{} for Block:{}",
+                        ctx.vote.len(),
+                        self.cluster_size - self.max_faulty_nodes,
+                        ctx.hash
+                    );
+                } else {
+                    trace!(
+                        "Deliver threshold not reached: Voted:{} / Threshold:{} for Block:{}",
+                        ctx.vote.len(),
+                        self.cluster_size - self.max_faulty_nodes,
+                        ctx.hash
+                    );
                 }
 
                 trace!(

@@ -22,6 +22,6 @@ port = 6001
 port = 7001
 
 [block_manager]
-producer = true
+producer = false
 creation_interval_sec = 30
 repeat_last_block_messages = false

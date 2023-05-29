@@ -37,7 +37,7 @@ aws ecr create-repository --repository-name nym --region us-east-1
 ### Docker login to AWS ECR
 
 ```bash
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 526189391121.dkr.ecr.us-east-1.amazonaws.com
 ```
 
 ## Deploy Ephemera to Kubernetes
@@ -58,7 +58,7 @@ docker tag ephemera:latest 526189391121.dkr.ecr.us-east-1.amazonaws.com/nym:ephe
 ### Push the Docker image
 
 ```bash
-docker push <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/nym:ephemera
+docker push 526189391121.dkr.ecr.us-east-1.amazonaws.com/nym:ephemera
 ```
 
 ### Create Ephemera cluster
@@ -84,7 +84,7 @@ kubectl get services
 
 ```bash
 kubectl delete deploy ephemera1-deployment ephemera2-deployment  ephemera3-deployment
-kubectl delete svc ephemera1-svc ephemera2-svc ephemera3-svc
+kubectl delete svc ephemera1 ephemera2 ephemera3
 ```
 
 ### Delete Ephemera cluster configmaps

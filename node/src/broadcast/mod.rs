@@ -66,7 +66,7 @@ impl ProtocolContext {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct RbMsg {
     ///Unique id of the message which stays the same throughout the protocol
     pub(crate) id: EphemeraId,
@@ -159,19 +159,6 @@ impl From<RbMsg> for RawRbMsg {
 }
 
 impl Display for RbMsg {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[id: {}, peer: {}, block: {}, phase: {:?}]",
-            self.id,
-            self.original_sender,
-            self.block().get_hash(),
-            self.phase
-        )
-    }
-}
-
-impl Debug for RbMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

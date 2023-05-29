@@ -24,7 +24,7 @@ spec:
             - name: PEERS_CONFIG
               value: "/config/peers.toml"
             - name: RUST_LOG
-              value: debug
+              value: "ephemera=trace,info"
           volumeMounts:
             - mountPath: /config
               name: config
@@ -41,11 +41,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ephemera2-svc
+  name: ephemera2
 spec:
   selector:
     app: ephemera2
-  type: NodePort
+  type: LoadBalancer
   ports:
     - name: protocol-port-svc
       protocol: TCP

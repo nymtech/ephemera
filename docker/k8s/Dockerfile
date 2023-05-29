@@ -5,6 +5,8 @@ COPY .. /ephemera
 WORKDIR /ephemera
 RUN cargo build --release
 
+#COPY /ephemera/target/release/ephemera ./ephemera
+
 FROM docker.io/library/ubuntu:20.04
 
 RUN apt-get update && \
@@ -14,6 +16,7 @@ RUN apt-get update && \
 
 
 COPY --from=builder /ephemera/target/release/ephemera /usr/local/bin
+
 ARG RUST_LOG="info"
 ENV RUST_BACKTRACE full
 ENV RUST_LOG $RUST_LOG
